@@ -1,4 +1,4 @@
-import { loadPrism, Plugin, TFile, type MarkdownPostProcessor } from 'obsidian';
+import { debounce, loadPrism, Plugin, TFile, type MarkdownPostProcessor } from 'obsidian';
 import { CodeBlock } from 'packages/obsidian/src/CodeBlock';
 import { createCm6Plugin } from 'packages/obsidian/src/codemirror/Cm6_ViewPlugin';
 import { DEFAULT_SETTINGS, type Settings } from 'packages/obsidian/src/settings/Settings';
@@ -54,9 +54,17 @@ export default class ShikiPlugin extends Plugin {
 			}),
 		);
 
+		const debouncedReload = debounce(
+			() => {
+				void this.reloadHighlighter();
+			},
+			500,
+			true,
+		);
+
 		this.registerEvent(
 			this.app.workspace.on('css-change', () => {
-				void this.reloadHighlighter();
+				debouncedReload();
 			}),
 		);
 

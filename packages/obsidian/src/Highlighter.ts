@@ -57,6 +57,7 @@ export class CodeHighlighter {
 
 	async unload(): Promise<void> {
 		this.unloadEC();
+		this.unloadShiki();
 	}
 
 	async loadCustomLanguages(): Promise<void> {
@@ -175,6 +176,10 @@ export class CodeHighlighter {
 			themes: [await this.themeMapper.getTheme()],
 			langs: this.customLanguages,
 		});
+	}
+
+	unloadShiki(): void {
+		this.shiki.dispose();
 	}
 
 	/**
