@@ -1,41 +1,44 @@
-import { debounce, loadPrism, Plugin, TFile, type MarkdownPostProcessor } from 'obsidian';
+import { debounce, loadPrism, Plugin, TFile } from 'obsidian';
 import { CodeBlock } from 'packages/obsidian/src/CodeBlock';
-import { createCm6Plugin } from 'packages/obsidian/src/codemirror/Cm6_ViewPlugin';
 import { DEFAULT_SETTINGS, type Settings } from 'packages/obsidian/src/settings/Settings';
 import { ShikiSettingsTab } from 'packages/obsidian/src/settings/SettingsTab';
-import { filterHighlightAllPlugin, type PrismWithFilterHighlightAll } from 'packages/obsidian/src/PrismPlugin';
-import { CodeHighlighter } from 'packages/obsidian/src/Highlighter';
 import { InlineCodeBlock } from 'packages/obsidian/src/InlineCodeBlock';
+import { LazyHighlighter, type ThemeOption } from 'packages/obsidian/src/LazyHighlighter';
+import { loadHighlighterEntry } from 'packages/obsidian/src/HighlighterEntryLoader';
+import { loadCustomThemeOptions } from 'packages/obsidian/src/settings/CustomThemeOptions';
+import type { PrismWithFilterHighlightAll } from 'packages/obsidian/src/PrismPlugin';
 
 import 'packages/obsidian/src/styles.css';
 import 'virtual:ec-styles.css';
-import 'virtual:ec-runtime';
 
 export const SHIKI_INLINE_REGEX = /^\{([^\s]+)\} (.*)/i; // format: `{lang} code`
 
 export default class ShikiPlugin extends Plugin {
-	highlighter!: CodeHighlighter;
+	highlighter!: LazyHighlighter;
 	activeCodeBlocks!: Map<string, (CodeBlock | InlineCodeBlock)[]>;
 	settings!: Settings;
 	loadedSettings!: Settings;
 	updateCm6Plugin!: () => Promise<void>;
-
-	codeBlockProcessors: MarkdownPostProcessor[] = [];
+	customThemeOptions: ThemeOption[] = [];
+	customThemeOptionsLoadedFrom: string | undefined;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
 		this.loadedSettings = structuredClone(this.settings);
+		this.highlighter = new LazyHighlighter(this);
+		this.activeCodeBlocks = new Map();
+		this.updateCm6Plugin = async (): Promise<void> => {};
+
 		this.addSettingTab(new ShikiSettingsTab(this));
 
-		this.highlighter = new CodeHighlighter(this);
-		await this.highlighter.load();
-
-		this.activeCodeBlocks = new Map();
-
 		this.registerInlineCodeProcessor();
-		this.registerCodeBlockProcessors();
+		this.registerCodeBlockPostProcessor();
 
-		this.registerEditorExtension([createCm6Plugin(this)]);
+		this.deferStartupWork((): void => {
+			void this.registerCm6Plugin().catch(error => {
+				console.warn('Unable to register Shiki CodeMirror integration.', error);
+			});
+		});
 
 		// this is a workaround for the fact that obsidian does not rerender the code block
 		// when the start line with the language changes, and we need that for the EC meta string
@@ -76,15 +79,17 @@ export default class ShikiPlugin extends Plugin {
 			},
 		});
 
-		await this.registerPrismPlugin();
+		this.deferStartupWork((): void => {
+			void this.registerPrismPlugin().catch(error => {
+				console.warn('Unable to register Shiki Prism integration.', error);
+			});
+		});
 	}
 
 	async reloadHighlighter(): Promise<void> {
-		await this.highlighter.unload();
-
 		this.loadedSettings = structuredClone(this.settings);
 
-		await this.highlighter.load();
+		await this.highlighter.reload();
 
 		for (const [_, codeBlocks] of this.activeCodeBlocks) {
 			for (const codeBlock of codeBlocks) {
@@ -95,35 +100,36 @@ export default class ShikiPlugin extends Plugin {
 		await this.updateCm6Plugin();
 	}
 
+	async registerCm6Plugin(): Promise<void> {
+		const { createCm6Plugin } = await loadHighlighterEntry(this);
+		this.registerEditorExtension([createCm6Plugin(this)]);
+	}
+
 	async registerPrismPlugin(): Promise<void> {
+		const { filterHighlightAllPlugin } = await loadHighlighterEntry(this);
 		const prism = (await loadPrism()) as PrismWithFilterHighlightAll;
 		const filterHighlightAll = filterHighlightAllPlugin(prism);
 		filterHighlightAll?.reject.addSelector('div.expressive-code pre code');
 	}
 
-	registerCodeBlockProcessors(): void {
-		const languages = this.highlighter.obsidianSafeLanguageNames();
+	registerCodeBlockPostProcessor(): void {
+		this.registerMarkdownPostProcessor((el, ctx) => {
+			const codeBlocks = el.findAll('pre > code[class*="language-"]');
+			for (const codeElm of codeBlocks) {
+				if (codeElm.parentElement?.classList.contains('mod-frontmatter')) {
+					continue;
+				}
 
-		for (const language of languages) {
-			try {
-				this.registerMarkdownCodeBlockProcessor(
-					language,
-					async (source, el, ctx) => {
-						// we need to avoid making the hidden frontmatter code block visible
-						if (el.parentElement?.classList.contains('mod-frontmatter')) {
-							return;
-						}
+				const language = [...codeElm.classList].find(className => className.startsWith('language-'))?.substring('language-'.length);
+				if (!language) {
+					continue;
+				}
 
-						const codeBlock = new CodeBlock(this, el, source, language, ctx);
-
-						ctx.addChild(codeBlock);
-					},
-					1000,
-				);
-			} catch (e) {
-				console.warn(`Failed to register code block processor for ${language}.`, e);
+				const containerEl = codeElm.parentElement ?? codeElm;
+				const codeBlock = new CodeBlock(this, containerEl, codeElm.textContent ?? '', language, ctx);
+				ctx.addChild(codeBlock);
 			}
-		}
+		});
 	}
 
 	registerInlineCodeProcessor(): void {
@@ -180,5 +186,28 @@ export default class ShikiPlugin extends Plugin {
 
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
+	}
+
+	async getSupportedLanguages(): Promise<string[]> {
+		return this.highlighter.supportedLanguages();
+	}
+
+	async loadCustomThemeOptions(): Promise<void> {
+		const folder = this.loadedSettings.customThemeFolder;
+		if (this.customThemeOptionsLoadedFrom === folder) {
+			return;
+		}
+
+		this.customThemeOptions = await loadCustomThemeOptions(this);
+		this.customThemeOptionsLoadedFrom = folder;
+	}
+
+	private deferStartupWork(callback: () => void): void {
+		if (typeof window.requestIdleCallback === 'function') {
+			window.requestIdleCallback(callback, { timeout: 1000 });
+			return;
+		}
+
+		window.setTimeout(callback, 50);
 	}
 }

@@ -1,0 +1,31 @@
+import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+
+function read(path: string): string {
+	return readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+}
+
+describe('startup module boundary', () => {
+	test('settings tab is startup-safe', () => {
+		const source = read('packages/obsidian/src/settings/SettingsTab.ts');
+
+		expect(source).not.toContain("from 'shiki'");
+		expect(source).not.toContain('from "shiki"');
+		expect(source).not.toContain('@expressive-code/');
+		expect(source).not.toContain('@codemirror/');
+	});
+
+	test('default settings do not import theme mapper', () => {
+		const source = read('packages/obsidian/src/settings/Settings.ts');
+
+		expect(source).not.toContain('themes/ThemeMapper');
+	});
+
+	test('main does not statically import heavy rendering modules', () => {
+		const source = read('packages/obsidian/src/main.ts');
+
+		expect(source).not.toContain("from 'packages/obsidian/src/Highlighter'");
+		expect(source).not.toContain("from 'packages/obsidian/src/codemirror/Cm6_ViewPlugin'");
+		expect(source).not.toContain("from 'virtual:ec-runtime'");
+	});
+});

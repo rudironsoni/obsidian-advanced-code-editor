@@ -1,9 +1,9 @@
 import { PluginSettingTab, Setting, Platform, Notice, normalizePath } from 'obsidian';
 import type ShikiPlugin from 'packages/obsidian/src/main';
 import { StringSelectModal } from 'packages/obsidian/src/settings/StringSelectModal';
-import { bundledThemesInfo } from 'shiki';
-import { OBSIDIAN_THEME_IDENTIFIER } from 'packages/obsidian/src/themes/ThemeMapper';
+import { OBSIDIAN_THEME_IDENTIFIER } from 'packages/obsidian/src/Constants';
 import { FrameType } from 'packages/obsidian/src/settings/Settings';
+import { BUNDLED_THEMES_INFO } from 'packages/obsidian/src/settings/BundledThemeInfo';
 
 export class ShikiSettingsTab extends PluginSettingTab {
 	plugin: ShikiPlugin;
@@ -16,9 +16,14 @@ export class ShikiSettingsTab extends PluginSettingTab {
 
 	display(): void {
 		this.containerEl.empty();
+		if (this.plugin.settings.customThemeFolder && this.plugin.customThemeOptionsLoadedFrom !== this.plugin.settings.customThemeFolder) {
+			void this.plugin.loadCustomThemeOptions().then(() => {
+				this.display();
+			});
+		}
 
-		const customThemes = Object.fromEntries(this.plugin.highlighter.customThemes.map(theme => [theme.name, `${theme.displayName} (${theme.type})`]));
-		const builtInThemes = Object.fromEntries(bundledThemesInfo.map(theme => [theme.id, `${theme.displayName} (${theme.type})`]));
+		const customThemes = Object.fromEntries(this.plugin.customThemeOptions.map(theme => [theme.name, `${theme.displayName} (${theme.type})`]));
+		const builtInThemes = Object.fromEntries(BUNDLED_THEMES_INFO.map(theme => [theme.id, `${theme.displayName} (${theme.type})`]));
 		const themes = {
 			[OBSIDIAN_THEME_IDENTIFIER]: 'Obsidian built-in (both)',
 			...customThemes,
@@ -154,8 +159,12 @@ export class ShikiSettingsTab extends PluginSettingTab {
 			.setName('Excluded Languages')
 			.setDesc('Configure language to exclude.')
 			.addButton(button => {
-				button.setButtonText('Add Language Rule').onClick(() => {
-					const modal = new StringSelectModal(this.plugin, this.plugin.highlighter.supportedLanguages, language => {
+				button.setButtonText('Add Language Rule').onClick(async () => {
+					button.setDisabled(true);
+					const languages = await this.plugin.getSupportedLanguages();
+					button.setDisabled(false);
+
+					const modal = new StringSelectModal(this.plugin, languages, language => {
 						this.plugin.settings.disabledLanguages.push(language);
 						void this.plugin.saveSettings();
 						this.display();

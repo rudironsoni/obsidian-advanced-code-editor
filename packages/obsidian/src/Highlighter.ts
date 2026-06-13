@@ -14,8 +14,9 @@ import { normalizePath, Notice } from 'obsidian';
 import { DEFAULT_SETTINGS } from 'packages/obsidian/src/settings/Settings';
 import { toDom } from 'hast-util-to-dom';
 import { createEcEngineConfig } from 'packages/ec-core/src/Config';
+import { loadCustomThemeOptions } from 'packages/obsidian/src/settings/CustomThemeOptions';
 
-interface CustomTheme {
+export interface CustomTheme {
 	name: string;
 	displayName: string;
 	type: string;
@@ -92,39 +93,8 @@ export class CodeHighlighter {
 
 	async loadCustomThemes(): Promise<void> {
 		const activeTheme = this.themeMapper.getThemeIdentifier();
-		this.customThemes = [];
-
-		// custom themes are disabled unless users specify a folder for them in plugin settings
-		if (!this.plugin.loadedSettings.customThemeFolder) return;
-
-		const themeFolder = normalizePath(this.plugin.loadedSettings.customThemeFolder);
-		if (!(await this.plugin.app.vault.adapter.exists(themeFolder))) {
-			new Notice(`${this.plugin.manifest.name}\nUnable to open custom themes folder: ${themeFolder}`, 5000);
-			return;
-		}
-
-		const themeList = await this.plugin.app.vault.adapter.list(themeFolder);
-		const themeFiles = themeList.files.filter(f => f.toLowerCase().endsWith('.json'));
-
-		for (const themeFile of themeFiles) {
-			const baseName = themeFile.substring(`${themeFolder}/`.length);
-			try {
-				const theme = JSON.parse(await this.plugin.app.vault.adapter.read(themeFile)) as CustomTheme;
-				// validate that theme file JSON can be parsed and contains colors at a minimum
-				if (!theme.colors && !theme.tokenColors) {
-					throw Error('Invalid JSON theme file.');
-				}
-				// what metadata is available in the theme file depends on how it was created
-				theme.displayName = theme.displayName ?? theme.name ?? baseName;
-				theme.name = baseName.toLowerCase();
-				theme.type = theme.type ?? 'both';
-
-				this.customThemes.push(theme);
-			} catch (e) {
-				new Notice(`${this.plugin.manifest.name}\nUnable to load custom theme: ${themeFile}`, 5000);
-				console.warn(`Unable to load custom theme: ${themeFile}`, e);
-			}
-		}
+		this.customThemes = await loadCustomThemeOptions(this.plugin);
+		this.plugin.customThemeOptions = this.customThemes;
 
 		// if the user's set theme cannot be loaded (e.g. it was deleted), fall back to default theme
 		if (this.themeMapper.usingCustomTheme() && !this.customThemes.find(theme => theme.name === activeTheme)) {

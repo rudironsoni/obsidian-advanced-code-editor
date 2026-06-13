@@ -14,6 +14,7 @@ const polyfilledNodeBuiltins = new Set(['fs', 'path', 'url']);
 const externalNodeBuiltins = builtinModules.filter(moduleName => !polyfilledNodeBuiltins.has(moduleName.replace(/^node:/, '')));
 
 const entryFile = 'packages/obsidian/src/main.ts';
+const highlighterEntryFile = 'packages/obsidian/src/highlighter-entry.ts';
 const EC_RUNTIME_MODULE_ID = 'virtual:ec-runtime';
 const EC_STYLES_MODULE_ID = 'virtual:ec-styles.css';
 const EC_RUNTIME_RESOLVED_ID = `\0${EC_RUNTIME_MODULE_ID}`;
@@ -78,6 +79,23 @@ function expressiveCodeBundlePlugin() {
 export default defineConfig(({ mode }) => {
 	const prod = mode === 'production';
 	const outDir = prod ? 'dist/' : `exampleVault/.obsidian/plugins/${manifest.id}/`;
+	const buildEntry = process.env.SHIKI_BUILD_ENTRY === 'highlighter' ? 'highlighter' : 'main';
+	const external = [
+		'obsidian',
+		'electron',
+		'@codemirror/autocomplete',
+		'@codemirror/collab',
+		'@codemirror/commands',
+		'@codemirror/language',
+		'@codemirror/lint',
+		'@codemirror/search',
+		'@codemirror/state',
+		'@codemirror/view',
+		'@lezer/common',
+		'@lezer/highlight',
+		'@lezer/lr',
+		...externalNodeBuiltins,
+	];
 
 	return {
 		plugins: [
@@ -90,9 +108,13 @@ export default defineConfig(({ mode }) => {
 				outDir,
 				content: getBuildBanner(prod ? 'Release Build' : 'Dev Build', version => version),
 			}),
-			viteStaticCopy({
-				targets: [{ src: 'manifest.json', dest: outDir }],
-			}),
+			...(buildEntry === 'main'
+				? [
+						viteStaticCopy({
+							targets: [{ src: 'manifest.json', dest: outDir }],
+						}),
+					]
+				: []),
 		],
 		resolve: {
 			alias: {
@@ -101,9 +123,9 @@ export default defineConfig(({ mode }) => {
 		},
 		build: {
 			lib: {
-				entry: path.resolve(__dirname, entryFile),
-				name: 'main',
-				fileName: () => 'main.js',
+				entry: path.resolve(__dirname, buildEntry === 'main' ? entryFile : highlighterEntryFile),
+				name: buildEntry,
+				fileName: () => `${buildEntry}.js`,
 				formats: ['cjs'],
 			},
 			minify: prod,
@@ -113,31 +135,13 @@ export default defineConfig(({ mode }) => {
 			emptyOutDir: false,
 			outDir: '',
 			rolldownOptions: {
-				input: {
-					main: path.resolve(__dirname, entryFile),
-				},
 				output: {
 					dir: outDir,
-					entryFileNames: 'main.js',
-					assetFileNames: 'styles.css',
+					entryFileNames: `${buildEntry}.js`,
+					assetFileNames: buildEntry === 'main' ? 'styles.css' : 'highlighter.css',
 					codeSplitting: false,
 				},
-				external: [
-					'obsidian',
-					'electron',
-					'@codemirror/autocomplete',
-					'@codemirror/collab',
-					'@codemirror/commands',
-					'@codemirror/language',
-					'@codemirror/lint',
-					'@codemirror/search',
-					'@codemirror/state',
-					'@codemirror/view',
-					'@lezer/common',
-					'@lezer/highlight',
-					'@lezer/lr',
-					...externalNodeBuiltins,
-				],
+				external,
 			},
 		},
 	} as UserConfig;

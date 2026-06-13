@@ -2,8 +2,9 @@ import { type BundledTheme, bundledThemes, type ThemeRegistration } from 'shiki'
 import type * as hast_types from 'hast';
 import { OBSIDIAN_THEME } from 'packages/ec-core/src/ObsidianTheme';
 import type ShikiPlugin from 'packages/obsidian/src/main';
+import { OBSIDIAN_THEME_IDENTIFIER } from 'packages/obsidian/src/Constants';
 
-export const OBSIDIAN_THEME_IDENTIFIER = 'obsidian-theme';
+export { OBSIDIAN_THEME_IDENTIFIER };
 
 export class ThemeMapper {
 	plugin: ShikiPlugin;
