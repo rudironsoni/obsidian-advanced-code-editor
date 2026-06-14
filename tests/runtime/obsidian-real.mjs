@@ -431,6 +431,101 @@ async function dispatchTouchTap(wsUrl, x, y) {
 	}
 }
 
+async function dispatchTouchDrag(wsUrl, fromX, fromY, toX, toY, steps = 8) {
+	const socket = new WebSocket(wsUrl);
+	let nextId = 0;
+	const pending = new Map();
+
+	await new Promise((resolve, reject) => {
+		socket.addEventListener('open', resolve, { once: true });
+		socket.addEventListener('error', reject, { once: true });
+	});
+
+	socket.addEventListener('message', event => {
+		const message = JSON.parse(event.data);
+		if (message.id && pending.has(message.id)) {
+			const callbacks = pending.get(message.id);
+			pending.delete(message.id);
+			if (message.error) callbacks.reject(message.error);
+			else callbacks.resolve(message.result);
+		}
+	});
+
+	function send(method, params = {}) {
+		const id = ++nextId;
+		socket.send(JSON.stringify({ id, method, params }));
+		return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+	}
+
+	try {
+		await send('Input.dispatchTouchEvent', {
+			type: 'touchStart',
+			touchPoints: [{ x: fromX, y: fromY, radiusX: 2, radiusY: 2, force: 1 }],
+		});
+		for (let step = 1; step <= steps; step++) {
+			const progress = step / steps;
+			await send('Input.dispatchTouchEvent', {
+				type: 'touchMove',
+				touchPoints: [
+					{
+						x: fromX + (toX - fromX) * progress,
+						y: fromY + (toY - fromY) * progress,
+						radiusX: 2,
+						radiusY: 2,
+						force: 1,
+					},
+				],
+			});
+			await new Promise(resolve => setTimeout(resolve, 16));
+		}
+		await send('Input.dispatchTouchEvent', {
+			type: 'touchEnd',
+			touchPoints: [],
+		});
+	} finally {
+		socket.close();
+	}
+}
+
+async function dispatchHorizontalWheel(wsUrl, x, y, deltaX) {
+	const socket = new WebSocket(wsUrl);
+	let nextId = 0;
+	const pending = new Map();
+
+	await new Promise((resolve, reject) => {
+		socket.addEventListener('open', resolve, { once: true });
+		socket.addEventListener('error', reject, { once: true });
+	});
+
+	socket.addEventListener('message', event => {
+		const message = JSON.parse(event.data);
+		if (message.id && pending.has(message.id)) {
+			const callbacks = pending.get(message.id);
+			pending.delete(message.id);
+			if (message.error) callbacks.reject(message.error);
+			else callbacks.resolve(message.result);
+		}
+	});
+
+	function send(method, params = {}) {
+		const id = ++nextId;
+		socket.send(JSON.stringify({ id, method, params }));
+		return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+	}
+
+	try {
+		await send('Input.dispatchMouseEvent', {
+			type: 'mouseWheel',
+			x,
+			y,
+			deltaX,
+			deltaY: 0,
+		});
+	} finally {
+		socket.close();
+	}
+}
+
 async function trustVault(wsUrl) {
 	return evaluate(
 		wsUrl,
@@ -632,6 +727,98 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			return {};
 		})()`,
 	);
+	if (mobile) {
+		const swipeTarget = await evaluate(
+			activeWsUrl,
+			`(() => {
+				const app = window.app;
+				const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
+				const csharpLine = [...editorRoot.querySelectorAll('.cm-content .shiki-editing-codeblock-line')].find(el =>
+					el.textContent?.includes('List<int[]> intervals')
+				);
+				if (!csharpLine) return null;
+				const blockId = csharpLine.getAttribute('data-shiki-editing-block-id');
+				const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${blockId}"]\`)];
+				for (const line of blockLines) line.scrollLeft = 0;
+				app.workspace.rightSplit?.collapse?.();
+				const rect = csharpLine.getBoundingClientRect();
+				const y = rect.top + Math.min(rect.height / 2, 24);
+				const fromX = Math.min(rect.right - 24, rect.left + Math.max(120, rect.width * 0.75));
+				globalThis.__shikiVerifyEditableSwipe = {
+					blockId,
+					before: blockLines.map(line => line.scrollLeft),
+					after: null,
+					hasOverflowingLine: blockLines.some(line => line.scrollWidth > line.clientWidth),
+					rightSplitCollapsedBefore: app.workspace.rightSplit?.collapsed ?? null,
+					rightSplitCollapsedAfter: null,
+				};
+				return {
+					fromX,
+					fromY: y,
+					toX: Math.max(rect.left + 24, fromX - 220),
+					toY: y,
+				};
+			})()`,
+		);
+		if (swipeTarget) {
+			await dispatchTouchDrag(activeWsUrl, swipeTarget.fromX, swipeTarget.fromY, swipeTarget.toX, swipeTarget.toY);
+			await evaluate(
+				activeWsUrl,
+				`(() => {
+					const app = window.app;
+					const state = globalThis.__shikiVerifyEditableSwipe;
+					if (!state?.blockId) return null;
+					const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
+					const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${state.blockId}"]\`)];
+					state.after = blockLines.map(line => line.scrollLeft);
+					state.rightSplitCollapsedAfter = app.workspace.rightSplit?.collapsed ?? null;
+					return state;
+				})()`,
+			);
+			const wheelTarget = await evaluate(
+				activeWsUrl,
+				`(() => {
+					const app = window.app;
+					const swipeState = globalThis.__shikiVerifyEditableSwipe;
+					if (!swipeState?.blockId) return null;
+					const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
+					const csharpLine = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${swipeState.blockId}"]\`)].find(el =>
+						el.textContent?.includes('List<int[]> intervals')
+					);
+					if (!csharpLine) return null;
+					const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${swipeState.blockId}"]\`)];
+					for (const line of blockLines) line.scrollLeft = 0;
+					const rect = csharpLine.getBoundingClientRect();
+					globalThis.__shikiVerifyEditableWheel = {
+						blockId: swipeState.blockId,
+						before: blockLines.map(line => line.scrollLeft),
+						after: null,
+						hasOverflowingLine: blockLines.some(line => line.scrollWidth > line.clientWidth),
+					};
+					return {
+						x: Math.min(rect.right - 24, rect.left + Math.max(120, rect.width * 0.75)),
+						y: rect.top + Math.min(rect.height / 2, 24),
+					};
+				})()`,
+			);
+			if (wheelTarget) {
+				await dispatchHorizontalWheel(activeWsUrl, wheelTarget.x, wheelTarget.y, 180);
+				await evaluate(
+					activeWsUrl,
+					`(() => {
+						const app = window.app;
+						const state = globalThis.__shikiVerifyEditableWheel;
+						if (!state?.blockId) return null;
+						const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
+						const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${state.blockId}"]\`)];
+						state.after = blockLines.map(line => line.scrollLeft);
+						return state;
+					})()`,
+				);
+			}
+		}
+	}
+
 	return evaluate(
 		activeWsUrl,
 		`(async () => {
@@ -639,6 +826,8 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			if (!window.app?.plugins) throw new Error('Obsidian app was not ready');
 			const app = window.app;
 			const state = globalThis.__shikiVerifyState;
+			const editableSwipe = globalThis.__shikiVerifyEditableSwipe ?? null;
+			const editableWheel = globalThis.__shikiVerifyEditableWheel ?? null;
 			const plugin = app.plugins.plugins['${PLUGIN_ID}'];
 			await new Promise(resolve => setTimeout(resolve, 1000));
 			await plugin.updateCm6Plugin();
@@ -687,6 +876,8 @@ async function verifyFeatureSet(wsUrl, mobile) {
 				fencedEditorTokens,
 				editableCodeBlockLines,
 				editableScrollSync,
+				editableSwipe,
+				editableWheel,
 				editableLineNumbers,
 			};
 		})()`,
@@ -756,6 +947,23 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 		result,
 	);
 	assert(result.editableScrollSync.allLinesClipToBlock, `${label}: editable fenced code block painted past the editor boundary`, result);
+	if (result.isMobile) {
+		assert(result.editableSwipe !== null, `${label}: editable fenced code block touch swipe was not measured`, result);
+		assert(result.editableSwipe.hasOverflowingLine, `${label}: editable fenced code block touch swipe had no overflow target`, result);
+		assert(
+			result.editableSwipe.after.some(scrollLeft => scrollLeft > 0),
+			`${label}: editable fenced code block touch swipe did not scroll code content`,
+			result,
+		);
+		assert(result.editableSwipe.rightSplitCollapsedAfter !== false, `${label}: editable fenced code block touch swipe opened the right sidebar`, result);
+		assert(result.editableWheel !== null, `${label}: editable fenced code block horizontal wheel was not measured`, result);
+		assert(result.editableWheel.hasOverflowingLine, `${label}: editable fenced code block horizontal wheel had no overflow target`, result);
+		assert(
+			result.editableWheel.after.some(scrollLeft => scrollLeft > 0),
+			`${label}: editable fenced code block horizontal wheel did not scroll code content`,
+			result,
+		);
+	}
 	if (enforcePluginLoadMs) {
 		assert(result.measurements.pluginLoadMs < 50, `${label}: plugin load exceeded 50ms`, result.measurements);
 	}

@@ -114,6 +114,17 @@ export function createEditableCodeBlockTouchPan(root: ParentNode, source: HTMLEl
 	};
 }
 
+export function scrollEditableCodeBlockByDelta(root: ParentNode, source: HTMLElement, deltaX: number): boolean {
+	const scrollSource = findEditableCodeBlockScrollSource(root, source);
+	if (!scrollSource || Math.abs(deltaX) < 1) {
+		return false;
+	}
+
+	scrollSource.scrollLeft += deltaX;
+	syncEditableCodeBlockScroll(root, scrollSource);
+	return true;
+}
+
 export function panEditableCodeBlockScroll(root: ParentNode, pan: EditableCodeBlockTouchPan, currentX: number, currentY: number): boolean {
 	const deltaX = pan.startX - currentX;
 	const deltaY = pan.startY - currentY;

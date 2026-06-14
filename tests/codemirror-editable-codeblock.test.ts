@@ -6,6 +6,7 @@ import {
 	normalizeEditableCodeBlockScrollWidths,
 	panEditableCodeBlockScroll,
 	parseFenceInfo,
+	scrollEditableCodeBlockByDelta,
 	shouldUpdateCodeBlockDecorations,
 	syncEditableCodeBlockScroll,
 	type EditableCodeBlock,
@@ -186,6 +187,26 @@ describe('editable CodeMirror code block decorations', () => {
 		expect(shortLine.scrollLeft).toBe(84);
 		expect(wideLine.scrollLeft).toBe(84);
 		expect(outside.scrollLeft).toBe(0);
+	});
+
+	test('scrolls whole editable code block from horizontal wheel delta', () => {
+		const root = document.createElement('div');
+		const shortLine = document.createElement('div');
+		const wideLine = document.createElement('div');
+		shortLine.className = 'shiki-editing-codeblock-line shiki-editing-codeblock-nowrap';
+		wideLine.className = 'shiki-editing-codeblock-line shiki-editing-codeblock-nowrap';
+		shortLine.dataset.shikiEditingBlockId = '100-200';
+		wideLine.dataset.shikiEditingBlockId = '100-200';
+		Object.defineProperty(shortLine, 'clientWidth', { configurable: true, value: 320 });
+		Object.defineProperty(shortLine, 'scrollWidth', { configurable: true, value: 320 });
+		Object.defineProperty(wideLine, 'clientWidth', { configurable: true, value: 320 });
+		Object.defineProperty(wideLine, 'scrollWidth', { configurable: true, value: 900 });
+		root.append(shortLine, wideLine);
+
+		expect(scrollEditableCodeBlockByDelta(root, shortLine, 96)).toBe(true);
+		expect(shortLine.scrollLeft).toBe(96);
+		expect(wideLine.scrollLeft).toBe(96);
+		expect(scrollEditableCodeBlockByDelta(root, shortLine, 0.5)).toBe(false);
 	});
 
 	test('gives short lines enough scrollable width to follow the whole editable code block', () => {
