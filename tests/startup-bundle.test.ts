@@ -57,9 +57,12 @@ describe('startup bundle', () => {
 		expect(workflow).toContain('DEFAULT_BUMP: ${{ (startsWith(github.ref_name,');
 		expect(workflow).toContain('Apply beta version to plugin manifests');
 		expect(workflow).toContain('BETA_VERSION: ${{ steps.beta-version.outputs.new_tag }}');
+		expect(workflow).toContain('Commit beta version for BRAT');
+		expect(workflow).toContain('git add package.json manifest.json manifest-beta.json versions.json');
+		expect(workflow).toContain('[skip ci]');
 		expect(workflow).toContain('tag_name: ${{ steps.beta-version.outputs.new_tag }}');
 		expect(workflow).toContain('prerelease: true');
-		expect(workflow).toContain('target_commitish: ${{ github.sha }}');
+		expect(workflow).toContain('target_commitish: ${{ github.ref_name }}');
 		expect(workflow).toContain('dist/*.js');
 		expect(workflow).toContain('dist/*.css');
 	});
