@@ -73,6 +73,26 @@ export function syncEditableCodeBlockScroll(root: ParentNode, source: HTMLElemen
 	}
 }
 
+export interface EditableCodeBlockTouchPan {
+	source: HTMLElement;
+	startX: number;
+	startY: number;
+	startScrollLeft: number;
+}
+
+export function panEditableCodeBlockScroll(root: ParentNode, pan: EditableCodeBlockTouchPan, currentX: number, currentY: number): boolean {
+	const deltaX = pan.startX - currentX;
+	const deltaY = pan.startY - currentY;
+
+	if (Math.abs(deltaX) <= Math.abs(deltaY) || pan.source.scrollWidth <= pan.source.clientWidth) {
+		return false;
+	}
+
+	pan.source.scrollLeft = pan.startScrollLeft + deltaX;
+	syncEditableCodeBlockScroll(root, pan.source);
+	return true;
+}
+
 export function normalizeEditableCodeBlockScrollWidths(root: ParentNode): void {
 	const blocks = new Map<string, HTMLElement[]>();
 	for (const line of root.querySelectorAll<HTMLElement>('.shiki-editing-codeblock-line[data-shiki-editing-block-id]')) {

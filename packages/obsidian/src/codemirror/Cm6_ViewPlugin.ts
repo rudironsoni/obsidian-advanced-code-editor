@@ -9,7 +9,9 @@ import { type ThemedToken } from 'shiki';
 import { editorLivePreviewField } from 'obsidian';
 import {
 	buildEditableCodeBlockDecorations,
+	type EditableCodeBlockTouchPan,
 	normalizeEditableCodeBlockScrollWidths,
+	panEditableCodeBlockScroll,
 	parseFenceInfo,
 	shouldUpdateCodeBlockDecorations,
 	syncEditableCodeBlockScroll,
@@ -48,14 +50,29 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 			decorations: DecorationSet;
 			view: EditorView;
 			private readonly scrollBoundLines = new WeakSet<HTMLElement>();
+			private editableCodeBlockTouchPan: EditableCodeBlockTouchPan | null = null;
 			private syncingEditableCodeBlockScroll = false;
+
+			private findEditableCodeBlockScrollLine(target: EventTarget | null): HTMLElement | null {
+				if (!(target instanceof Element)) {
+					return null;
+				}
+
+				const line = target.closest<HTMLElement>('.shiki-editing-codeblock-nowrap');
+				if (!line || !this.view.dom.contains(line)) {
+					return null;
+				}
+
+				return line;
+			}
+
 			private readonly handleEditableCodeBlockScroll = (event: Event): void => {
 				if (this.syncingEditableCodeBlockScroll) {
 					return;
 				}
 
-				const target = event.target;
-				if (!(target instanceof HTMLElement) || !target.classList.contains('shiki-editing-codeblock-nowrap')) {
+				const target = this.findEditableCodeBlockScrollLine(event.target);
+				if (!target) {
 					return;
 				}
 
@@ -67,10 +84,49 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 				}
 			};
 
+			private readonly handleEditableCodeBlockTouchStart = (event: TouchEvent): void => {
+				const target = this.findEditableCodeBlockScrollLine(event.target);
+				const touch = event.touches[0];
+				if (!target || !touch || target.scrollWidth <= target.clientWidth) {
+					this.editableCodeBlockTouchPan = null;
+					return;
+				}
+
+				this.editableCodeBlockTouchPan = {
+					source: target,
+					startX: touch.clientX,
+					startY: touch.clientY,
+					startScrollLeft: target.scrollLeft,
+				};
+			};
+
+			private readonly handleEditableCodeBlockTouchMove = (event: TouchEvent): void => {
+				const pan = this.editableCodeBlockTouchPan;
+				const touch = event.touches[0];
+				if (!pan || !touch) {
+					return;
+				}
+
+				if (!panEditableCodeBlockScroll(this.view.dom, pan, touch.clientX, touch.clientY)) {
+					return;
+				}
+
+				event.preventDefault();
+				event.stopPropagation();
+			};
+
+			private readonly handleEditableCodeBlockTouchEnd = (): void => {
+				this.editableCodeBlockTouchPan = null;
+			};
+
 			constructor(view: EditorView) {
 				this.view = view;
 				this.decorations = Decoration.none;
 				view.dom.addEventListener('scroll', this.handleEditableCodeBlockScroll, true);
+				view.dom.addEventListener('touchstart', this.handleEditableCodeBlockTouchStart, { capture: true, passive: true });
+				view.dom.addEventListener('touchmove', this.handleEditableCodeBlockTouchMove, { capture: true, passive: false });
+				view.dom.addEventListener('touchend', this.handleEditableCodeBlockTouchEnd, true);
+				view.dom.addEventListener('touchcancel', this.handleEditableCodeBlockTouchEnd, true);
 				views.add(this);
 				void this.updateWidgets(view);
 
@@ -451,6 +507,10 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 			 */
 			destroy(): void {
 				this.view.dom.removeEventListener('scroll', this.handleEditableCodeBlockScroll, true);
+				this.view.dom.removeEventListener('touchstart', this.handleEditableCodeBlockTouchStart, true);
+				this.view.dom.removeEventListener('touchmove', this.handleEditableCodeBlockTouchMove, true);
+				this.view.dom.removeEventListener('touchend', this.handleEditableCodeBlockTouchEnd, true);
+				this.view.dom.removeEventListener('touchcancel', this.handleEditableCodeBlockTouchEnd, true);
 				views.delete(this);
 				this.decorations = Decoration.none;
 			}

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
 	buildEditableCodeBlockDecorations,
 	normalizeEditableCodeBlockScrollWidths,
+	panEditableCodeBlockScroll,
 	parseFenceInfo,
 	shouldUpdateCodeBlockDecorations,
 	syncEditableCodeBlockScroll,
@@ -121,6 +122,28 @@ describe('editable CodeMirror code block decorations', () => {
 
 		expect(second.scrollLeft).toBe(72);
 		expect(outside.scrollLeft).toBe(0);
+	});
+
+	test('pans overflowing editable code block lines only for horizontal touch movement', () => {
+		const root = document.createElement('div');
+		const first = document.createElement('div');
+		const second = document.createElement('div');
+		first.className = 'shiki-editing-codeblock-line shiki-editing-codeblock-nowrap';
+		second.className = 'shiki-editing-codeblock-line shiki-editing-codeblock-nowrap';
+		first.dataset.shikiEditingBlockId = '100-200';
+		second.dataset.shikiEditingBlockId = '100-200';
+		Object.defineProperty(first, 'clientWidth', { configurable: true, value: 320 });
+		Object.defineProperty(first, 'scrollWidth', { configurable: true, value: 900 });
+		root.append(first, second);
+
+		const didPanVertically = panEditableCodeBlockScroll(root, { source: first, startX: 100, startY: 100, startScrollLeft: 12 }, 94, 40);
+		expect(didPanVertically).toBe(false);
+		expect(first.scrollLeft).toBe(0);
+
+		const didPanHorizontally = panEditableCodeBlockScroll(root, { source: first, startX: 100, startY: 100, startScrollLeft: 12 }, 40, 96);
+		expect(didPanHorizontally).toBe(true);
+		expect(first.scrollLeft).toBe(72);
+		expect(second.scrollLeft).toBe(72);
 	});
 
 	test('gives short lines enough scrollable width to follow the whole editable code block', () => {
