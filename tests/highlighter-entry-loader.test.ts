@@ -127,4 +127,46 @@ describe('highlighter entry loader', () => {
 			globalThis.__SHIKI_EMBEDDED_HIGHLIGHTER_SOURCE__ = previousEmbeddedSource;
 		}
 	});
+
+	test('falls back to styles.css when highlighter.css is missing', async () => {
+		clearHighlighterEntryCache();
+		const previousEmbeddedSource = globalThis.__SHIKI_EMBEDDED_HIGHLIGHTER_SOURCE__;
+		globalThis.__SHIKI_EMBEDDED_HIGHLIGHTER_SOURCE__ = undefined;
+		const fallbackSource =
+			'exports.CodeHighlighter = class StylesFallbackHighlighter {}; exports.createCm6Plugin = () => "styles-cm6"; exports.filterHighlightAllPlugin = () => "styles-prism";';
+		const fallback = gzipSync(fallbackSource).toString('base64');
+		const requestedPaths: string[] = [];
+
+		const plugin = {
+			manifest: { id: 'shiki-highlighter', dir: '.obsidian/plugins/shiki-highlighter' },
+			app: {
+				vault: {
+					adapter: {
+						read: async (path: string): Promise<string> => {
+							requestedPaths.push(path);
+							if (path.endsWith('highlighter.js') || path.endsWith('highlighter.css')) {
+								throw new Error(`${path} is not installed`);
+							}
+							return `body {}\n/* shiki-highlighter-fallback:${fallback} */\n`;
+						},
+					},
+				},
+			},
+		};
+
+		try {
+			const entry = await loadHighlighterEntry(plugin as never);
+
+			expect(requestedPaths).toEqual([
+				'.obsidian/plugins/shiki-highlighter/highlighter.js',
+				'.obsidian/plugins/shiki-highlighter/highlighter.css',
+				'.obsidian/plugins/shiki-highlighter/styles.css',
+			]);
+			expect(entry.CodeHighlighter.name).toBe('StylesFallbackHighlighter');
+			expect((entry.createCm6Plugin as unknown as () => string)()).toBe('styles-cm6');
+			expect((entry.filterHighlightAllPlugin as unknown as () => string)()).toBe('styles-prism');
+		} finally {
+			globalThis.__SHIKI_EMBEDDED_HIGHLIGHTER_SOURCE__ = previousEmbeddedSource;
+		}
+	});
 });

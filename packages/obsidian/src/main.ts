@@ -2,6 +2,7 @@ import { debounce, loadPrism, Plugin, PluginSettingTab, TFile } from 'obsidian';
 import { DEFAULT_SETTINGS, type Settings } from 'packages/obsidian/src/settings/Settings';
 import { LazyHighlighter, type ThemeOption } from 'packages/obsidian/src/LazyHighlighter';
 import { loadHighlighterEntry } from 'packages/obsidian/src/HighlighterEntryLoader';
+import { ShikiSettingsTab } from 'packages/obsidian/src/settings/SettingsTab';
 import type { CodeBlock, InlineCodeBlock } from 'packages/obsidian/src/highlighter-entry';
 import type { PrismWithFilterHighlightAll } from 'packages/obsidian/src/PrismPlugin';
 
@@ -304,7 +305,6 @@ class LazyShikiSettingsTab extends PluginSettingTab {
 	display(): void {
 		this.containerEl.empty();
 		void this.plugin.ensureSettingsLoaded().then(async () => {
-			const { ShikiSettingsTab } = await loadHighlighterEntry(this.plugin);
 			const settingsTab = new ShikiSettingsTab(this.plugin);
 			settingsTab.containerEl = this.containerEl;
 			settingsTab.display();

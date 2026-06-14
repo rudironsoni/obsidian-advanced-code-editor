@@ -20,13 +20,13 @@ describe('startup bundle', () => {
 		expect(existsSync(new URL('../dist/highlighter.js', import.meta.url))).toBe(true);
 	});
 
-	test('startup bundle keeps the BRAT fallback out of startup JavaScript', () => {
+	test('startup bundle carries the BRAT fallback without bloating startup CSS', () => {
 		const startupBundle = readFileSync(new URL('../dist/main.js', import.meta.url), 'utf8');
 		const styles = readFileSync(new URL('../dist/styles.css', import.meta.url), 'utf8');
 		const highlighterStyles = readFileSync(new URL('../dist/highlighter.css', import.meta.url), 'utf8');
 
-		expect(startupBundle).not.toContain('H4sIA');
-		expect(startupBundle.length).toBeLessThan(100 * 1024);
+		expect(startupBundle).toContain('H4sIA');
+		expect(startupBundle.length).toBeLessThan(3 * 1024 * 1024);
 		expect(styles).not.toContain('shiki-highlighter-fallback:');
 		expect(highlighterStyles).toContain('shiki-highlighter-fallback:');
 	});

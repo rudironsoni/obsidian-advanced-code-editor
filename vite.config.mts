@@ -143,7 +143,7 @@ export default defineConfig(({ mode }) => {
 			},
 		},
 		define: {
-			__SHIKI_EMBEDDED_HIGHLIGHTER_SOURCE_GZIP_BASE64__: JSON.stringify(''),
+			__SHIKI_EMBEDDED_HIGHLIGHTER_SOURCE_GZIP_BASE64__: JSON.stringify(embeddedHighlighterSource),
 		},
 		build: {
 			lib: {

@@ -23,7 +23,13 @@ async function getEmbeddedHighlighterSource(plugin: ShikiPlugin, pluginDir: stri
 	}
 
 	for (const fileName of ['highlighter.css', 'styles.css']) {
-		const styles = await plugin.app.vault.adapter.read(`${pluginDir}/${fileName}`);
+		let styles = '';
+		try {
+			styles = await plugin.app.vault.adapter.read(`${pluginDir}/${fileName}`);
+		} catch {
+			continue;
+		}
+
 		const match = /\/\* shiki-highlighter-fallback:([A-Za-z0-9+/=]+) \*\//.exec(styles);
 		if (match) {
 			return decompressGzipBase64(match[1]);
