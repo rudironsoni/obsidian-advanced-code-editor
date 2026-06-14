@@ -1,6 +1,10 @@
-name: Run Checks and Tests on PR
+name: Run Checks and Tests
 
-on: pull_request
+on:
+    pull_request:
+    push:
+        branches:
+            - '**'
 
 jobs:
     check:
