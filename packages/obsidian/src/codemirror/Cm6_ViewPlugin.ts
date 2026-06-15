@@ -111,10 +111,6 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 			}
 
 			private getEditableCodeBlockPointerPan(event: PointerEvent): (EditableCodeBlockTouchPan & { pointerId: number }) | null {
-				if (event.pointerType === 'mouse') {
-					return null;
-				}
-
 				const target = this.findEditableCodeBlockScrollLine(event, event.clientX, event.clientY);
 				if (!target) {
 					return null;
@@ -172,7 +168,7 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 
 			private readonly handleEditableCodeBlockGlobalPointerDown = (event: PointerEvent): void => {
 				this.editableCodeBlockPointerPan = this.getEditableCodeBlockPointerPan(event);
-				if (this.editableCodeBlockPointerPan) {
+				if (this.editableCodeBlockPointerPan && event.pointerType !== 'mouse') {
 					event.stopPropagation();
 					event.stopImmediatePropagation();
 				}
@@ -223,7 +219,9 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 				} catch {
 					// Some mobile WebViews reject pointer capture for already-cancelled pointers.
 				}
-				event.stopPropagation();
+				if (event.pointerType !== 'mouse') {
+					event.stopPropagation();
+				}
 			};
 
 			private readonly handleEditableCodeBlockPointerMove = (event: PointerEvent): void => {

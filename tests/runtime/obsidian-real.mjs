@@ -391,6 +391,52 @@ async function dispatchMouseClick(wsUrl, x, y) {
 	}
 }
 
+async function dispatchMouseDrag(wsUrl, fromX, fromY, toX, toY, steps = 8) {
+	const socket = new WebSocket(wsUrl);
+	let nextId = 0;
+	const pending = new Map();
+
+	await new Promise((resolve, reject) => {
+		socket.addEventListener('open', resolve, { once: true });
+		socket.addEventListener('error', reject, { once: true });
+	});
+
+	socket.addEventListener('message', event => {
+		const message = JSON.parse(event.data);
+		if (message.id && pending.has(message.id)) {
+			const callbacks = pending.get(message.id);
+			pending.delete(message.id);
+			if (message.error) callbacks.reject(message.error);
+			else callbacks.resolve(message.result);
+		}
+	});
+
+	function send(method, params = {}) {
+		const id = ++nextId;
+		socket.send(JSON.stringify({ id, method, params }));
+		return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+	}
+
+	try {
+		await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: fromX, y: fromY, button: 'none' });
+		await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: fromX, y: fromY, button: 'left', buttons: 1, clickCount: 1 });
+		for (let step = 1; step <= steps; step++) {
+			const progress = step / steps;
+			await send('Input.dispatchMouseEvent', {
+				type: 'mouseMoved',
+				x: fromX + (toX - fromX) * progress,
+				y: fromY + (toY - fromY) * progress,
+				button: 'left',
+				buttons: 1,
+			});
+			await new Promise(resolve => setTimeout(resolve, 16));
+		}
+		await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: toX, y: toY, button: 'left', buttons: 0, clickCount: 1 });
+	} finally {
+		socket.close();
+	}
+}
+
 async function dispatchTouchTap(wsUrl, x, y) {
 	const socket = new WebSocket(wsUrl);
 	let nextId = 0;
@@ -819,6 +865,49 @@ async function verifyFeatureSet(wsUrl, mobile) {
 		}
 	}
 
+	if (mobile) {
+		const dragTarget = await evaluate(
+			activeWsUrl,
+			`(() => {
+				const app = window.app;
+				const swipeState = globalThis.__shikiVerifyEditableSwipe;
+				if (!swipeState?.blockId) return null;
+				const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
+				const csharpLine = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${swipeState.blockId}"]\`)].find(el =>
+					el.textContent?.includes('List<int[]> intervals')
+				);
+				if (!csharpLine) return null;
+				const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${swipeState.blockId}"]\`)];
+				for (const line of blockLines) line.scrollLeft = 0;
+				const rect = csharpLine.getBoundingClientRect();
+				const y = rect.top + Math.min(rect.height / 2, 24);
+				const fromX = Math.min(rect.right - 24, rect.left + Math.max(120, rect.width * 0.75));
+				globalThis.__shikiVerifyEditableDrag = {
+					blockId: swipeState.blockId,
+					before: blockLines.map(line => line.scrollLeft),
+					after: null,
+					hasOverflowingLine: blockLines.some(line => line.scrollWidth > line.clientWidth),
+				};
+				return { fromX, fromY: y, toX: Math.max(rect.left + 24, fromX - 220), toY: y };
+			})()`,
+		);
+		if (dragTarget) {
+			await dispatchMouseDrag(activeWsUrl, dragTarget.fromX, dragTarget.fromY, dragTarget.toX, dragTarget.toY);
+			await evaluate(
+				activeWsUrl,
+				`(() => {
+					const app = window.app;
+					const state = globalThis.__shikiVerifyEditableDrag;
+					if (!state?.blockId) return null;
+					const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
+					const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${state.blockId}"]\`)];
+					state.after = blockLines.map(line => line.scrollLeft);
+					return state;
+				})()`,
+			);
+		}
+	}
+
 	return evaluate(
 		activeWsUrl,
 		`(async () => {
@@ -828,6 +917,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			const state = globalThis.__shikiVerifyState;
 			const editableSwipe = globalThis.__shikiVerifyEditableSwipe ?? null;
 			const editableWheel = globalThis.__shikiVerifyEditableWheel ?? null;
+			const editableDrag = globalThis.__shikiVerifyEditableDrag ?? null;
 			const plugin = app.plugins.plugins['${PLUGIN_ID}'];
 			await new Promise(resolve => setTimeout(resolve, 1000));
 			await plugin.updateCm6Plugin();
@@ -847,6 +937,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 				style: el.getAttribute('style'),
 				blockId: el.getAttribute('data-shiki-editing-block-id'),
 				overflowX: getComputedStyle(el).overflowX,
+				touchAction: getComputedStyle(el).touchAction,
 				clientWidth: el.clientWidth,
 				scrollWidth: el.scrollWidth,
 			}));
@@ -878,6 +969,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 				editableScrollSync,
 				editableSwipe,
 				editableWheel,
+				editableDrag,
 				editableLineNumbers,
 			};
 		})()`,
@@ -939,6 +1031,11 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 		result,
 	);
 	assert(
+		result.editableCodeBlockLines.every(line => line.touchAction === 'pan-y'),
+		`${label}: editable fenced code block did not leave horizontal pan to the scroll handler`,
+		result,
+	);
+	assert(
 		result.editableCodeBlockLines.every(line => line.className.includes('shiki-editing-codeblock-wrap') || ['auto', 'scroll'].includes(line.overflowX)),
 		`${label}: editable fenced code block lines are not horizontally contained`,
 		result,
@@ -966,6 +1063,13 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 		assert(
 			result.editableWheel.after.some(scrollLeft => scrollLeft > 0),
 			`${label}: editable fenced code block horizontal wheel did not scroll code content`,
+			result,
+		);
+		assert(result.editableDrag !== null, `${label}: editable fenced code block mouse drag was not measured`, result);
+		assert(result.editableDrag.hasOverflowingLine, `${label}: editable fenced code block mouse drag had no overflow target`, result);
+		assert(
+			result.editableDrag.after.some(scrollLeft => scrollLeft > 0),
+			`${label}: editable fenced code block mouse drag did not scroll code content`,
 			result,
 		);
 	}
