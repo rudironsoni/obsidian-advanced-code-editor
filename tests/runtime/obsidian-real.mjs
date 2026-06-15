@@ -1066,8 +1066,8 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 		result,
 	);
 	assert(
-		result.editableCodeBlockLines.every(line => line.touchAction === 'pan-y'),
-		`${label}: editable fenced code block did not leave horizontal pan to the scroll handler`,
+		result.editableCodeBlockLines.every(line => line.touchAction === 'pan-x'),
+		`${label}: editable fenced code block did not expose native horizontal pan`,
 		result,
 	);
 	assert(

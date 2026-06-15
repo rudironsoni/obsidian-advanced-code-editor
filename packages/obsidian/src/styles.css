@@ -131,7 +131,7 @@ span.shiki-ul {
 	white-space: pre;
 	overflow-x: auto;
 	overscroll-behavior-x: contain;
-	touch-action: pan-y;
+	touch-action: pan-x;
 	-webkit-overflow-scrolling: touch;
 }
 
