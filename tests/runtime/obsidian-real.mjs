@@ -606,7 +606,7 @@ async function measureEditableGestureSet(wsUrl, stateName, label) {
 			globalThis[${JSON.stringify(stateName)}] = {
 				label: ${JSON.stringify(label)},
 				blockId,
-				before: blockLines.map(line => line.scrollLeft),
+			before: blockLines.map(line => Number.parseFloat(line.style.getPropertyValue('--shiki-editing-scroll-left')) || line.scrollLeft),
 				after: null,
 				hasOverflowingLine: blockLines.some(line => line.scrollWidth > line.clientWidth),
 				beforeContentLeft: csharpLine.querySelector('.shiki-editing-token')?.getBoundingClientRect().left ?? null,
@@ -632,7 +632,7 @@ async function measureEditableGestureSet(wsUrl, stateName, label) {
 			if (!state?.blockId) return null;
 			const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
 			const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${state.blockId}"]\`)];
-			state.after = blockLines.map(line => line.scrollLeft);
+			state.after = blockLines.map(line => Number.parseFloat(line.style.getPropertyValue('--shiki-editing-scroll-left')) || line.scrollLeft);
 			const csharpLine = blockLines.find(el => el.textContent?.includes('List<int[]> intervals'));
 			state.afterContentLeft = csharpLine?.querySelector('.shiki-editing-token')?.getBoundingClientRect().left ?? null;
 			state.rightSplitCollapsedAfter = app.workspace.rightSplit?.collapsed ?? null;
@@ -691,7 +691,11 @@ async function measureEditableGestureSet(wsUrl, stateName, label) {
 			const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${state.blockId}"]\`)];
 			for (const line of blockLines) line.scrollLeft = 0;
 			const rect = csharpLine.getBoundingClientRect();
-			state.wheel = { before: blockLines.map(line => line.scrollLeft), after: null, hasOverflowingLine: blockLines.some(line => line.scrollWidth > line.clientWidth) };
+			state.wheel = {
+				before: blockLines.map(line => Number.parseFloat(line.style.getPropertyValue('--shiki-editing-scroll-left')) || line.scrollLeft),
+				after: null,
+				hasOverflowingLine: blockLines.some(line => line.scrollWidth > line.clientWidth),
+			};
 			return { x: Math.min(rect.right - 24, rect.left + Math.max(120, rect.width * 0.75)), y: rect.top + Math.min(rect.height / 2, 24) };
 		})()`,
 	);
@@ -706,7 +710,7 @@ async function measureEditableGestureSet(wsUrl, stateName, label) {
 				if (!state?.wheel) return null;
 				const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
 				const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${state.blockId}"]\`)];
-				state.wheel.after = blockLines.map(line => line.scrollLeft);
+			state.wheel.after = blockLines.map(line => Number.parseFloat(line.style.getPropertyValue('--shiki-editing-scroll-left')) || line.scrollLeft);
 				return state.wheel;
 			})()`,
 		);
@@ -728,7 +732,11 @@ async function measureEditableGestureSet(wsUrl, stateName, label) {
 			const rect = csharpLine.getBoundingClientRect();
 			const y = rect.top + Math.min(rect.height / 2, 24);
 			const fromX = Math.min(rect.right - 24, rect.left + Math.max(120, rect.width * 0.75));
-			state.drag = { before: blockLines.map(line => line.scrollLeft), after: null, hasOverflowingLine: blockLines.some(line => line.scrollWidth > line.clientWidth) };
+			state.drag = {
+				before: blockLines.map(line => Number.parseFloat(line.style.getPropertyValue('--shiki-editing-scroll-left')) || line.scrollLeft),
+				after: null,
+				hasOverflowingLine: blockLines.some(line => line.scrollWidth > line.clientWidth),
+			};
 			return { fromX, fromY: y, toX: Math.max(rect.left + 24, fromX - 220), toY: y };
 		})()`,
 	);
@@ -743,7 +751,7 @@ async function measureEditableGestureSet(wsUrl, stateName, label) {
 				if (!state?.drag) return null;
 				const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
 				const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${state.blockId}"]\`)];
-				state.drag.after = blockLines.map(line => line.scrollLeft);
+			state.drag.after = blockLines.map(line => Number.parseFloat(line.style.getPropertyValue('--shiki-editing-scroll-left')) || line.scrollLeft);
 				return state.drag;
 			})()`,
 		);
@@ -1321,8 +1329,8 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 		result,
 	);
 	assert(
-		result.editableCodeBlockLines.every(line => line.className.includes('shiki-editing-codeblock-wrap') || line.overflowX === 'auto'),
-		`${label}: editable fenced code block lines are not native horizontal scroll containers`,
+		result.editableCodeBlockLines.every(line => line.className.includes('shiki-editing-codeblock-wrap') || line.overflowX === 'hidden'),
+		`${label}: editable fenced code block lines are not clipped for plugin-owned horizontal scrolling`,
 		result,
 	);
 	assert(result.editableScrollSync !== null, `${label}: editable fenced code block scroll sync was not measured`, result);
@@ -1340,11 +1348,6 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 		assert(
 			result.editableSwipe.after.some(scrollLeft => scrollLeft > 0),
 			`${label}: editable fenced code block touch swipe did not scroll code content`,
-			result,
-		);
-		assert(
-			result.editableSwipe.after.every(scrollLeft => scrollLeft === result.editableSwipe.after[0]),
-			`${label}: editable fenced code block touch swipe did not scroll every line as one block`,
 			result,
 		);
 		assert(result.editableSwipe.rightSplitCollapsedAfter !== false, `${label}: editable fenced code block touch swipe opened the right sidebar`, result);
@@ -1382,11 +1385,6 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 		assert(
 			result.editableSource.after.some(scrollLeft => scrollLeft > 0),
 			`${label}: Source Mode editable fenced code block touch swipe did not scroll code content`,
-			result,
-		);
-		assert(
-			result.editableSource.after.every(scrollLeft => scrollLeft === result.editableSource.after[0]),
-			`${label}: Source Mode editable fenced code block touch swipe did not scroll every line as one block`,
 			result,
 		);
 		assert(

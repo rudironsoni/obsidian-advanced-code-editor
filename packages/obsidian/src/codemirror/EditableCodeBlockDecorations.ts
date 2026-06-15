@@ -25,6 +25,8 @@ export interface EditableCodeBlock {
 	lineStarts: number[];
 }
 
+const editableCodeBlockScrollLefts = new Map<string, number>();
+
 class LineNumberWidget extends WidgetType {
 	constructor(private readonly lineNumber: number) {
 		super();
@@ -60,18 +62,35 @@ export function parseFenceInfo(content: string): FenceInfo {
 	};
 }
 
-export function syncEditableCodeBlockScroll(root: ParentNode, source: HTMLElement): void {
+function getEditableCodeBlockScrollLeft(source: HTMLElement): number {
+	return Number.parseFloat(source.style.getPropertyValue('--shiki-editing-scroll-left')) || source.scrollLeft;
+}
+
+function clampEditableCodeBlockScrollLeft(source: HTMLElement, scrollLeft: number): number {
+	const maxScrollLeft = source.scrollWidth - source.clientWidth;
+	if (maxScrollLeft <= 0) {
+		return Math.max(0, scrollLeft);
+	}
+
+	return Math.max(0, Math.min(scrollLeft, maxScrollLeft));
+}
+
+export function syncEditableCodeBlockScroll(root: ParentNode, source: HTMLElement, scrollLeft = getEditableCodeBlockScrollLeft(source)): void {
 	const blockId = source.dataset.shikiEditingBlockId;
+	const clampedScrollLeft = clampEditableCodeBlockScrollLeft(source, scrollLeft);
 	if (!blockId) {
-		source.style.setProperty('--shiki-editing-scroll-left', `${source.scrollLeft}px`);
+		source.scrollLeft = clampedScrollLeft;
+		source.style.setProperty('--shiki-editing-scroll-left', `${clampedScrollLeft}px`);
 		return;
 	}
+	editableCodeBlockScrollLefts.set(blockId, clampedScrollLeft);
+	source.closest<HTMLElement>('.cm-content')?.style.setProperty('--shiki-editing-scroll-left', `${clampedScrollLeft}px`);
 
 	const scope = source.isConnected ? source.ownerDocument : (source.closest('.cm-content') ?? root);
 	for (const line of scope.querySelectorAll<HTMLElement>('.shiki-editing-codeblock-line[data-shiki-editing-block-id]')) {
 		if (line.dataset.shikiEditingBlockId === blockId) {
-			line.scrollLeft = source.scrollLeft;
-			line.style.setProperty('--shiki-editing-scroll-left', `${source.scrollLeft}px`);
+			line.scrollLeft = clampedScrollLeft;
+			line.style.setProperty('--shiki-editing-scroll-left', `${clampedScrollLeft}px`);
 		}
 	}
 }
@@ -127,7 +146,7 @@ export function createEditableCodeBlockTouchPan(root: ParentNode, source: HTMLEl
 		verticalSource,
 		startX,
 		startY,
-		startScrollLeft: scrollSource.scrollLeft,
+		startScrollLeft: getEditableCodeBlockScrollLeft(scrollSource),
 		startScrollTop: verticalSource?.scrollTop ?? 0,
 	};
 }
@@ -138,8 +157,7 @@ export function scrollEditableCodeBlockByDelta(root: ParentNode, source: HTMLEle
 		return false;
 	}
 
-	scrollSource.scrollLeft += deltaX;
-	syncEditableCodeBlockScroll(root, scrollSource);
+	syncEditableCodeBlockScroll(root, scrollSource, getEditableCodeBlockScrollLeft(scrollSource) + deltaX);
 	return true;
 }
 
@@ -151,8 +169,7 @@ export function panEditableCodeBlockScroll(root: ParentNode, pan: EditableCodeBl
 		return false;
 	}
 
-	pan.source.scrollLeft = pan.startScrollLeft + deltaX;
-	syncEditableCodeBlockScroll(root, pan.source);
+	syncEditableCodeBlockScroll(root, pan.source, pan.startScrollLeft + deltaX);
 	return true;
 }
 
@@ -183,13 +200,18 @@ export function normalizeEditableCodeBlockScrollWidths(root: ParentNode): void {
 		lines.push(line);
 		blocks.set(blockId, lines);
 		line.style.setProperty('--shiki-editing-scroll-spacer', '0px');
-		line.style.setProperty('--shiki-editing-scroll-left', `${line.scrollLeft}px`);
 	}
 
 	for (const lines of blocks.values()) {
 		const maxScrollWidth = Math.max(...lines.map(line => line.scrollWidth));
 		for (const line of lines) {
 			line.style.setProperty('--shiki-editing-scroll-spacer', `${maxScrollWidth}px`);
+			const scrollLeft = editableCodeBlockScrollLefts.get(line.dataset.shikiEditingBlockId ?? '');
+			if (scrollLeft === undefined) {
+				line.style.removeProperty('--shiki-editing-scroll-left');
+			} else {
+				line.style.setProperty('--shiki-editing-scroll-left', `${scrollLeft}px`);
+			}
 		}
 	}
 }

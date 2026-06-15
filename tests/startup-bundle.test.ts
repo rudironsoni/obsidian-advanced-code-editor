@@ -39,8 +39,8 @@ describe('startup bundle', () => {
 		expect(lineRule).not.toContain('touch-action:pan-y');
 		expect(nowrapRule).toContain('touch-action:none');
 		expect(nowrapRule).toContain('overscroll-behavior-x:contain');
-		expect(nowrapRule).toContain('overflow-x:auto');
-		expect(styles).not.toContain('translateX(calc(var(--shiki-editing-scroll-left');
+		expect(nowrapRule).toContain('overflow-x:hidden');
+		expect(styles).toContain('translateX(calc(var(--shiki-editing-scroll-left,0px) * -1))');
 	});
 
 	test('release workflow uploads every generated JavaScript sidecar', () => {

@@ -248,6 +248,7 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 					return;
 				}
 
+				event.preventDefault();
 				event.stopPropagation();
 				event.stopImmediatePropagation();
 			};
