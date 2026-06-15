@@ -147,7 +147,12 @@ span.shiki-ul {
 }
 
 .cm-content .shiki-editing-token {
+	display: inline-block;
 	font-variant-ligatures: no-contextual;
+}
+
+.cm-content .shiki-editing-codeblock-nowrap .shiki-editing-token {
+	transform: translateX(calc(var(--shiki-editing-scroll-left, 0px) * -1));
 }
 
 .cm-content .shiki-editing-line-number {

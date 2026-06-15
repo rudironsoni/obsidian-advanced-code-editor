@@ -37,6 +37,8 @@ describe('startup bundle', () => {
 		expect(styles).toContain('touch-action:pan-y');
 		expect(styles).toContain('overscroll-behavior-x:contain');
 		expect(styles).toContain('overflow-x:hidden');
+		expect(styles).toContain('--shiki-editing-scroll-left');
+		expect(styles).toContain('translateX(calc(var(--shiki-editing-scroll-left,0px) * -1))');
 	});
 
 	test('release workflow uploads every generated JavaScript sidecar', () => {

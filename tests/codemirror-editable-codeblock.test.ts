@@ -123,8 +123,11 @@ describe('editable CodeMirror code block decorations', () => {
 		first.scrollLeft = 72;
 		syncEditableCodeBlockScroll(root, first);
 
+		expect(first.style.getPropertyValue('--shiki-editing-scroll-left')).toBe('72px');
 		expect(second.scrollLeft).toBe(72);
+		expect(second.style.getPropertyValue('--shiki-editing-scroll-left')).toBe('72px');
 		expect(outside.scrollLeft).toBe(0);
+		expect(outside.style.getPropertyValue('--shiki-editing-scroll-left')).toBe('');
 	});
 
 	test('pans overflowing editable code block lines only for horizontal touch movement', () => {

@@ -63,13 +63,15 @@ export function parseFenceInfo(content: string): FenceInfo {
 export function syncEditableCodeBlockScroll(root: ParentNode, source: HTMLElement): void {
 	const blockId = source.dataset.shikiEditingBlockId;
 	if (!blockId) {
+		source.style.setProperty('--shiki-editing-scroll-left', `${source.scrollLeft}px`);
 		return;
 	}
 
 	const scope = source.isConnected ? source.ownerDocument : (source.closest('.cm-content') ?? root);
 	for (const line of scope.querySelectorAll<HTMLElement>('.shiki-editing-codeblock-line[data-shiki-editing-block-id]')) {
-		if (line !== source && line.dataset.shikiEditingBlockId === blockId) {
+		if (line.dataset.shikiEditingBlockId === blockId) {
 			line.scrollLeft = source.scrollLeft;
+			line.style.setProperty('--shiki-editing-scroll-left', `${source.scrollLeft}px`);
 		}
 	}
 }
@@ -152,6 +154,7 @@ export function normalizeEditableCodeBlockScrollWidths(root: ParentNode): void {
 		lines.push(line);
 		blocks.set(blockId, lines);
 		line.style.setProperty('--shiki-editing-scroll-spacer', '0px');
+		line.style.setProperty('--shiki-editing-scroll-left', `${line.scrollLeft}px`);
 	}
 
 	for (const lines of blocks.values()) {

@@ -53,6 +53,7 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 			view: EditorView;
 			private readonly scrollBoundLines = new WeakSet<HTMLElement>();
 			private editableCodeBlockPointerPan: (EditableCodeBlockTouchPan & { pointerId: number }) | null = null;
+			private editableCodeBlockMousePan: EditableCodeBlockTouchPan | null = null;
 			private editableCodeBlockTouchPan: (EditableCodeBlockTouchPan & { identifier: number }) | null = null;
 			private syncingEditableCodeBlockScroll = false;
 
@@ -115,6 +116,19 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 					...pan,
 					pointerId: event.pointerId,
 				};
+			}
+
+			private getEditableCodeBlockMousePan(event: MouseEvent): EditableCodeBlockTouchPan | null {
+				if (event.button !== 0) {
+					return null;
+				}
+
+				const target = this.findEditableCodeBlockScrollLine(event, event.clientX, event.clientY);
+				if (!target) {
+					return null;
+				}
+
+				return createEditableCodeBlockTouchPan(this.view.dom, target, event.clientX, event.clientY);
 			}
 
 			private getEditableCodeBlockTouchPan(event: TouchEvent): (EditableCodeBlockTouchPan & { identifier: number }) | null {
@@ -202,6 +216,29 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 				event.preventDefault();
 				event.stopPropagation();
 				event.stopImmediatePropagation();
+			};
+
+			private readonly handleEditableCodeBlockMouseDown = (event: MouseEvent): void => {
+				this.editableCodeBlockMousePan = this.getEditableCodeBlockMousePan(event);
+			};
+
+			private readonly handleEditableCodeBlockMouseMove = (event: MouseEvent): void => {
+				const pan = this.editableCodeBlockMousePan;
+				if (!pan || (event.buttons & 1) !== 1) {
+					return;
+				}
+
+				if (!panEditableCodeBlockScroll(this.view.dom, pan, event.clientX, event.clientY)) {
+					return;
+				}
+
+				event.preventDefault();
+				event.stopPropagation();
+				event.stopImmediatePropagation();
+			};
+
+			private readonly handleEditableCodeBlockMouseEnd = (): void => {
+				this.editableCodeBlockMousePan = null;
 			};
 
 			private readonly handleEditableCodeBlockTouchStart = (event: TouchEvent): void => {
@@ -295,6 +332,9 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 				view.dom.addEventListener('pointermove', this.handleEditableCodeBlockPointerMove, { capture: true, passive: false });
 				view.dom.addEventListener('pointerup', this.handleEditableCodeBlockPointerEnd, true);
 				view.dom.addEventListener('pointercancel', this.handleEditableCodeBlockPointerEnd, true);
+				view.dom.addEventListener('mousedown', this.handleEditableCodeBlockMouseDown);
+				view.dom.addEventListener('mousemove', this.handleEditableCodeBlockMouseMove, { capture: true, passive: false });
+				view.dom.addEventListener('mouseup', this.handleEditableCodeBlockMouseEnd, true);
 				view.dom.addEventListener('touchstart', this.handleEditableCodeBlockTouchStart, true);
 				view.dom.addEventListener('touchmove', this.handleEditableCodeBlockTouchMove, { capture: true, passive: false });
 				view.dom.addEventListener('touchend', this.handleEditableCodeBlockTouchEnd, true);
@@ -700,6 +740,9 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 				this.view.dom.removeEventListener('pointermove', this.handleEditableCodeBlockPointerMove, true);
 				this.view.dom.removeEventListener('pointerup', this.handleEditableCodeBlockPointerEnd, true);
 				this.view.dom.removeEventListener('pointercancel', this.handleEditableCodeBlockPointerEnd, true);
+				this.view.dom.removeEventListener('mousedown', this.handleEditableCodeBlockMouseDown);
+				this.view.dom.removeEventListener('mousemove', this.handleEditableCodeBlockMouseMove, true);
+				this.view.dom.removeEventListener('mouseup', this.handleEditableCodeBlockMouseEnd, true);
 				this.view.dom.removeEventListener('touchstart', this.handleEditableCodeBlockTouchStart, true);
 				this.view.dom.removeEventListener('touchmove', this.handleEditableCodeBlockTouchMove, true);
 				this.view.dom.removeEventListener('touchend', this.handleEditableCodeBlockTouchEnd, true);
