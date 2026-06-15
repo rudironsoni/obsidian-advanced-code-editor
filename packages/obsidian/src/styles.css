@@ -61,6 +61,7 @@ div.expressive-code {
 		margin: 0 !important;
 		max-width: 100%;
 		overflow-x: auto;
+		white-space: pre;
 		overscroll-behavior-x: contain;
 		-webkit-overflow-scrolling: touch;
 		touch-action: pan-x pan-y;
@@ -82,7 +83,11 @@ div.expressive-code {
 	}
 }
 
+.markdown-preview-view,
+.markdown-preview-sizer,
+.markdown-preview-section,
 .markdown-preview-view div.expressive-code,
+.markdown-source-view.mod-cm6 .cm-content,
 .markdown-source-view.mod-cm6 .cm-content div.expressive-code,
 .markdown-source-view.mod-cm6 .cm-content div.expressive-code > figure {
 	max-width: 100%;

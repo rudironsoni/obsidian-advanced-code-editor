@@ -46,7 +46,10 @@ describe('startup bundle', () => {
 		expect(styles).toContain('min-width:max-content');
 		expect(styles).toContain('flex:0 0 max-content');
 		expect(styles).toContain('overflow-x:auto');
+		expect(styles).toContain('white-space:pre');
 		expect(styles).toContain('overscroll-behavior-x:contain');
+		expect(styles).toContain('.markdown-preview-sizer');
+		expect(styles).toContain('.markdown-preview-section');
 	});
 
 	test('release workflow uploads every generated JavaScript sidecar', () => {
