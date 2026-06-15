@@ -37,9 +37,9 @@ describe('startup bundle', () => {
 		const nowrapRule = styles.match(/\.cm-content \.shiki-editing-codeblock-nowrap\{[^}]+}/)?.[0] ?? '';
 
 		expect(lineRule).not.toContain('touch-action:pan-y');
-		expect(nowrapRule).toContain('touch-action:none');
+		expect(nowrapRule).toContain('touch-action:pan-x pan-y');
 		expect(nowrapRule).toContain('overscroll-behavior-x:contain');
-		expect(nowrapRule).toContain('overflow-x:hidden');
+		expect(nowrapRule).toContain('overflow-x:auto');
 		expect(styles).not.toContain('translateX(calc(var(--shiki-editing-scroll-left,0px) * -1))');
 	});
 

@@ -13,7 +13,6 @@ import {
 	type EditableCodeBlockTouchPan,
 	normalizeEditableCodeBlockScrollWidths,
 	panEditableCodeBlockScroll,
-	panEditableCodeBlockVerticalScroll,
 	parseFenceInfo,
 	scrollEditableCodeBlockByDelta,
 	shouldUpdateCodeBlockDecorations,
@@ -182,10 +181,19 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 			};
 
 			private readonly handleEditableCodeBlockGlobalPointerDown = (event: PointerEvent): void => {
+				if (event.pointerType === 'touch') {
+					return;
+				}
+
 				this.editableCodeBlockPointerPan = this.getEditableCodeBlockPointerPan(event);
 			};
 
 			private readonly handleEditableCodeBlockPointerDown = (event: PointerEvent): void => {
+				if (event.pointerType === 'touch') {
+					this.editableCodeBlockPointerPan = null;
+					return;
+				}
+
 				const pan = this.getEditableCodeBlockPointerPan(event);
 				if (!pan) {
 					this.editableCodeBlockPointerPan = null;
@@ -248,7 +256,6 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 					return;
 				}
 
-				event.preventDefault();
 				event.stopPropagation();
 				event.stopImmediatePropagation();
 			};
@@ -266,11 +273,8 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 				}
 
 				const scrolled =
-					panEditableCodeBlockScroll(this.view.dom, pan, touch.clientX, touch.clientY) ||
-					panEditableCodeBlockVerticalScroll(pan, touch.clientX, touch.clientY);
+					getComputedStyle(pan.source).overflowX !== 'auto' && panEditableCodeBlockScroll(this.view.dom, pan, touch.clientX, touch.clientY);
 				if (!scrolled) {
-					event.stopPropagation();
-					event.stopImmediatePropagation();
 					return;
 				}
 
