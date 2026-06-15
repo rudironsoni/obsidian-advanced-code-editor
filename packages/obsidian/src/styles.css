@@ -151,11 +151,6 @@ span.shiki-ul {
 	font-variant-ligatures: no-contextual;
 }
 
-.cm-content .shiki-editing-codeblock-nowrap .shiki-editing-token {
-	transform: translateX(calc(var(--shiki-editing-scroll-left, 0px) * -1));
-	will-change: transform;
-}
-
 .cm-content .shiki-editing-line-number {
 	box-sizing: border-box;
 	display: inline-block;
