@@ -48,6 +48,12 @@ body {
 
 /* Disable ligatures in code blocks, as they can cause incorrect highlighting */
 div.expressive-code {
+	& pre > code {
+		display: block;
+		min-width: max-content;
+		flex: 0 0 max-content;
+	}
+
 	font-variant-ligatures: no-contextual;
 
 	& pre {
@@ -76,6 +82,7 @@ div.expressive-code {
 	}
 }
 
+.markdown-preview-view div.expressive-code,
 .markdown-source-view.mod-cm6 .cm-content div.expressive-code,
 .markdown-source-view.mod-cm6 .cm-content div.expressive-code > figure {
 	max-width: 100%;

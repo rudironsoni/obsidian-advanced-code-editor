@@ -42,6 +42,9 @@ describe('startup bundle', () => {
 		expect(nowrapRule).toContain('overflow-x:auto');
 		expect(styles).not.toContain('translateX(calc(var(--shiki-editing-scroll-left,0px) * -1))');
 		expect(styles).toContain('div.expressive-code pre');
+		expect(styles).toContain('div.expressive-code pre>code');
+		expect(styles).toContain('min-width:max-content');
+		expect(styles).toContain('flex:0 0 max-content');
 		expect(styles).toContain('overflow-x:auto');
 		expect(styles).toContain('overscroll-behavior-x:contain');
 	});
