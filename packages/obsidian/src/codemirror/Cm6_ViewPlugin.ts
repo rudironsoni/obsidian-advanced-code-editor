@@ -834,11 +834,11 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 				this.view.dom.removeEventListener('mousedown', this.handleEditableCodeBlockMouseDown);
 				this.view.dom.removeEventListener('mousemove', this.handleEditableCodeBlockMouseMove, true);
 				this.view.dom.removeEventListener('mouseup', this.handleEditableCodeBlockMouseEnd, true);
-				this.view.dom.removeEventListener('touchstart', this.handleEditableCodeBlockTouchStart, true);
-				this.view.dom.removeEventListener('touchmove', this.handleEditableCodeBlockTouchMove, true);
-				this.view.dom.removeEventListener('touchend', this.handleEditableCodeBlockTouchEnd, true);
-				this.view.dom.removeEventListener('touchcancel', this.handleEditableCodeBlockTouchEnd, true);
-				this.view.dom.removeEventListener('wheel', this.handleEditableCodeBlockWheel, true);
+				window.removeEventListener('touchstart', this.handleEditableCodeBlockTouchStart, true);
+				window.removeEventListener('touchmove', this.handleEditableCodeBlockTouchMove, true);
+				window.removeEventListener('touchend', this.handleEditableCodeBlockTouchEnd, true);
+				window.removeEventListener('touchcancel', this.handleEditableCodeBlockTouchEnd, true);
+				window.removeEventListener('wheel', this.handleEditableCodeBlockWheel, true);
 				views.delete(this);
 				this.decorations = Decoration.none;
 			}
