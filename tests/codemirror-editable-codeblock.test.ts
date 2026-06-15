@@ -5,6 +5,7 @@ import {
 	findEditableCodeBlockScrollSource,
 	normalizeEditableCodeBlockScrollWidths,
 	panEditableCodeBlockScroll,
+	panEditableCodeBlockVerticalScroll,
 	parseFenceInfo,
 	scrollEditableCodeBlockByDelta,
 	shouldUpdateCodeBlockDecorations,
@@ -141,16 +142,17 @@ describe('editable CodeMirror code block decorations', () => {
 		Object.defineProperty(first, 'clientWidth', { configurable: true, value: 320 });
 		Object.defineProperty(first, 'scrollWidth', { configurable: true, value: 900 });
 		root.append(first, second);
+		const pan = { source: first, verticalSource: root, startX: 100, startY: 100, startScrollLeft: 12, startScrollTop: 0 };
 
-		const didPanVertically = panEditableCodeBlockScroll(root, { source: first, startX: 100, startY: 100, startScrollLeft: 12 }, 94, 40);
+		const didPanVertically = panEditableCodeBlockScroll(root, pan, 94, 40);
 		expect(didPanVertically).toBe(false);
 		expect(first.scrollLeft).toBe(0);
 
-		const didPanJitter = panEditableCodeBlockScroll(root, { source: first, startX: 100, startY: 100, startScrollLeft: 12 }, 97, 100);
+		const didPanJitter = panEditableCodeBlockScroll(root, pan, 97, 100);
 		expect(didPanJitter).toBe(false);
 		expect(first.scrollLeft).toBe(0);
 
-		const didPanHorizontally = panEditableCodeBlockScroll(root, { source: first, startX: 100, startY: 100, startScrollLeft: 12 }, 40, 96);
+		const didPanHorizontally = panEditableCodeBlockScroll(root, pan, 40, 96);
 		expect(didPanHorizontally).toBe(true);
 		expect(first.scrollLeft).toBe(72);
 		expect(second.scrollLeft).toBe(72);
@@ -181,15 +183,39 @@ describe('editable CodeMirror code block decorations', () => {
 		const pan = createEditableCodeBlockTouchPan(root, shortLine, 100, 100);
 		expect(pan).toEqual({
 			source: wideLine,
+			verticalSource: root,
 			startX: 100,
 			startY: 100,
 			startScrollLeft: 24,
+			startScrollTop: 0,
 		});
 
 		expect(panEditableCodeBlockScroll(root, pan!, 40, 98)).toBe(true);
 		expect(shortLine.scrollLeft).toBe(84);
 		expect(wideLine.scrollLeft).toBe(84);
 		expect(outside.scrollLeft).toBe(0);
+	});
+
+	test('pans editable code block vertically through editor scroller', () => {
+		const root = document.createElement('div');
+		const scroller = document.createElement('div');
+		const line = document.createElement('div');
+		root.append(scroller);
+		scroller.className = 'cm-scroller';
+		line.className = 'shiki-editing-codeblock-line shiki-editing-codeblock-nowrap';
+		line.dataset.shikiEditingBlockId = '100-200';
+		Object.defineProperty(line, 'clientWidth', { configurable: true, value: 320 });
+		Object.defineProperty(line, 'scrollWidth', { configurable: true, value: 900 });
+		scroller.scrollTop = 48;
+		scroller.append(line);
+
+		const pan = createEditableCodeBlockTouchPan(root, line, 100, 100);
+		expect(pan?.verticalSource).toBe(scroller);
+		expect(pan?.startScrollTop).toBe(48);
+
+		expect(panEditableCodeBlockVerticalScroll(pan!, 98, 40)).toBe(true);
+		expect(scroller.scrollTop).toBe(108);
+		expect(line.scrollLeft).toBe(0);
 	});
 
 	test('scrolls whole editable code block from horizontal wheel delta', () => {

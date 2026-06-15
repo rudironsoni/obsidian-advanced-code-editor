@@ -13,6 +13,7 @@ import {
 	type EditableCodeBlockTouchPan,
 	normalizeEditableCodeBlockScrollWidths,
 	panEditableCodeBlockScroll,
+	panEditableCodeBlockVerticalScroll,
 	parseFenceInfo,
 	scrollEditableCodeBlockByDelta,
 	shouldUpdateCodeBlockDecorations,
@@ -263,7 +264,10 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 					return;
 				}
 
-				if (!panEditableCodeBlockScroll(this.view.dom, pan, touch.clientX, touch.clientY)) {
+				const scrolled =
+					panEditableCodeBlockScroll(this.view.dom, pan, touch.clientX, touch.clientY) ||
+					panEditableCodeBlockVerticalScroll(pan, touch.clientX, touch.clientY);
+				if (!scrolled) {
 					event.stopPropagation();
 					event.stopImmediatePropagation();
 					return;

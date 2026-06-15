@@ -78,9 +78,20 @@ export function syncEditableCodeBlockScroll(root: ParentNode, source: HTMLElemen
 
 export interface EditableCodeBlockTouchPan {
 	source: HTMLElement;
+	verticalSource: HTMLElement | null;
 	startX: number;
 	startY: number;
 	startScrollLeft: number;
+	startScrollTop: number;
+}
+
+function findEditableCodeBlockVerticalScrollSource(root: ParentNode, source: HTMLElement): HTMLElement | null {
+	const scrollSource = source.closest<HTMLElement>('.cm-scroller');
+	if (scrollSource) {
+		return scrollSource;
+	}
+
+	return root instanceof HTMLElement ? root : null;
 }
 
 export function findEditableCodeBlockScrollSource(root: ParentNode, source: HTMLElement): HTMLElement | null {
@@ -109,12 +120,15 @@ export function createEditableCodeBlockTouchPan(root: ParentNode, source: HTMLEl
 	if (!scrollSource) {
 		return null;
 	}
+	const verticalSource = findEditableCodeBlockVerticalScrollSource(root, source);
 
 	return {
 		source: scrollSource,
+		verticalSource,
 		startX,
 		startY,
 		startScrollLeft: scrollSource.scrollLeft,
+		startScrollTop: verticalSource?.scrollTop ?? 0,
 	};
 }
 
@@ -139,6 +153,21 @@ export function panEditableCodeBlockScroll(root: ParentNode, pan: EditableCodeBl
 
 	pan.source.scrollLeft = pan.startScrollLeft + deltaX;
 	syncEditableCodeBlockScroll(root, pan.source);
+	return true;
+}
+
+export function panEditableCodeBlockVerticalScroll(pan: EditableCodeBlockTouchPan, currentX: number, currentY: number): boolean {
+	if (!pan.verticalSource) {
+		return false;
+	}
+
+	const deltaX = pan.startX - currentX;
+	const deltaY = pan.startY - currentY;
+	if (Math.abs(deltaY) < 4 || Math.abs(deltaY) <= Math.abs(deltaX)) {
+		return false;
+	}
+
+	pan.verticalSource.scrollTop = pan.startScrollTop + deltaY;
 	return true;
 }
 

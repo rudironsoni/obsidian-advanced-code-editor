@@ -130,7 +130,7 @@ span.shiki-ul {
 	white-space: pre;
 	overflow-x: auto;
 	overscroll-behavior-x: contain;
-	touch-action: pan-x pan-y;
+	touch-action: none;
 }
 
 .cm-content .shiki-editing-codeblock-nowrap::after {

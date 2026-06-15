@@ -1316,8 +1316,8 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 		result,
 	);
 	assert(
-		result.editableCodeBlockLines.every(line => line.touchAction.includes('pan-x') && line.touchAction.includes('pan-y')),
-		`${label}: editable fenced code block did not allow native horizontal and vertical touch scrolling`,
+		result.editableCodeBlockLines.every(line => line.touchAction === 'none'),
+		`${label}: editable fenced code block did not reserve mobile touch gestures for plugin scroll handling`,
 		result,
 	);
 	assert(
