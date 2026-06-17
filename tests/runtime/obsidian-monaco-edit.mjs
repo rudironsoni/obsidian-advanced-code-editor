@@ -262,6 +262,8 @@ async function waitForMonaco(client, modeName) {
 			const rect = block.getBoundingClientRect();
 			const viewLines = block.querySelectorAll('.view-line').length;
 			const text = block.textContent ?? '';
+			const fallback = block.querySelector('.shiki-monaco-codeblock-fallback');
+			const fallbackStyle = fallback ? getComputedStyle(fallback) : null;
 			return {
 				ready: true,
 				...detail,
@@ -271,6 +273,7 @@ async function waitForMonaco(client, modeName) {
 				viewLines,
 				text,
 				hasEditorHook: Boolean(window.__shikiLastMonacoEditor),
+				fallbackVisible: Boolean(fallback && fallbackStyle?.display !== 'none' && fallbackStyle?.visibility !== 'hidden'),
 				activeElementClass: document.activeElement?.className?.toString?.() ?? '',
 			};
 		})()`;
@@ -307,6 +310,7 @@ async function verifyMode(client, modeName, livePreview, marker) {
 	assert(monaco.width > 0 && monaco.height > 0, `${modeName}: Monaco mounted without visible dimensions`, monaco);
 	assert(monaco.viewLines > 0, `${modeName}: Monaco mounted but rendered no visible editor lines`, monaco);
 	assert(monaco.hasEditorHook, `${modeName}: Monaco mounted without editor instance hook`, monaco);
+	assert(!monaco.fallbackVisible, `${modeName}: Monaco fallback is still visible over the editor`, monaco);
 
 	await evaluate(client, `window.__shikiLastMonacoEditor?.focus?.()`);
 	await typeText(client, marker);
