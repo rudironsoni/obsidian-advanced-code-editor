@@ -270,7 +270,7 @@ class MonacoCodeBlockWidget extends WidgetType {
 		const markReadyWhenPainted = (): void => {
 			const editorNode = editor.getDomNode();
 			const editorRect = editorNode?.getBoundingClientRect();
-			if (editorRect && editorRect.width > 0 && editorRect.height > 0 && container.querySelector('.view-line')) {
+			if (editorRect && editorRect.width > 0 && editorRect.height > 0 && model.getLineCount() > 0) {
 				container.classList.add('shiki-monaco-codeblock-ready');
 			}
 		};
