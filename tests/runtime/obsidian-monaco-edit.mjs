@@ -349,6 +349,16 @@ async function assertFileContains(client, marker) {
 	);
 }
 
+async function captureScreenshot(client, modeName) {
+	if (!process.env.OBSIDIAN_CAPTURE_SCREENSHOTS) return null;
+	await mkdir(process.env.OBSIDIAN_CAPTURE_SCREENSHOTS, { recursive: true });
+	const result = await client.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+	const filename = `${modeName.replaceAll(' ', '-')}.png`;
+	const filePath = path.join(process.env.OBSIDIAN_CAPTURE_SCREENSHOTS, filename);
+	await writeFile(filePath, Buffer.from(result.data, 'base64'));
+	return filePath;
+}
+
 async function verifyMode(client, modeName, livePreview, marker) {
 	await openNote(client, livePreview);
 	const line = await getEditableCodeLine(client);
@@ -372,6 +382,7 @@ async function verifyMode(client, modeName, livePreview, marker) {
 	const afterMonaco = await waitForMonaco(client, modeName);
 	assert(afterMonaco.viewLines > 0, `${modeName}: Monaco lost rendered lines after editing`, afterMonaco);
 	assert(!afterMonaco.fenceTextVisible, `${modeName}: raw fenced code block became visible after editing`, afterMonaco);
+	await captureScreenshot(client, modeName);
 }
 
 async function main() {
