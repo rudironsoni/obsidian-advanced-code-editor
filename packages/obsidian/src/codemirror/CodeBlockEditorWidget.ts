@@ -172,50 +172,29 @@ async function loadMonacoCss(plugin: ShikiPlugin): Promise<void> {
 async function configureShikiMonaco(plugin: ShikiPlugin, runtime: MonacoRuntime): Promise<string> {
 	shikiMonacoConfigured ??= plugin.highlighter.load().then(async highlighter => {
 		try {
-			// Load every language that Monaco knows about individually.
-			// If a language is not bundled in Shiki or its grammar is broken,
-			// the error is caught and that language is simply skipped.
-			for (const lang of runtime.monaco.languages.getLanguages()) {
-				try {
-					await highlighter.shiki.loadLanguage(lang.id as never);
-				} catch {
-					// Not a Shiki-bundled language or broken grammar; skip.
-				}
-			}
-
-			// Monkey-patch setTokensProvider so every provider is wrapped in try/catch.
-			// This prevents a single broken grammar from crashing the Monaco editor.
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const originalSetTokensProvider = (runtime.monaco.languages.setTokensProvider as any).bind(runtime.monaco.languages);
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(runtime.monaco.languages as any).setTokensProvider = (languageId: string, provider: any): any => {
-				const originalTokenize = provider.tokenize.bind(provider);
-				return originalSetTokensProvider(languageId, {
-					getInitialState: () => provider.getInitialState(),
-					tokenize(line: string, state: unknown) {
-						try {
-							return originalTokenize(line, state);
-						} catch (e) {
-							// eslint-disable-next-line no-console
-							console.warn('[Shiki] Broken grammar for', languageId, e);
-							// Broken grammar — return plain uncolored tokens.
-							return { endState: state, tokens: [{ startIndex: 0, scopes: '' }] };
-						}
-					},
-				});
-			};
-
-			try {
-				runtime.shikiToMonaco(highlighter.shiki, runtime.monaco);
-			} catch (e) {
-				// eslint-disable-next-line no-console
-				console.warn('[Shiki] shikiToMonaco failed, falling back to built-in Monaco tokenization:', e);
-			}
+			// Skip shikiToMonaco: its WASM textmate integration crashes in Monaco's
+			// worker context (compileAG on null). Use Monaco's built-in tokenization
+			// which has excellent support for Python and most languages.
 			const theme = highlighter.themeMapper.getThemeIdentifier() ?? plugin.loadedSettings.darkTheme;
-			runtime.monaco.editor.setTheme(theme);
+			// Define a minimal theme that matches Shiki's background color
+			const themeColors: Record<string, string> = {};
+			try {
+				const shikiTheme = highlighter.shiki.getTheme(theme);
+				if (shikiTheme?.bg) themeColors['editor.background'] = shikiTheme.bg;
+				if (shikiTheme?.fg) themeColors['editor.foreground'] = shikiTheme.fg;
+			} catch {
+				// Shiki theme not available, use defaults
+			}
+			runtime.monaco.editor.defineTheme('shiki-fallback', {
+				base: document.body.classList.contains('theme-dark') ? 'vs-dark' : 'vs',
+				inherit: true,
+				colors: themeColors,
+				rules: [],
+			});
+			runtime.monaco.editor.setTheme('shiki-fallback');
 			return theme;
 		} catch (error) {
-			console.error('[Shiki] Failed to configure Monaco with Shiki:', error);
+			console.error('[Shiki] Failed to configure Monaco theme:', error);
 			return plugin.loadedSettings.darkTheme;
 		}
 	}).catch(error => {
