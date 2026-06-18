@@ -109,7 +109,16 @@ export function buildCodeBlockEditorDecoration(
 }
 
 async function loadMonacoRuntime(plugin: ShikiPlugin): Promise<MonacoRuntime> {
-	monacoRuntime ??= loadMonacoEntry(plugin).then(({ monaco, shikiToMonaco }) => ({ monaco, shikiToMonaco }));
+	monacoRuntime ??= loadMonacoEntry(plugin).then(({ monaco, shikiToMonaco }) => {
+		// Suppress web worker warning for BRAT installs where worker files are not available.
+		// For small code blocks, main-thread processing is perfectly fine.
+		if (!globalThis.MonacoEnvironment) {
+			(globalThis as typeof globalThis & { MonacoEnvironment?: { getWorkerUrl: () => string } }).MonacoEnvironment = {
+				getWorkerUrl: () => 'data:text/javascript,',
+			};
+		}
+		return { monaco, shikiToMonaco };
+	});
 
 	return monacoRuntime;
 }
@@ -303,7 +312,7 @@ class MonacoCodeBlockWidget extends WidgetType {
 			scrollBeyondLastLine: false,
 			scrollbar: {
 				alwaysConsumeMouseWheel: false,
-				horizontal: 'hidden',
+				horizontal: 'auto',
 				vertical: 'hidden',
 			},
 			wordWrap: widget.block.wrap ? 'on' : 'off',
