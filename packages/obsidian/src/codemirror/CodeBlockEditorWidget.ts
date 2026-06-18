@@ -30,6 +30,7 @@ interface MonacoCodeBlockController {
 	disposed: boolean;
 	rafHandles: number[];
 	escapeHandler: ((event: KeyboardEvent) => void) | null;
+	wheelHandler: ((event: WheelEvent) => void) | null;
 }
 
 export interface CodeBlockBodyRange {
@@ -249,6 +250,7 @@ class MonacoCodeBlockWidget extends WidgetType {
 			disposed: false,
 			rafHandles: [],
 			escapeHandler: null,
+			wheelHandler: null,
 		};
 		controllers.set(container, controller);
 
@@ -289,6 +291,9 @@ class MonacoCodeBlockWidget extends WidgetType {
 		}
 		if (controller.escapeHandler) {
 			document.removeEventListener('keydown', controller.escapeHandler);
+		}
+		if (controller.wheelHandler) {
+			dom.removeEventListener('wheel', controller.wheelHandler, true);
 		}
 		controller.editor?.dispose();
 		controller.model?.dispose();
@@ -348,6 +353,19 @@ class MonacoCodeBlockWidget extends WidgetType {
 			editor.layout({ width: Math.max(1, container.clientWidth), height: Math.max(1, container.clientHeight) });
 		});
 		controller.rafHandles.push(rafHandle);
+
+		// Ensure vertical wheel events bubble to parent CM6 editor.
+		// Monaco with alwaysConsumeMouseWheel:false should pass them through,
+		// but we intercept in capture phase to be certain.
+		const wheelHandler = (e: WheelEvent): void => {
+			const isVertical = Math.abs(e.deltaY) >= Math.abs(e.deltaX) && !e.shiftKey;
+			if (!isVertical) return;
+			// Stop the event from reaching Monaco's bubble-phase listeners,
+			// but do NOT preventDefault so the browser/CM6 can scroll naturally.
+			e.stopPropagation();
+		};
+		container.addEventListener('wheel', wheelHandler, { capture: true, passive: true });
+		controller.wheelHandler = wheelHandler;
 
 		const contentChangeDisposable = model.onDidChangeContent(() => {
 			if (controller.updatingFromParent) return;
