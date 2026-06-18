@@ -728,7 +728,9 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 					this.decorations = Decoration.set(allDecorations, true);
 					const diag2 = (window as Window & { __shikiDiag?: { updates: number; decorUpdates: number; allDecorLen: number } }).__shikiDiag;
 					if (diag2) { diag2.updates++; diag2.decorUpdates = decorationUpdates.length; diag2.allDecorLen = allDecorations.length; }
-					this.view.dispatch(this.view.state.update({}));
+					requestAnimationFrame(() => {
+						this.view.dispatch(this.view.state.update({}));
+					});
 				}
 
 				// console.log('Traversed syntax tree in', performance.now() - t1, 'ms');

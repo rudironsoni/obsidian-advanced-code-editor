@@ -25,7 +25,6 @@ interface MonacoCodeBlockController {
 	model: MonacoTextModel | undefined;
 	updatingFromParent: boolean;
 	disposed: boolean;
-	syncTimeout: ReturnType<typeof setTimeout> | null;
 	rafHandles: number[];
 	escapeHandler: ((event: KeyboardEvent) => void) | null;
 }
@@ -137,7 +136,6 @@ function ensureMonacoLanguage(monaco: MonacoModule, language: string): void {
 }
 
 class MonacoCodeBlockWidget extends WidgetType {
-	private static readonly SYNC_DEBOUNCE_MS = 150;
 
 	constructor(
 		private readonly plugin: ShikiPlugin,
@@ -173,7 +171,6 @@ class MonacoCodeBlockWidget extends WidgetType {
 			model: undefined,
 			updatingFromParent: false,
 			disposed: false,
-			syncTimeout: null,
 			rafHandles: [],
 			escapeHandler: null,
 		};
@@ -211,9 +208,6 @@ class MonacoCodeBlockWidget extends WidgetType {
 		if (!controller) return;
 
 		controller.disposed = true;
-		if (controller.syncTimeout) {
-			clearTimeout(controller.syncTimeout);
-		}
 		for (const handle of controller.rafHandles) {
 			cancelAnimationFrame(handle);
 		}
@@ -285,22 +279,15 @@ class MonacoCodeBlockWidget extends WidgetType {
 
 			updateMonacoEditorHeight(runtime.monaco, container, editor, model);
 
-			if (controller.syncTimeout) {
-				clearTimeout(controller.syncTimeout);
-			}
-			controller.syncTimeout = setTimeout(() => {
-				if (controller.disposed) return;
-
-				const currentWidget = controller.widget;
-				const bodyRange = currentWidget.resolveCurrentBodyRange();
-				currentWidget.parentView.dispatch({
-					changes: {
-						from: bodyRange.from,
-						to: bodyRange.to,
-						insert: model.getValue(),
-					},
-				});
-			}, MonacoCodeBlockWidget.SYNC_DEBOUNCE_MS);
+			const currentWidget = controller.widget;
+			const bodyRange = currentWidget.resolveCurrentBodyRange();
+			currentWidget.parentView.dispatch({
+				changes: {
+					from: bodyRange.from,
+					to: bodyRange.to,
+					insert: model.getValue(),
+				},
+			});
 		});
 
 		void configureShikiMonaco(this.plugin, runtime).then(theme => {
@@ -331,10 +318,6 @@ class MonacoCodeBlockWidget extends WidgetType {
 		if (controller.escapeHandler) {
 			document.removeEventListener('keydown', controller.escapeHandler, true);
 			controller.escapeHandler = null;
-		}
-		if (controller.syncTimeout) {
-			clearTimeout(controller.syncTimeout);
-			controller.syncTimeout = null;
 		}
 		controller.editor?.dispose();
 		controller.model?.dispose();
