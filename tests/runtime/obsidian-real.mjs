@@ -56,7 +56,6 @@ function prepareVault({ resetUserData }) {
 				inlineHighlighting: true,
 				ecDefaultShowLineNumbers: false,
 				ecDefaultWrap: false,
-				ecDefaultFrame: 'auto',
 				darkTheme: 'obsidian-theme',
 				lightTheme: 'obsidian-theme',
 				preferThemeColors: true,

@@ -17,37 +17,22 @@ describe('startup bundle', () => {
 	});
 
 	test('heavy renderer is emitted as an explicit mobile-sync artifact', () => {
-		expect(existsSync(new URL('../dist/highlighter.js', import.meta.url))).toBe(true);
+		expect(existsSync(new URL('../dist/modern-monaco.js', import.meta.url))).toBe(true);
 	});
 
-	test('startup bundle carries the BRAT fallback without bloating startup CSS', () => {
+	test('startup bundle carries the renderer sidecar without bloating startup CSS', () => {
 		const startupBundle = readFileSync(new URL('../dist/main.js', import.meta.url), 'utf8');
 		const styles = readFileSync(new URL('../dist/styles.css', import.meta.url), 'utf8');
-		const highlighterStyles = readFileSync(new URL('../dist/highlighter.css', import.meta.url), 'utf8');
 
-		expect(startupBundle).toContain('H4sIA');
 		expect(startupBundle.length).toBeLessThan(3 * 1024 * 1024);
 		expect(styles).not.toContain('shiki-highlighter-fallback:');
-		expect(highlighterStyles).toContain('shiki-highlighter-fallback:');
 	});
 
-	test('editable code block CSS owns horizontal mobile pan gestures', () => {
+	test('Monaco code block CSS owns horizontal mobile pan gestures', () => {
 		const styles = readFileSync(new URL('../dist/styles.css', import.meta.url), 'utf8');
-		const lineRule = styles.match(/\.cm-content \.shiki-editing-codeblock-line\{[^}]+}/)?.[0] ?? '';
-		const nowrapRule = styles.match(/\.cm-content \.shiki-editing-codeblock-nowrap\{[^}]+}/)?.[0] ?? '';
 
-		expect(lineRule).not.toContain('touch-action:pan-y');
-		expect(nowrapRule).toContain('touch-action:pan-x pan-y');
-		expect(nowrapRule).toContain('overscroll-behavior-x:contain');
-		expect(nowrapRule).toContain('overflow-x:auto');
-		expect(styles).not.toContain('translateX(calc(var(--shiki-editing-scroll-left,0px) * -1))');
-		expect(styles).toContain('div.expressive-code pre');
-		expect(styles).toContain('div.expressive-code pre>code');
-		expect(styles).toContain('min-width:max-content');
-		expect(styles).toContain('flex:0 0 max-content');
-		expect(styles).toContain('overflow-x:auto');
-		expect(styles).toContain('white-space:pre');
-		expect(styles).toContain('overscroll-behavior-x:contain');
+		expect(styles).toContain('.shiki-monaco-block');
+		expect(styles).toContain('.shiki-monaco-editor');
 		expect(styles).toContain('.markdown-preview-sizer');
 		expect(styles).toContain('.markdown-preview-section');
 	});

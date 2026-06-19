@@ -46,79 +46,12 @@ body {
 	}
 }
 
-/* Disable ligatures in code blocks, as they can cause incorrect highlighting */
-div.expressive-code {
-	& pre > code {
-		display: block;
-		min-width: max-content;
-		flex: 0 0 max-content;
-	}
-
-	font-variant-ligatures: no-contextual;
-
-	& pre {
-		/* Fix for shimmering focus */
-		margin: 0 !important;
-		max-width: 100%;
-		overflow-x: auto;
-		white-space: pre;
-		overscroll-behavior-x: contain;
-		-webkit-overflow-scrolling: touch;
-		touch-action: pan-x pan-y;
-	}
-
-	& > figure.frame {
-		&.has-title > figcaption.header::before {
-			pointer-events: all !important;
-		}
-
-		& > figcaption.header {
-			z-index: unset;
-		}
-
-		& > div.copy {
-			/* Move the copy button to the bottom right */
-			inset-block-end: calc(var(--ec-brdWd) + var(--ec-uiPadInl) / 2);
-		}
-	}
-}
-
 .markdown-preview-view,
 .markdown-preview-sizer,
 .markdown-preview-section,
-.markdown-preview-view div.expressive-code,
-.markdown-source-view.mod-cm6 .cm-content,
-.markdown-source-view.mod-cm6 .cm-content div.expressive-code,
-.markdown-source-view.mod-cm6 .cm-content div.expressive-code > figure {
+.markdown-source-view.mod-cm6 .cm-content {
 	max-width: 100%;
 	min-width: 0;
-}
-
-.markdown-preview-view {
-	div.expressive-code {
-		margin-block: var(--shiki-code-block-spacing);
-	}
-}
-
-body.is-phone .markdown-rendered :not(.print) div.expressive-code code,
-body.is-phone .markdown-source-view.mod-cm6 .cm-content :not(.print) div.expressive-code code,
-body.is-phone .markdown-source-view.mod-cm6 .cm-content > .HyperMD-codeblock {
-	word-break: normal;
-	overflow-wrap: normal;
-	white-space: pre;
-}
-
-body.is-phone .markdown-rendered .el-pre,
-body.is-phone .markdown-source-view.mod-cm6 .cm-content .el-pre {
-	position: relative;
-}
-
-body.is-phone .markdown-rendered .el-pre pre,
-body.is-phone .markdown-source-view.mod-cm6 .cm-content .el-pre pre,
-body.is-phone .markdown-rendered div.expressive-code pre,
-body.is-phone .markdown-source-view.mod-cm6 .cm-content div.expressive-code pre {
-	overflow-x: auto;
-	position: static;
 }
 
 .markdown-rendered button.copy-code-button {
@@ -162,6 +95,7 @@ span.shiki-ul {
 
 .shiki-monaco-editor {
 	width: 100%;
+	position: relative;
 }
 
 /* Prevent Monaco from creating internal vertical scroll - let Obsidian handle it */

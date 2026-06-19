@@ -10,13 +10,13 @@ function createContext(markdown: string): { sourcePath: string; getSectionInfo: 
 }
 
 describe('render children', () => {
-	test('CodeBlock extracts EC meta string and registers active block', async () => {
+	test('CodeBlock calls renderWithMonaco and registers active block', async () => {
 		const container = document.createElement('pre');
 		const calls: unknown[] = [];
 		const active: unknown[] = [];
 		const plugin = {
 			highlighter: {
-				renderWithEc: async (...args: unknown[]): Promise<void> => {
+				renderWithMonaco: async (...args: unknown[]): Promise<void> => {
 					calls.push(args);
 					container.textContent = 'rendered';
 				},

@@ -58,12 +58,15 @@ export class LazyHighlighter {
 	async obsidianSafeLanguageNames(): Promise<string[]> {
 		const grammars = await loadModernMonacoGrammars(this.plugin);
 		const allNames = new Set<string>();
+		this.aliasMap ??= new Map<string, string>();
 		for (const g of grammars) {
 			if (g.injectTo) continue;
 			allNames.add(g.name);
+			this.aliasMap.set(g.name.toLowerCase(), g.name);
 			if (g.aliases) {
 				for (const alias of g.aliases) {
 					allNames.add(alias);
+					this.aliasMap.set(alias.toLowerCase(), g.name);
 				}
 			}
 		}
@@ -74,6 +77,11 @@ export class LazyHighlighter {
 	}
 
 	async renderWithMonaco(code: string, language: string, _meta: string, container: HTMLElement): Promise<void> {
+		// Prevent duplicate Monaco editors in the same container
+		if ((container as any).__shikiMonacoEditor) {
+			return;
+		}
+
 		const runtime = await this.load();
 		const { monaco } = runtime;
 		container.empty();
@@ -132,27 +140,44 @@ export class LazyHighlighter {
 			padding: { top: 8, bottom: 8 },
 		});
 
-		// Resize to exact content height so vertical scroll is handled by Obsidian, not Monaco
-		const updateHeight = (): void => {
-			const contentHeight = editor.getContentHeight();
-			el.style.height = `${contentHeight}px`;
-			editor.layout();
-		};
-		editor.onDidContentSizeChange(updateHeight);
-		updateHeight();
+		// Set explicit height from line count so Monaco never collapses.
+		// getContentHeight() is unreliable when the element is not yet in the DOM.
+		const lineCount = Math.max(1, code.split('\n').length);
+		const contentHeight = lineCount * this.plugin.loadedSettings.ecEditorLineHeight + 16; // + padding
+		el.style.height = `${contentHeight}px`;
+		editor.layout();
+
+		// Keep height in sync if content changes (e.g. word wrap)
+		editor.onDidContentSizeChange(() => {
+			const updatedHeight = editor.getContentHeight();
+			if (updatedHeight > 0) {
+				el.style.height = `${updatedHeight}px`;
+				editor.layout();
+			}
+		});
 
 		// Store editor on container for cleanup
 		(container as any).__shikiMonacoEditor = editor;
 	}
 
 	async getHighlightTokens(code: string, lang: string): Promise<TokensResult | undefined> {
-		const { highlighter } = await this.load();
+		const runtime = await this.load();
 		const theme = getActiveTheme(this.plugin);
 		try {
-			return highlighter.codeToTokens(code, { lang, theme });
+			// Load grammar before tokenizing - codeToTokens needs it
+			await runtime.registerLanguage(lang);
+			// Resolve alias for tokenization; Shiki's codeToTokens may not handle aliases
+			const canonical = this.resolveLanguageAlias(lang) ?? lang;
+			return runtime.highlighter.codeToTokens(code, { lang: canonical, theme });
 		} catch {
 			return undefined;
 		}
+	}
+
+	private aliasMap: Map<string, string> | undefined;
+
+	private resolveLanguageAlias(lang: string): string | undefined {
+		return this.aliasMap?.get(lang.toLowerCase());
 	}
 
 	renderTokens(tokens: ThemedToken[], parent: HTMLElement): void {

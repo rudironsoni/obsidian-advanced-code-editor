@@ -1,12 +1,5 @@
 import { OBSIDIAN_THEME_IDENTIFIER } from 'packages/obsidian/src/Constants';
 
-export enum FrameType {
-	Code = 'code',
-	Terminal = 'terminal',
-	None = 'none',
-	Auto = 'auto',
-}
-
 export interface Settings {
 	disabledLanguages: string[];
 	customThemeFolder: string;
@@ -21,7 +14,6 @@ export interface Settings {
 	inlineHighlighting: boolean;
 	ecDefaultShowLineNumbers: boolean;
 	ecDefaultWrap: boolean;
-	ecDefaultFrame: FrameType;
 	ecEditorFontSize: number;
 	ecEditorFontFamily: string;
 	ecEditorLineHeight: number;
@@ -38,7 +30,6 @@ export const DEFAULT_SETTINGS: Settings = {
 	inlineHighlighting: true,
 	ecDefaultShowLineNumbers: false,
 	ecDefaultWrap: false,
-	ecDefaultFrame: FrameType.Auto,
 	ecEditorFontSize: 14,
 	ecEditorFontFamily: 'var(--font-monospace)',
 	ecEditorLineHeight: 22,

@@ -85,6 +85,7 @@ export default defineConfig(({ mode }) => {
 					codeSplitting: false,
 				},
 				external,
+				...(buildEntry === 'modern-monaco' ? { treeshake: false } : {}),
 			},
 		},
 	} as UserConfig;

@@ -5,7 +5,6 @@ import { ShikiSettingsTab } from 'packages/obsidian/src/settings/SettingsTab';
 import { CodeBlock } from 'packages/obsidian/src/CodeBlock';
 import { InlineCodeBlock } from 'packages/obsidian/src/InlineCodeBlock';
 import { createCm6Plugin } from 'packages/obsidian/src/codemirror/Cm6_ViewPlugin';
-import { registerRenderedCodeBlockTouchScroll } from 'packages/obsidian/src/RenderedCodeBlockTouchScroll';
 
 import 'packages/obsidian/src/styles.css';
 
@@ -33,7 +32,6 @@ export default class ShikiPlugin extends Plugin {
 		this.addSettingTab(new LazyShikiSettingsTab(this));
 
 		this.registerInlineCodeProcessor();
-		registerRenderedCodeBlockTouchScroll(this);
 
 		this.deferStartupWork((): void => {
 			void this.registerCodeBlockProcessors().catch(error => {
@@ -139,6 +137,12 @@ export default class ShikiPlugin extends Plugin {
 						if (el.parentElement?.classList.contains('mod-frontmatter')) {
 							return;
 						}
+
+						// Guard against duplicate processing of the same element
+						if ((el as any).__shikiProcessed) {
+							return;
+						}
+						(el as any).__shikiProcessed = true;
 
 						const codeBlock = new CodeBlock(this, el, source, language, ctx);
 						ctx.addChild(codeBlock);
