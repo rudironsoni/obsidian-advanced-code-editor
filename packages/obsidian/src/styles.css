@@ -110,13 +110,12 @@ span.shiki-ul {
 	background-color: var(--code-background) !important;
 }
 
-/* Prevent Monaco from creating internal vertical scroll - let Obsidian handle it */
-/* Monaco sets overflow-y inline via JS; clip overflow on the editor container instead */
+/* Mobile: allow vertical page scroll to pass through Monaco (prevent scroll trapping) */
 .shiki-monaco-editor {
-	overflow: hidden;
+	touch-action: pan-y;
 }
 
-/* Ensure horizontal scroll still works via the scrollable element */
+/* Prevent Monaco from creating internal vertical scroll - let Obsidian handle it */
 .shiki-monaco-editor .monaco-scrollable-element {
 	overflow-y: hidden !important;
 }

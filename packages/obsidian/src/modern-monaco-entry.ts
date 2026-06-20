@@ -54,6 +54,8 @@ export async function createMonacoRuntime(options?: {
 			monaco.editor.setTheme(options?.defaultTheme);
 		}
 
+		const loadedGrammars = new Set<string>();
+
 		const registerLanguage = async (id: string): Promise<void> => {
 			const canonical = resolveLanguage(id);
 			if (!canonical) {
@@ -69,14 +71,47 @@ export async function createMonacoRuntime(options?: {
 				monaco.languages.register({ id: canonical });
 			}
 
-			// Load grammar from CDN and register tokenizer
-			// Failures are non-fatal - editor still works without syntax highlighting
-			try {
-				await highlighter.loadGrammarFromCDN(canonical);
+			// Already loaded - skip
+			if (loadedGrammars.has(canonical)) {
 				registerShikiMonacoTokenizer(monaco, highlighter, canonical);
-			} catch (error) {
-				console.warn(`[Shiki] Failed to load grammar for ${canonical}:`, error);
+				return;
 			}
+
+			// Load grammar from CDN with retry - mobile networks can be flaky
+			let lastError: unknown;
+			for (let attempt = 1; attempt <= 3; attempt++) {
+				try {
+					await highlighter.loadGrammarFromCDN(canonical);
+					loadedGrammars.add(canonical);
+					registerShikiMonacoTokenizer(monaco, highlighter, canonical);
+					console.log(`[Shiki] Grammar loaded for ${canonical} (attempt ${attempt})`);
+					return;
+				} catch (error) {
+					lastError = error;
+					console.warn(`[Shiki] Grammar load attempt ${attempt}/3 failed for ${canonical}:`, error);
+					if (attempt < 3) {
+						await new Promise(r => setTimeout(r, 500 * attempt));
+					}
+				}
+			}
+
+			// All retries failed - register a basic fallback tokenizer so the editor
+			// still has some syntax highlighting instead of plain text
+			console.error(`[Shiki] All grammar load attempts failed for ${canonical}. Using fallback tokenizer.`);
+			monaco.languages.setMonarchTokensProvider(canonical, {
+				tokenizer: {
+					root: [
+						[/\/\/.*$/, 'comment'],
+						[/\/\*.*\*\//, 'comment'],
+						[/"(?:[^"\\]|\\.)*"/, 'string'],
+						[/'(?:[^'\\]|\\.)*'/, 'string'],
+						[/\b(?:const|let|var|function|return|if|else|for|while|class|import|export|from|async|await|try|catch|throw|new|this|true|false|null|undefined)\b/, 'keyword'],
+						[/\b(?:def|class|return|if|else|elif|for|while|try|except|import|from|as|with|lambda|yield|pass|break|continue)\b/, 'keyword'],
+						[/\b\d+(?:\.\d+)?\b/, 'number'],
+						[/[a-zA-Z_]\w*(?=\()/, 'function'],
+					],
+				},
+			});
 		};
 
 		return { monaco, highlighter, registerLanguage };
