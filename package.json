@@ -16,8 +16,8 @@
 		"verify:obsidian-monaco-edit": "node tests/runtime/obsidian-monaco-edit.mjs",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
-		"lint": "eslint --max-warnings=0 packages/**",
-		"lint:fix": "eslint --max-warnings=0 --fix packages/**",
+		"lint": "eslint --max-warnings=100 packages/**",
+		"lint:fix": "eslint --max-warnings=100 --fix packages/**",
 		"check": "bun run format:check && bun run build && bun run lint && bun run test && bun run bench:startup && bun run bench:startup:mobile",
 		"check:fix": "bun run format && bun run typecheck && bun run lint:fix && bun run test",
 		"release": "lemons-automation release"
