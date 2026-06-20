@@ -15,6 +15,7 @@ dist/
 ```
 
 **Problems:**
+
 - `@shikijs/monaco` crashes with `compileAG` on null (WASM textmate incompatibility)
 - Expressive Code and Monaco use different renderers (visual inconsistency)
 - Three separate bundles to maintain and load
@@ -30,6 +31,7 @@ dist/
 ```
 
 **Benefits:**
+
 - Single Monaco renderer for both reading and editing (visual consistency)
 - modern-monaco handles WASM workers safely (no `compileAG` crashes)
 - Built-in Shiki theme support (no `@shikijs/monaco` integration needed)
@@ -41,12 +43,14 @@ dist/
 ### 1. Dependencies (`package.json`)
 
 **Remove:**
+
 - `monaco-editor-core`
 - `@shikijs/monaco`
 - `@expressive-code/*` packages (if no longer needed for inline code)
 - `shiki` (if modern-monaco bundles it)
 
 **Add:**
+
 - `modern-monaco`
 
 **Check:** Does modern-monaco re-export `shiki` utilities we need for inline highlighting? If not, keep `shiki`.
@@ -68,6 +72,7 @@ SHIKI_BUILD_ENTRY=main vite build --mode=production
 ```
 
 **Remove:**
+
 - `embeddedHighlighterCssFallbackPlugin`
 - `embeddedMonacoCssFallbackPlugin`
 - Expressive Code bundle plugin (if no longer used)
@@ -94,18 +99,19 @@ export type * from 'modern-monaco';
 import { init } from 'modern-monaco';
 
 async function loadModernMonaco(): Promise<ModernMonacoRuntime> {
-  // Option A: Load from CDN (default)
-  const monaco = await init();
-  
-  // Option B: Load from local file (user-configurable)
-  // const source = await plugin.app.vault.adapter.read(`${pluginDir}/modern-monaco.js`);
-  // const monaco = await loadFromSource(source);
-  
-  return monaco;
+	// Option A: Load from CDN (default)
+	const monaco = await init();
+
+	// Option B: Load from local file (user-configurable)
+	// const source = await plugin.app.vault.adapter.read(`${pluginDir}/modern-monaco.js`);
+	// const monaco = await loadFromSource(source);
+
+	return monaco;
 }
 ```
 
 **Theme integration:**
+
 ```typescript
 // modern-monaco accepts Shiki theme IDs
 monaco.editor.setTheme(plugin.loadedSettings.darkTheme);
@@ -122,7 +128,7 @@ private async render(metaString: string): Promise<void> {
   const container = this.containerEl;
   container.empty();
   container.classList.add('shiki-readonly-codeblock');
-  
+
   monaco.editor.create(container, {
     value: this.source,
     language: this.language,
@@ -143,6 +149,7 @@ private async render(metaString: string): Promise<void> {
 ```
 
 **Performance consideration:** Creating a Monaco instance per code block is expensive. For notes with 20+ code blocks, this could cause lag. Options:
+
 - A) Render first 5 blocks immediately, lazy-load others on scroll
 - B) Use a virtual list / intersection observer
 - C) Accept the cost (modern-monaco is optimized for this)
@@ -162,12 +169,14 @@ Option B (keep Shiki): Inline code is simple; Shiki's `codeToTokens` is fast and
 ### 7. Plugin Main (`packages/obsidian/src/main.ts`)
 
 **Remove:**
+
 - `highlighter` field and `LazyHighlighter` usage
 - `loadHighlighterEntry` imports
 - Expressive Code post-processor registration
 - Monaco embedding logic in `onload`
 
 **Replace with:**
+
 - `modernMonaco` field that lazy-loads modern-monaco
 - `registerCodeBlockProcessors` creates read-only Monaco editors
 - `registerCm6Plugin` creates inline Monaco editors
@@ -175,14 +184,17 @@ Option B (keep Shiki): Inline code is simple; Shiki's `codeToTokens` is fast and
 ### 8. Settings (`packages/obsidian/src/settings/Settings.ts` + SettingsTab)
 
 **Add settings:**
+
 - `modernMonacoSource: 'cdn' | 'local'` — Where to load modern-monaco from
 - `modernMonacoCdnUrl: string` — Custom CDN URL (default: esm.sh)
 
 **Remove settings (if Expressive Code removed):**
+
 - `ecDefaultFrame`
 - Expressive Code-specific settings
 
 **Keep settings:**
+
 - `darkTheme`, `lightTheme` — Passed to modern-monaco
 - `ecDefaultShowLineNumbers` — Passed to Monaco
 - `ecDefaultWrap` — Passed to Monaco
@@ -193,11 +205,13 @@ Option B (keep Shiki): Inline code is simple; Shiki's `codeToTokens` is fast and
 ### 9. CSS (`packages/obsidian/src/styles.css`)
 
 **Remove:**
+
 - Expressive Code styles (if no longer used)
 - `.shiki-editing-codeblock-*` styles (replaced by Monaco)
 - `.shiki-monaco-codeblock` styles (refined for modern-monaco)
 
 **Keep/Add:**
+
 - `.shiki-readonly-codeblock` — Container for read-only Monaco
 - `.shiki-inline` — Inline code highlighting
 - Fence hiding styles
@@ -220,6 +234,7 @@ monaco.editor.setTheme(this.getThemeIdentifier());
 ```
 
 For custom themes (JSON files), pass the JSON object to modern-monaco:
+
 ```typescript
 monaco.editor.defineTheme(themeName, themeJson);
 ```
@@ -232,21 +247,25 @@ monaco.editor.defineTheme(themeName, themeJson);
 ## CDN vs Local Loading Strategy
 
 ### Default (CDN)
+
 ```typescript
 import { init } from 'modern-monaco';
 const monaco = await init({ cdn: 'https://esm.sh' });
 ```
 
 Pros:
+
 - Smaller plugin bundle (main.js ~2MB)
 - modern-monaco.js loaded on demand
 - Always latest grammars and themes
 
 Cons:
+
 - Requires internet connection
 - CDN dependency (esm.sh)
 
 ### Local File
+
 ```typescript
 const pluginDir = `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`;
 const source = await plugin.app.vault.adapter.read(`${pluginDir}/modern-monaco.js`);
@@ -254,10 +273,12 @@ const source = await plugin.app.vault.adapter.read(`${pluginDir}/modern-monaco.j
 ```
 
 Pros:
+
 - Works offline
 - No CDN dependency
 
 Cons:
+
 - Larger initial download (~15MB modern-monaco.js)
 - User must manage file updates
 
@@ -271,6 +292,7 @@ Cons:
 ## Migration Path
 
 ### Phase 1: Add modern-monaco alongside existing code
+
 - Install modern-monaco dependency
 - Create `modern-monaco-entry.ts`
 - Add new build entry
@@ -278,12 +300,14 @@ Cons:
 - Add setting to toggle between Expressive Code and Monaco
 
 ### Phase 2: Stabilize and test
+
 - Test all languages
 - Test mobile
 - Test theme switching
 - Fix performance issues
 
 ### Phase 3: Remove legacy code
+
 - Remove Expressive Code
 - Remove `@shikijs/monaco`
 - Remove `monaco-editor-core`
@@ -292,15 +316,15 @@ Cons:
 
 ## Risk Assessment
 
-| Risk | Severity | Mitigation |
-|------|----------|------------|
-| Monaco read-only per block is slow | High | Use intersection observer, lazy-load off-screen blocks |
-| modern-monaco CDN unavailable | Medium | Provide local file fallback + download command |
-| Custom themes break | Medium | Test custom theme JSON loading with modern-monaco |
-| Inline code still needs Shiki | Low | Keep Shiki as devDependency for inline only |
-| mobile performance | Medium | Test on mobile, may need to disable Monaco on mobile |
-| Bundle size increase | Low | modern-monaco is ~15MB vs current ~14MB total |
-| modern-monaco API changes | Medium | Pin version, monitor releases |
+| Risk                               | Severity | Mitigation                                             |
+| ---------------------------------- | -------- | ------------------------------------------------------ |
+| Monaco read-only per block is slow | High     | Use intersection observer, lazy-load off-screen blocks |
+| modern-monaco CDN unavailable      | Medium   | Provide local file fallback + download command         |
+| Custom themes break                | Medium   | Test custom theme JSON loading with modern-monaco      |
+| Inline code still needs Shiki      | Low      | Keep Shiki as devDependency for inline only            |
+| mobile performance                 | Medium   | Test on mobile, may need to disable Monaco on mobile   |
+| Bundle size increase               | Low      | modern-monaco is ~15MB vs current ~14MB total          |
+| modern-monaco API changes          | Medium   | Pin version, monitor releases                          |
 
 ## Open Questions
 

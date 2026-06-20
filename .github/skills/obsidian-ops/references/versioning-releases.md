@@ -10,11 +10,14 @@ Update frequency: Check Obsidian Sample Theme repo for updates
 
 - Bump `version` in `manifest.json` (SemVer).
 - Create a GitHub release whose tag exactly matches `manifest.json`'s `version`. Do not use a leading `v`.
+
 ### Theme Releases
+
 - Attach `manifest.json` and `theme.css` to the release as individual assets.
 - After the initial release, follow the process to add/update your theme in the community catalog as required.
 
 ### Plugin Releases
+
 - Attach `main.js`, `manifest.json`, and `styles.css` to the release as individual assets.
 - Follow the plugin submission process to add/update your plugin in the community catalog.
 
@@ -28,58 +31,58 @@ Drop the following at `.github/workflows/release.yml`:
 name: Release
 
 on:
-  push:
-    tags:
-      - "*"
-  workflow_dispatch:
+    push:
+        tags:
+            - '*'
+    workflow_dispatch:
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+    contents: write
+    id-token: write
+    attestations: write
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "pnpm"
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - id: version
-        run: echo "version=$(jq -r .version manifest.json)" >> "$GITHUB_OUTPUT"
-      - uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: |
-            main.js
-            styles.css
-            manifest.json
-      - env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          if gh release view "$VERSION" >/dev/null 2>&1; then
-            gh release upload "$VERSION" main.js styles.css manifest.json --clobber
-          else
-            COMMIT_NOTES=$(git log -1 --pretty=format:%B)
-            PREV_TAG=$(git tag --sort=-creatordate --merged HEAD | grep -v "^${VERSION}$" | head -n 1 || true)
-            if [ -n "$PREV_TAG" ]; then
-              COMPARE="**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${VERSION}"
-            else
-              COMPARE="**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/commits/${VERSION}"
-            fi
-            NOTES=$(printf "%s\n\n---\n\n%s\n" "$COMMIT_NOTES" "$COMPARE")
-            gh release create "$VERSION" \
-              --title="$VERSION" \
-              --notes "$NOTES" \
-              main.js styles.css manifest.json
-          fi
+    release:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: 'pnpm'
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm build
+            - id: version
+              run: echo "version=$(jq -r .version manifest.json)" >> "$GITHUB_OUTPUT"
+            - uses: actions/attest-build-provenance@v2
+              with:
+                  subject-path: |
+                      main.js
+                      styles.css
+                      manifest.json
+            - env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  VERSION: ${{ steps.version.outputs.version }}
+              run: |
+                  if gh release view "$VERSION" >/dev/null 2>&1; then
+                    gh release upload "$VERSION" main.js styles.css manifest.json --clobber
+                  else
+                    COMMIT_NOTES=$(git log -1 --pretty=format:%B)
+                    PREV_TAG=$(git tag --sort=-creatordate --merged HEAD | grep -v "^${VERSION}$" | head -n 1 || true)
+                    if [ -n "$PREV_TAG" ]; then
+                      COMPARE="**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${VERSION}"
+                    else
+                      COMPARE="**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/commits/${VERSION}"
+                    fi
+                    NOTES=$(printf "%s\n\n---\n\n%s\n" "$COMMIT_NOTES" "$COMPARE")
+                    gh release create "$VERSION" \
+                      --title="$VERSION" \
+                      --notes "$NOTES" \
+                      main.js styles.css manifest.json
+                  fi
 ```
 
 **Why read the version from `manifest.json`**: the workflow runs from either a tag push (where `github.ref_name` is the tag) or a `workflow_dispatch` from a branch (where `github.ref_name` is the branch name, e.g. `master`). Using `github.ref_name` directly would title a manually-triggered release after the branch. Reading from `manifest.json` is consistent across both triggers and matches what Obsidian's plugin loader actually reads.
@@ -120,10 +123,10 @@ It is worth adding a manual trigger alongside the tag-push trigger so future "th
 
 ```yaml
 on:
-  push:
-    tags:
-      - "*"
-  workflow_dispatch:
+    push:
+        tags:
+            - '*'
+    workflow_dispatch:
 ```
 
 > [!NOTE]

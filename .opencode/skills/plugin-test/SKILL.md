@@ -1,16 +1,17 @@
 ---
 name: plugin-test
 description: >-
-  Acceptance test workflow for the obsidian-shiki-plugin Obsidian plugin. Use
-  when the user asks to test the plugin, smoke test a release, verify before
-  release, test BRAT/mobile installs, validate syntax highlighting, or judge
-  whether startup and rendering still work. Uses local checks first, then
-  Obsidian CLI/runtime checks, then release-asset or BRAT-style verification.
-  Does not spend API tokens and does not commit source changes.
+    Acceptance test workflow for the obsidian-shiki-plugin Obsidian plugin. Use
+    when the user asks to test the plugin, smoke test a release, verify before
+    release, test BRAT/mobile installs, validate syntax highlighting, or judge
+    whether startup and rendering still work. Uses local checks first, then
+    Obsidian CLI/runtime checks, then release-asset or BRAT-style verification.
+    Does not spend API tokens and does not commit source changes.
 metadata:
-  author: obsidian-shiki-plugin
-  version: '1.1'
+    author: obsidian-shiki-plugin
+    version: '1.1'
 ---
+
 # Shiki Plugin Acceptance Test
 
 Use this skill for release-level verification of `shiki-highlighter`. Keep the bar high: startup under 50 ms, Shiki highlighting working in reading mode and live preview, settings tab available, desktop and mobile paths covered.

@@ -21,8 +21,7 @@ function getBuildEntryFile(buildEntry: string): string {
 export default defineConfig(({ mode }) => {
 	const prod = mode === 'production';
 	const outDir = prod ? 'dist/' : `exampleVault/.obsidian/plugins/${manifest.id}/`;
-	const buildEntry =
-		process.env.SHIKI_BUILD_ENTRY === 'modern-monaco' ? 'modern-monaco' : 'main';
+	const buildEntry = process.env.SHIKI_BUILD_ENTRY === 'modern-monaco' ? 'modern-monaco' : 'main';
 
 	const external = [
 		'obsidian',

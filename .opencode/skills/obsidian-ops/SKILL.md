@@ -1,10 +1,11 @@
 ---
 name: obsidian-ops
 description: >-
-  Operations, syncing, versioning, and release management for Obsidian projects.
-  Load when running builds, syncing references, bumping versions, or preparing
-  for release.
+    Operations, syncing, versioning, and release management for Obsidian projects.
+    Load when running builds, syncing references, bumping versions, or preparing
+    for release.
 ---
+
 # Obsidian Operations Skill
 
 This skill covers the operational aspects of maintaining an Obsidian project, including build workflows, sync procedures, and release management.
@@ -16,6 +17,7 @@ To ensure reliable builds, consistent reference materials, and safe release proc
 ## Scope
 
 This skill covers:
+
 - Build and lint workflows
 - Syncing reference documentation from external sources
 - Version management and release preparation

@@ -80,19 +80,19 @@ Replace the `geminicli` target with `antigravity-cli`. For example:
 
 ```jsonc
 {
-  "targets": {
-    // Before
-    // "geminicli": { "rules": true, "skills": true, "mcp": true, "hooks": true, "permissions": true },
+	"targets": {
+		// Before
+		// "geminicli": { "rules": true, "skills": true, "mcp": true, "hooks": true, "permissions": true },
 
-    // After
-    "antigravity-cli": {
-      "rules": true,
-      "skills": true,
-      "mcp": true,
-      "hooks": true,
-      "permissions": true,
-    },
-  },
+		// After
+		"antigravity-cli": {
+			"rules": true,
+			"skills": true,
+			"mcp": true,
+			"hooks": true,
+			"permissions": true,
+		},
+	},
 }
 ```
 

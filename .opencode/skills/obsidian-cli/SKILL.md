@@ -1,15 +1,16 @@
 ---
 name: obsidian-cli
 description: >-
-  Use the Obsidian CLI to debug, inspect, and test the shiki-highlighter
-  Obsidian plugin during development. Covers plugin reloads, console/errors,
-  runtime evaluation, settings tab checks, reading-mode and live-preview syntax
-  highlighting, screenshots, CDP, and mobile emulation with
-  app.emulateMobile(true).
+    Use the Obsidian CLI to debug, inspect, and test the shiki-highlighter
+    Obsidian plugin during development. Covers plugin reloads, console/errors,
+    runtime evaluation, settings tab checks, reading-mode and live-preview syntax
+    highlighting, screenshots, CDP, and mobile emulation with
+    app.emulateMobile(true).
 metadata:
-  author: obsidian-shiki-plugin
-  version: '1.2'
+    author: obsidian-shiki-plugin
+    version: '1.2'
 ---
+
 # Obsidian CLI For Shiki Highlighter
 
 Use this skill to inspect a running Obsidian instance while developing `shiki-highlighter`. Prefix shell commands with `rtk` in this repo.

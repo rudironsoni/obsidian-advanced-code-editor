@@ -12,8 +12,7 @@ const LANGUAGE_BLACKLIST = new Set(['c++', 'c#', 'f#', 'mermaid']);
 const LANGUAGE_SPECIAL = new Set(['plaintext', 'txt', 'text', 'plain', 'ansi']);
 
 export function getActiveTheme(plugin: ShikiPlugin): string {
-	const isDark = document.body.classList.contains('theme-dark') ||
-		(!document.body.classList.contains('theme-light') && plugin.app.isDarkMode());
+	const isDark = document.body.classList.contains('theme-dark') || (!document.body.classList.contains('theme-light') && plugin.app.isDarkMode());
 	const setting = isDark ? plugin.loadedSettings.darkTheme : plugin.loadedSettings.lightTheme;
 	if (setting === OBSIDIAN_THEME_IDENTIFIER) {
 		return isDark ? 'github-dark' : 'github-light';

@@ -372,12 +372,15 @@ async function verifyMode(client, modeName, livePreview, marker) {
 	await delay(2000);
 	const diag = await evaluate(client, `JSON.stringify(window.__shikiDiag ?? { missing: true })`);
 	console.log(`${modeName} diag:`, diag);
-	const debugDom = await evaluate(client, `JSON.stringify({
+	const debugDom = await evaluate(
+		client,
+		`JSON.stringify({
 		allMonacoBlocks: document.querySelectorAll('.shiki-monaco-codeblock').length,
 		allActiveMonacoBlocks: document.querySelectorAll('.shiki-monaco-codeblock.shiki-monaco-active').length,
 		allEditableLines: document.querySelectorAll('.shiki-editing-codeblock-line').length,
 		allCmContent: document.querySelector('.cm-content')?.innerHTML?.substring(0, 200) ?? 'none',
-	})`);
+	})`,
+	);
 	console.log(`${modeName} debug:`, debugDom);
 	const line = await getEditableCodeLine(client);
 	assert(line.text.includes('runtimeEditableCodeBlockMarker'), `${modeName}: visible code line text is wrong`, line);
@@ -392,10 +395,13 @@ async function verifyMode(client, modeName, livePreview, marker) {
 	assert(monaco.fallbackBoxHeight === 0 && monaco.fallbackBoxWidth === 0, `${modeName}: Monaco fallback still occupies layout`, monaco);
 	assert(!monaco.fenceTextVisible, `${modeName}: raw fenced code block is still visible outside Monaco`, monaco);
 
-	await evaluate(client, `(() => {
+	await evaluate(
+		client,
+		`(() => {
 		const container = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active');
 		if (container && container._monacoEditor) container._monacoEditor.focus();
-	})()`);
+	})()`,
+	);
 	await typeText(client, marker);
 	const content = await assertFileContains(client, marker);
 	assert(content.includes(marker), `${modeName}: inserted text did not persist`, { marker, content });

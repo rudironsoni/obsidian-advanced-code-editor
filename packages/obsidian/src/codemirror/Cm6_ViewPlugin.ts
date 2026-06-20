@@ -111,11 +111,7 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 						}
 
 						// Skip HyperMD-codeblock nodes — reading mode processors handle these.
-						if (
-							props.has('HyperMD-codeblock') ||
-							props.has('HyperMD-codeblock-begin') ||
-							props.has('HyperMD-codeblock-end')
-						) {
+						if (props.has('HyperMD-codeblock') || props.has('HyperMD-codeblock-begin') || props.has('HyperMD-codeblock-end')) {
 							return;
 						}
 					},

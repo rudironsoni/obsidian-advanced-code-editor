@@ -1,14 +1,15 @@
 ---
 name: auto-dev
 description: >-
-  Execute one tick of the autonomous issue-to-PR pipeline — triage open issues
-  for readiness, draft implementation plans for maintainer approval, build the
-  oldest approved issue into a PR, and address review feedback on the open
-  automated PR. Designed for unattended scheduled runs (`scripts/auto-dev.sh`);
-  also invocable interactively as "/auto-dev" or "run an auto-dev tick", and as
-  "/auto-dev dry-run" for a read-only report of what a tick would do. Never
-  merges PRs. State lives in `auto:*` GitHub labels.
+    Execute one tick of the autonomous issue-to-PR pipeline — triage open issues
+    for readiness, draft implementation plans for maintainer approval, build the
+    oldest approved issue into a PR, and address review feedback on the open
+    automated PR. Designed for unattended scheduled runs (`scripts/auto-dev.sh`);
+    also invocable interactively as "/auto-dev" or "run an auto-dev tick", and as
+    "/auto-dev dry-run" for a read-only report of what a tick would do. Never
+    merges PRs. State lives in `auto:*` GitHub labels.
 ---
+
 # Auto-dev: one tick of the issue-to-PR pipeline
 
 This skill automates the path from open issue to reviewed PR while keeping the maintainer in control of two gates: **plan approval** (nothing is built without an approved plan) and **merge** (the skill never merges — ever). It is designed to run unattended every 15–30 minutes; each invocation is **one tick of a state machine**, does the single highest-priority piece of work, and exits. "Waiting" (for a reply, an approval, a review, a merge) is simply what happens between ticks.

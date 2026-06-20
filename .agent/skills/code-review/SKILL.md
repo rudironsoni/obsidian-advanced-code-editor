@@ -1,13 +1,14 @@
 ---
 name: code-review
 description: >-
-  Review code for quality, correctness, and maintainability. Use this skill when
-  reviewing pull requests, auditing existing code, refactoring for clarity, or
-  enforcing coding standards. Covers DRY principles, SOLID design, error
-  handling, performance, security, testing, and TypeScript/JavaScript best
-  practices. For Obsidian plugin-specific API guidance, refer to the
-  obsidian-plugin-development skill.
+    Review code for quality, correctness, and maintainability. Use this skill when
+    reviewing pull requests, auditing existing code, refactoring for clarity, or
+    enforcing coding standards. Covers DRY principles, SOLID design, error
+    handling, performance, security, testing, and TypeScript/JavaScript best
+    practices. For Obsidian plugin-specific API guidance, refer to the
+    obsidian-plugin-development skill.
 ---
+
 # Code Review
 
 ## When to use this skill

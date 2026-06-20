@@ -6,43 +6,43 @@ Currently, supports rules generation for Claude Code, GitHub Copilot, and OpenCo
 
 1. Create an any name directory. For example, if you prefer `~/.aiglobal`, run the following command.
 
-   ```bash
-   mkdir -p ~/.aiglobal
-   ```
+    ```bash
+    mkdir -p ~/.aiglobal
+    ```
 
 2. Initialize files for global files in the directory.
 
-   ```bash
-   cd ~/.aiglobal
-   rulesync init
-   ```
+    ```bash
+    cd ~/.aiglobal
+    rulesync init
+    ```
 
 3. Edit `~/.aiglobal/rulesync.jsonc` to enable global mode.
 
-   ```jsonc
-   {
-     "global": true,
-   }
-   ```
+    ```jsonc
+    {
+    	"global": true,
+    }
+    ```
 
 4. Edit `~/.aiglobal/.rulesync/rules/overview.md` to your preferences.
 
-   ```md
-   ---
-   root: true
-   ---
+    ```md
+    ---
+    root: true
+    ---
 
-   # The Project Overview
+    # The Project Overview
 
-   ...
-   ```
+    ...
+    ```
 
 5. Generate rules for global settings.
 
-   ```bash
-   # Run in the `~/.aiglobal` directory
-   rulesync generate
-   ```
+    ```bash
+    # Run in the `~/.aiglobal` directory
+    rulesync generate
+    ```
 
 > [!NOTE]
 > Currently, when in the directory enabled global mode:

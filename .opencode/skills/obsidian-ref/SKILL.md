@@ -1,10 +1,11 @@
 ---
 name: obsidian-ref
 description: >-
-  Technical references, manifest rules, file formats, and UX guidelines for
-  Obsidian. Load when checking API details, manifest requirements, or UI/UX
-  standards.
+    Technical references, manifest rules, file formats, and UX guidelines for
+    Obsidian. Load when checking API details, manifest requirements, or UI/UX
+    standards.
 ---
+
 # Obsidian Reference Skill
 
 This skill provides comprehensive technical references and standards for the Obsidian ecosystem.
@@ -16,6 +17,7 @@ To provide a central source of truth for API usage, file formats, and design sta
 ## Scope
 
 This skill covers:
+
 - `manifest.json` requirements and validation
 - Obsidian API details and documentation
 - Obsidian-specific file formats (Markdown, Properties, Canvas)

@@ -189,10 +189,7 @@ async function main() {
 
 	if (!target) {
 		console.log('Launching Obsidian...');
-		child = spawn('/Applications/Obsidian.app/Contents/MacOS/Obsidian', [
-			`--remote-debugging-port=${PORT}`,
-			`--user-data-dir=${USER_DATA}`,
-		], {
+		child = spawn('/Applications/Obsidian.app/Contents/MacOS/Obsidian', [`--remote-debugging-port=${PORT}`, `--user-data-dir=${USER_DATA}`], {
 			detached: true,
 			stdio: 'ignore',
 		});
@@ -203,7 +200,9 @@ async function main() {
 		console.log('Obsidian ready:', target.url);
 
 		// Trust vault
-		await evaluate(target.webSocketDebuggerUrl, `
+		await evaluate(
+			target.webSocketDebuggerUrl,
+			`
 			(async () => {
 				await new Promise(r => setTimeout(r, 2000));
 				const trust = [...document.querySelectorAll('button')].find(b => b.innerText.includes('Trust author'));
@@ -211,13 +210,16 @@ async function main() {
 				await new Promise(r => setTimeout(r, 2000));
 				return { trusted: !!trust };
 			})()
-		`);
+		`,
+		);
 	} else {
 		console.log('Reusing existing Obsidian instance');
 	}
 
 	// Load plugin
-	await evaluate(target.webSocketDebuggerUrl, `
+	await evaluate(
+		target.webSocketDebuggerUrl,
+		`
 		(async () => {
 			window._shikiErrors = [];
 			const origError = console.error;
@@ -233,10 +235,13 @@ async function main() {
 			await new Promise(r => setTimeout(r, 3000));
 			return { loaded: true };
 		})()
-	`);
+	`,
+	);
 
 	// Open test file in reading mode
-	await evaluate(target.webSocketDebuggerUrl, `
+	await evaluate(
+		target.webSocketDebuggerUrl,
+		`
 		(async () => {
 			const app = window.app;
 			const file = app.vault.getAbstractFileByPath('test-visual.md');
@@ -245,13 +250,16 @@ async function main() {
 			await new Promise(r => setTimeout(r, 5000));
 			return { activeFile: app.workspace.getActiveFile()?.path ?? null };
 		})()
-	`);
+	`,
+	);
 
 	// Screenshot reading mode
 	await screenshot(target.webSocketDebuggerUrl, 'planning/test-reports/reading-mode.png');
 
 	// Check visual state
-	const visualCheck = await evaluate(target.webSocketDebuggerUrl, `
+	const visualCheck = await evaluate(
+		target.webSocketDebuggerUrl,
+		`
 		(() => {
 			const viewRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
 			const editors = [...viewRoot.querySelectorAll('.monaco-editor')];
@@ -275,11 +283,14 @@ async function main() {
 				errors: window._shikiErrors.slice(-10),
 			};
 		})()
-	`);
+	`,
+	);
 	console.log('\nVisual check:', JSON.stringify(visualCheck, null, 2));
 
 	// Switch to live preview
-	await evaluate(target.webSocketDebuggerUrl, `
+	await evaluate(
+		target.webSocketDebuggerUrl,
+		`
 		(async () => {
 			const app = window.app;
 			const file = app.vault.getAbstractFileByPath('test-visual.md');
@@ -288,13 +299,16 @@ async function main() {
 			await new Promise(r => setTimeout(r, 5000));
 			return { mode: 'live-preview' };
 		})()
-	`);
+	`,
+	);
 
 	// Screenshot live preview
 	await screenshot(target.webSocketDebuggerUrl, 'planning/test-reports/live-preview.png');
 
 	// Check live preview state
-	const livePreviewCheck = await evaluate(target.webSocketDebuggerUrl, `
+	const livePreviewCheck = await evaluate(
+		target.webSocketDebuggerUrl,
+		`
 		(() => {
 			const viewRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
 			return {
@@ -304,7 +318,8 @@ async function main() {
 				errors: window._shikiErrors.slice(-10),
 			};
 		})()
-	`);
+	`,
+	);
 	console.log('\nLive preview check:', JSON.stringify(livePreviewCheck, null, 2));
 
 	console.log('\nScreenshots saved to planning/test-reports/');

@@ -1,6 +1,7 @@
 ---
 description: 'Test Obsidian plugin on desktop, mobile, or both'
 ---
+
 target = $ARGUMENTS
 
 If target is not provided, default to "both".
@@ -8,6 +9,7 @@ If target is not provided, default to "both".
 Execute the following based on target:
 
 **desktop**:
+
 1. Run `bun run bench:startup` and capture output
 2. Use obsidian-cli MCP: `plugin:reload id=shiki-highlighter`
 3. Check `dev:errors`
@@ -17,6 +19,7 @@ Execute the following based on target:
 7. Report desktop results
 
 **mobile**:
+
 1. Run `bun run bench:startup:mobile` and capture output
 2. Use obsidian-cli MCP: `eval code="app.emulateMobile(true)"`
 3. `plugin:reload id=shiki-highlighter`
@@ -31,6 +34,7 @@ Execute the following based on target:
 Run desktop phase first, then mobile phase.
 
 **Report format**:
+
 ```
 ## Test Results — <target>
 

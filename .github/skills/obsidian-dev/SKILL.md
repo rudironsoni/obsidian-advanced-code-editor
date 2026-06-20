@@ -1,9 +1,10 @@
 ---
 name: obsidian-dev
 description: >-
-  Development patterns for Obsidian. Load when implementing features or
-  following coding conventions.
+    Development patterns for Obsidian. Load when implementing features or
+    following coding conventions.
 ---
+
 # Obsidian Development Skill
 
 This skill provides patterns and rules for developing Obsidian plugins and themes.
@@ -15,6 +16,7 @@ To ensure consistent development across plugins and themes, proper code organiza
 ## Scope
 
 This skill covers:
+
 - Implementing new plugin features
 - TypeScript/JavaScript coding conventions
 - Plugin debugging and troubleshooting
