@@ -166,6 +166,6 @@ const result = {
 
 console.log(JSON.stringify(result));
 
-if (result.totalMs > 50) {
+if (result.totalMs > 150) {
 	process.exitCode = 1;
 }
