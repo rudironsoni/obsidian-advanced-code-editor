@@ -1,18 +1,19 @@
 ---
 name: obsidian-plugin-development
 description: >-
-    Build, modify, and debug Obsidian plugins using the TypeScript API. Use this
-    skill when working with Obsidian plugin source code, the obsidian npm package,
-    plugin UI (views, modals, settings, commands, ribbons), vault file operations,
-    editor manipulation, workspace management, metadata cache, events, markdown
-    rendering, or the Obsidian CLI. Covers plugin lifecycle, best practices,
-    common patterns, and the full TypeScript API surface.
-metadata:
+  Build, modify, and debug Obsidian plugins using the TypeScript API. Use this
+  skill when working with Obsidian plugin source code, the obsidian npm package,
+  plugin UI (views, modals, settings, commands, ribbons), vault file operations,
+  editor manipulation, workspace management, metadata cache, events, markdown
+  rendering, or the Obsidian CLI. Covers plugin lifecycle, best practices,
+  common patterns, and the full TypeScript API surface.
+targets:
+  - '*'
+opencode:
+  metadata:
     author: obsidian-shiki-plugin
     version: '1.0'
-targets: ["*"]
 ---
-
 # Obsidian Plugin Development
 
 ## When to use this skill

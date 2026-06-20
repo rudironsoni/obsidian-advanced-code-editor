@@ -6,7 +6,6 @@ description: >-
   environments using MCP tools (obsidian-cli, electron-devtools). Covers plugin
   load verification, UI rendering, mobile emulation, screenshot comparison, and
   performance regression detection.
-model: inherit
 ---
 You are the Obsidian plugin testing specialist. Your job is to verify that an Obsidian plugin works correctly on both desktop and mobile emulation.
 

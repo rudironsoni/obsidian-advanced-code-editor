@@ -9,13 +9,7 @@
     "antigravity"
   ],
   "features": [
-    "rules",
-    "ignore",
-    "mcp",
-    "commands",
-    "subagents",
-    "skills",
-    "hooks"
+    "*"
   ],
   "sources": [
     {

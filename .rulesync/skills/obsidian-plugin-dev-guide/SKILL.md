@@ -1,18 +1,18 @@
 ---
 name: obsidian-plugin-dev
 description: >
-  Comprehensive skill for Obsidian plugin development with TypeScript.
-  Covers plugin lifecycle, CodeMirror 6 editor extensions, React/Svelte integration,
-  Vault API patterns, settings with migration pipelines, SecretStorage, CSS theming,
-  CLI debugging workflow, testing, CI/CD, and community plugin submission.
-  Trigger on: create obsidian plugin, obsidian plugin dev, obsidian API, obsidian editor extension,
-  obsidian CM6, obsidian view, obsidian modal, obsidian settings, obsidian command,
-  obsidian manifest, obsidian publish, obsidian submit plugin, obsidian plugin test,
-  obsidian vite config, obsidian react, obsidian theme, obsidian CLI debug.
-version: 1.0.0
-targets: ["*"]
+  Comprehensive skill for Obsidian plugin development with TypeScript. Covers
+  plugin lifecycle, CodeMirror 6 editor extensions, React/Svelte integration,
+  Vault API patterns, settings with migration pipelines, SecretStorage, CSS
+  theming, CLI debugging workflow, testing, CI/CD, and community plugin
+  submission. Trigger on: create obsidian plugin, obsidian plugin dev, obsidian
+  API, obsidian editor extension, obsidian CM6, obsidian view, obsidian modal,
+  obsidian settings, obsidian command, obsidian manifest, obsidian publish,
+  obsidian submit plugin, obsidian plugin test, obsidian vite config, obsidian
+  react, obsidian theme, obsidian CLI debug.
+targets:
+  - '*'
 ---
-
 # Obsidian Plugin Development
 
 ## When This Skill Applies

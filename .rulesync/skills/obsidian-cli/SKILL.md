@@ -1,12 +1,18 @@
 ---
 name: obsidian-cli
-description: Use the Obsidian CLI to debug, inspect, and test the shiki-highlighter Obsidian plugin during development. Covers plugin reloads, console/errors, runtime evaluation, settings tab checks, reading-mode and live-preview syntax highlighting, screenshots, CDP, and mobile emulation with app.emulateMobile(true).
-metadata:
+description: >-
+  Use the Obsidian CLI to debug, inspect, and test the shiki-highlighter
+  Obsidian plugin during development. Covers plugin reloads, console/errors,
+  runtime evaluation, settings tab checks, reading-mode and live-preview syntax
+  highlighting, screenshots, CDP, and mobile emulation with
+  app.emulateMobile(true).
+targets:
+  - '*'
+opencode:
+  metadata:
     author: obsidian-shiki-plugin
     version: '1.2'
-targets: ["*"]
 ---
-
 # Obsidian CLI For Shiki Highlighter
 
 Use this skill to inspect a running Obsidian instance while developing `shiki-highlighter`. Prefix shell commands with `rtk` in this repo.
@@ -115,3 +121,11 @@ rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true OBSIDIAN_VERIFY_PLUGIN_DIR=/tmp/shiki-
 - `dev:mobile` or `app.emulateMobile(true)` persists until turned off or reset.
 - CSS variable token colors are expected when the plugin uses the built-in Obsidian theme.
 - A blank screenshot usually means the UI did not settle. Sleep briefly and inspect DOM before retesting.
+
+## Resource Rules
+
+- **One Obsidian instance only.** Never spawn a second. Before launching, check `lsof -i :9230` or the helper's `isObsidianRunning()` check.
+- If an instance is already running, reuse it: reload the plugin, re-copy plugin files into the existing vault, reload the test note. Do not create a new vault, user-data-dir, or `--user-data-dir`.
+- If you accidentally launch twice, kill the duplicate. Never leave orphan processes.
+- `plugin:reload` is cheap and idempotent. Prefer it over relaunching Obsidian.
+- Visual-test scripts must probe the CDP port first and skip `spawn()` when a target is alive.
