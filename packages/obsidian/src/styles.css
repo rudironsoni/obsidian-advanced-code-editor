@@ -91,18 +91,37 @@ span.shiki-ul {
 /* Monaco read-only blocks in reading mode */
 .shiki-monaco-block {
 	position: relative;
+	background-color: var(--code-background);
+	border-radius: var(--code-radius);
 }
 
 .shiki-monaco-editor {
 	width: 100%;
 	position: relative;
+	background-color: var(--code-background);
+}
+
+/* Ensure Monaco editor inherits the background */
+.shiki-monaco-editor .monaco-editor {
+	background-color: var(--code-background) !important;
+}
+
+.shiki-monaco-editor .monaco-editor .overflow-guard {
+	background-color: var(--code-background) !important;
 }
 
 /* Prevent Monaco from creating internal vertical scroll - let Obsidian handle it */
-.shiki-monaco-editor .monaco-scrollable-element {
-	overflow-y: visible !important;
+/* Monaco sets overflow-y inline via JS; clip overflow on the editor container instead */
+.shiki-monaco-editor {
+	overflow: hidden;
 }
 
+/* Ensure horizontal scroll still works via the scrollable element */
+.shiki-monaco-editor .monaco-scrollable-element {
+	overflow-y: hidden !important;
+}
+
+/* Hide vertical scrollbar even if Monaco creates it */
 .shiki-monaco-editor .monaco-scrollable-element > .scrollbar.vertical {
 	display: none !important;
 }
