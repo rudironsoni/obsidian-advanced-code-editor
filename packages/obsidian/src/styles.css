@@ -101,18 +101,25 @@ span.shiki-ul {
 	background-color: var(--code-background);
 }
 
-/* Ensure Monaco editor inherits the background */
-.shiki-monaco-editor .monaco-editor {
+/* Ensure Monaco editor inherits the background ONLY on the content area,
+   not on .margin which extends into Obsidian's gutter in live preview. */
+.shiki-monaco-editor .monaco-editor .view-lines {
 	background-color: var(--code-background) !important;
 }
 
-.shiki-monaco-editor .monaco-editor .overflow-guard {
-	background-color: var(--code-background) !important;
-}
-
-/* Mobile: allow vertical page scroll to pass through Monaco (prevent scroll trapping) */
+/* Mobile: allow vertical page scroll to pass through Monaco (prevent scroll trapping).
+   Also disable pointer-events so Monaco doesn't capture touch events for scrolling. */
 .shiki-monaco-editor {
 	touch-action: pan-y;
+}
+
+/* On devices without hover (mobile), make the editor non-interactive so
+   touch scroll events bubble to Obsidian. Desktop keeps interaction for
+   text selection. */
+@media (hover: none) {
+	.shiki-monaco-editor .monaco-editor {
+		pointer-events: none !important;
+	}
 }
 
 /* Prevent Monaco from creating internal vertical scroll - let Obsidian handle it */
@@ -154,6 +161,10 @@ span.shiki-ul {
 	display: block !important;
 	visibility: visible !important;
 	color: var(--text-faint) !important;
+	/* Right-align line numbers so they stay away from Obsidian's gutter
+	   and align with the right edge of the margin. */
+	text-align: right !important;
+	white-space: nowrap !important;
 }
 
 /* Settings tab  */
