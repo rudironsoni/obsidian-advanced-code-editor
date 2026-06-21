@@ -424,7 +424,7 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 						fontFamily: computedStyle.fontFamily,
 						lineHeight,
 						lineNumbers: 'off',
-						wordWrap: 'off',
+						wordWrap: plugin.loadedSettings.ecDefaultWrap ? 'on' : 'off',
 						renderLineHighlight: 'none',
 						minimap: { enabled: false },
 						scrollbar: {
@@ -538,12 +538,21 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 					this.hiddenBlockIds.add(block.blockId);
 					this.rebuildLivePreviewBlocks(this.view);
 				}
+				this.applyHiddenClass(block.blockId, true);
+			}
+
+			private applyHiddenClass(blockId: string, hidden: boolean): void {
+				const selector = `[data-shiki-editing-block-id="${blockId}"]`;
+				for (const element of this.view.contentDOM.querySelectorAll(selector)) {
+					element.classList.toggle('shiki-editing-codeblock-line-hidden', hidden);
+				}
 			}
 
 			private disposeMonacoBlock(handle: MonacoBlockHandle): void {
 				if (this.hiddenBlockIds.delete(handle.blockId)) {
 					this.rebuildLivePreviewBlocks(this.view);
 				}
+				this.applyHiddenClass(handle.blockId, false);
 				handle.changeDisposable.dispose();
 				handle.focusDisposable.dispose();
 				handle.blurDisposable.dispose();

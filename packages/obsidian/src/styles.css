@@ -117,6 +117,7 @@ span.shiki-ul {
 	color: transparent !important;
 	caret-color: transparent !important;
 	opacity: 0 !important;
+	pointer-events: none !important;
 	text-shadow: none !important;
 }
 
