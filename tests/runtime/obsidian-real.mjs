@@ -571,6 +571,36 @@ async function dispatchHorizontalWheel(wsUrl, x, y, deltaX) {
 	}
 }
 
+async function dispatchWheelOnActiveMonaco(wsUrl, deltaX) {
+	return evaluate(
+		wsUrl,
+		`(() => {
+			const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active');
+			if (!block) return { ok: false, error: 'no-active-monaco-block' };
+			const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: ${deltaX}, deltaY: 0 });
+			block.dispatchEvent(event);
+			return { ok: true, defaultPrevented: event.defaultPrevented };
+		})()`,
+	);
+}
+
+async function dispatchTouchDragOnActiveMonaco(wsUrl, fromX, fromY, toX, toY) {
+	return evaluate(
+		wsUrl,
+		`(() => {
+			const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active');
+			if (!block) return { ok: false, error: 'no-active-monaco-block' };
+			const createTouch = (x, y) => new Touch({ identifier: 1, target: block, clientX: x, clientY: y, radiusX: 1, radiusY: 1, force: 1 });
+			const startTouch = createTouch(${fromX}, ${fromY});
+			const moveTouch = createTouch(${toX}, ${toY});
+			block.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [startTouch], targetTouches: [startTouch], changedTouches: [startTouch] }));
+			block.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: [moveTouch], targetTouches: [moveTouch], changedTouches: [moveTouch] }));
+			block.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true, touches: [], targetTouches: [], changedTouches: [moveTouch] }));
+			return { ok: true };
+		})()`,
+	);
+}
+
 async function measureEditableGestureSet(wsUrl, stateName, label) {
 	const target = await evaluate(
 		wsUrl,

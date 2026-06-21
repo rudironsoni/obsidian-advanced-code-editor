@@ -14,6 +14,7 @@ export class LivePreviewAdapter {
 	private blocks: CodeBlockModel[] = [];
 	private retrySyncTimer: number | undefined;
 	private activeBlockId: string | undefined;
+	private readonly hiddenBlockIds = new Set<string>();
 
 	constructor(plugin: ShikiPlugin, view: EditorView) {
 		this.plugin = plugin;
@@ -77,6 +78,7 @@ export class LivePreviewAdapter {
 
 		const builder = new RangeSetBuilder<Decoration>();
 		for (const block of this.blocks) {
+			const hiddenClass = this.hiddenBlockIds.has(block.id) ? ' shiki-editing-codeblock-line-hidden' : '';
 			for (let lineNumber = block.openingFenceLine ?? 0; lineNumber <= (block.closingFenceLine ?? -1); lineNumber++) {
 				const line = this.view.state.doc.line(lineNumber);
 				builder.add(
@@ -84,7 +86,10 @@ export class LivePreviewAdapter {
 					line.from,
 					Decoration.line({
 						attributes: {
-							class: lineNumber === block.openingFenceLine || lineNumber === block.closingFenceLine ? 'shiki-editing-codeblock-fence shiki-editing-codeblock-line-hidden' : 'shiki-editing-codeblock-line shiki-editing-codeblock-line-hidden',
+							class:
+								lineNumber === block.openingFenceLine || lineNumber === block.closingFenceLine
+									? `shiki-editing-codeblock-fence${hiddenClass}`
+									: `shiki-editing-codeblock-line${hiddenClass}`,
 							'data-shiki-editing-block-id': block.id,
 						},
 					}),
@@ -148,23 +153,46 @@ export class LivePreviewAdapter {
 			surface.hostEl.style.top = `${firstRect.top - rootRect.top}px`;
 			surface.hostEl.style.width = `${firstRect.width}px`;
 			surface.hostEl.style.height = `${Math.max(lastRect.bottom - firstRect.top, first.offsetHeight)}px`;
-			this.plugin.hydrationQueue.enqueue(surface);
+			if (surface.isHydrated()) {
+				this.setBlockHidden(block.id, true);
+			} else {
+				this.setBlockHidden(block.id, false);
+				void surface.hydrateReadonly().then(() => {
+					if (this.blocks.some(candidate => candidate.id === block.id)) {
+						this.setBlockHidden(block.id, true);
+					}
+				});
+			}
 		}
 
 		for (const block of this.blocks) {
 			if (!visibleIds.has(block.id)) {
 				const surface = this.plugin.surfaceRegistry.get(block.id);
 				surface?.hostEl.remove();
+				this.setBlockHidden(block.id, false);
 			}
 		}
 	}
 
 	private async detachAll(): Promise<void> {
 		for (const block of this.blocks) {
+			this.hiddenBlockIds.delete(block.id);
 			this.plugin.surfaceRegistry.release(block.id);
 			this.plugin.codeBlockRegistry.delete(block.id);
 		}
 		this.blocks = [];
+	}
+
+	private setBlockHidden(blockId: string, hidden: boolean): void {
+		const changed = hidden ? !this.hiddenBlockIds.has(blockId) : this.hiddenBlockIds.delete(blockId);
+		if (hidden) {
+			this.hiddenBlockIds.add(blockId);
+		}
+		if (!changed) {
+			return;
+		}
+		this.rebuildBlocks();
+		this.view.dispatch(this.view.state.update({}));
 	}
 
 	createEditSync(block: CodeBlockModel): MonacoEditSync {
