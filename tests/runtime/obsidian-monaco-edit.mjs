@@ -221,7 +221,11 @@ async function openNote(client, livePreview) {
 		}
 			if (!file) throw new Error('note not found');
 			const leaf = app.workspace.getLeaf(false);
-			await leaf.openFile(file, { state: { mode: 'source', source: ${livePreview ? 'false' : 'true'} } });
+			await leaf.openFile(file);
+			await new Promise(resolve => setTimeout(resolve, 250));
+			if (leaf.view?.setState) {
+				await leaf.view.setState({ file: file.path, mode: 'source', source: ${livePreview ? 'false' : 'true'} }, { history: false });
+			}
 			leaf.view?.editor?.setCursor?.({ line: 0, ch: 0 });
 			await new Promise(resolve => setTimeout(resolve, 800));
 			return true;
