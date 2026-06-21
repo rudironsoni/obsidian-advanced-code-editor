@@ -67,6 +67,7 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 			blockDecorations: DecorationSet;
 			livePreviewBlocks: LivePreviewCodeBlock[];
 			monacoBlocks: Map<string, MonacoBlockHandle>;
+			hiddenBlockIds: Set<string>;
 			overlayRoot: HTMLDivElement;
 			view: EditorView;
 			private syncingLivePreview = false;
@@ -84,6 +85,7 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 				this.blockDecorations = Decoration.none;
 				this.livePreviewBlocks = [];
 				this.monacoBlocks = new Map();
+				this.hiddenBlockIds = new Set();
 				this.overlayRoot = document.createElement('div');
 				this.overlayRoot.className = 'shiki-monaco-overlay-root';
 				this.view.dom.appendChild(this.overlayRoot);
@@ -227,12 +229,13 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 				const blocks = this.parseLivePreviewBlocks(view);
 				const ranges: Range<Decoration>[] = [];
 				for (const block of blocks) {
+					const hiddenClass = this.hiddenBlockIds.has(block.blockId) ? ' shiki-editing-codeblock-line-hidden' : '';
 					for (let lineNumber = block.codeStartLine; lineNumber <= block.codeEndLine; lineNumber++) {
 						const line = view.state.doc.line(lineNumber);
 						ranges.push(
 							Decoration.line({
 								attributes: {
-									class: 'shiki-editing-codeblock-line',
+									class: `shiki-editing-codeblock-line${hiddenClass}`,
 									'data-shiki-editing-block-id': block.blockId,
 								},
 							}).range(line.from),
@@ -243,7 +246,7 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 					ranges.push(
 						Decoration.line({
 							attributes: {
-								class: 'shiki-editing-codeblock-fence',
+								class: `shiki-editing-codeblock-fence${hiddenClass}`,
 								'data-shiki-editing-block-id': block.blockId,
 							},
 						}).range(openingFence.from),
@@ -253,7 +256,7 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 					ranges.push(
 						Decoration.line({
 							attributes: {
-								class: 'shiki-editing-codeblock-fence',
+								class: `shiki-editing-codeblock-fence${hiddenClass}`,
 								'data-shiki-editing-block-id': block.blockId,
 							},
 						}).range(closingFence.from),
@@ -531,18 +534,16 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 				});
 				monaco.editor.setTheme(theme);
 				handle.editor.layout({ width: Math.max(firstRect.width, 1), height: Math.max(blockHeight, 1) });
-				this.setBlockVisibility(block.blockId, true);
-			}
-
-			private setBlockVisibility(blockId: string, monacoReady: boolean): void {
-				const selector = `[data-shiki-editing-block-id="${blockId}"]`;
-				for (const element of this.view.contentDOM.querySelectorAll(selector)) {
-					element.classList.toggle('shiki-editing-codeblock-line-hidden', monacoReady);
+				if (!this.hiddenBlockIds.has(block.blockId)) {
+					this.hiddenBlockIds.add(block.blockId);
+					this.rebuildLivePreviewBlocks(this.view);
 				}
 			}
 
 			private disposeMonacoBlock(handle: MonacoBlockHandle): void {
-				this.setBlockVisibility(handle.blockId, false);
+				if (this.hiddenBlockIds.delete(handle.blockId)) {
+					this.rebuildLivePreviewBlocks(this.view);
+				}
 				handle.changeDisposable.dispose();
 				handle.focusDisposable.dispose();
 				handle.blurDisposable.dispose();
