@@ -3,6 +3,8 @@ interface MonacoEditorLike {
 	getModel(): {
 		getWordAtPosition(position: { lineNumber: number; column: number }): { startColumn: number; endColumn: number } | null;
 		getValueInRange(range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }): string;
+		getLineCount(): number;
+		getLineMaxColumn(lineNumber: number): number;
 	} | null;
 	getScrolledVisiblePosition(position: { lineNumber: number; column: number }): { left: number; top: number; height: number } | null;
 	getTargetAtClientPoint?(clientX: number, clientY: number): { position?: { lineNumber: number; column: number } } | null;
@@ -240,14 +242,15 @@ export class MonacoSelectionController {
 		if (!editor || !model) {
 			return;
 		}
-		const value = model.getValueInRange({ startLineNumber: 1, startColumn: 1, endLineNumber: Number.MAX_SAFE_INTEGER, endColumn: Number.MAX_SAFE_INTEGER });
-		const lines = value.split('\n');
+		const lineCount = model.getLineCount();
+		const endColumn = model.getLineMaxColumn(lineCount);
 		editor.setSelection({
 			startLineNumber: 1,
 			startColumn: 1,
-			endLineNumber: lines.length,
-			endColumn: (lines[lines.length - 1]?.length ?? 0) + 1,
+			endLineNumber: lineCount,
+			endColumn,
 		});
+		this.renderSelectionUi();
 	}
 
 	private clearSelection(): void {

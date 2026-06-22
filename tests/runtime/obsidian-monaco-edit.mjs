@@ -327,22 +327,19 @@ async function readOutsideNoteWheelPoint(client) {
 		const scroller = document.querySelector('.markdown-source-view.mod-cm6 .cm-scroller')
 			?? document.querySelector('.workspace-leaf-content[data-type="markdown"] .view-content')
 			?? document.scrollingElement;
-		const scrollerRect = scroller?.getBoundingClientRect?.();
-		const outsideLine = [...document.querySelectorAll('.markdown-source-view.mod-cm6 .cm-line')].find(line => {
-			if (line.closest('.shiki-monaco-codeblock')) return false;
-			const rect = line.getBoundingClientRect();
-			if (rect.width <= 0 || rect.height <= 0) return false;
-			if (!scrollerRect) return true;
-			return rect.top >= scrollerRect.top + 8 && rect.bottom <= scrollerRect.bottom - 8;
-		});
-		const rect = outsideLine?.getBoundingClientRect?.() ?? scrollerRect;
-		return {
-			x: rect ? rect.left + Math.min(Math.max(rect.width / 2, 24), Math.max(rect.width - 8, 24)) : 32,
-			y: rect ? rect.top + Math.min(Math.max(rect.height / 2, 8), Math.max(rect.height - 4, 8)) : 32,
-			noteScrollTop: scroller?.scrollTop ?? 0,
-			scrollHeight: scroller?.scrollHeight ?? 0,
-			clientHeight: scroller?.clientHeight ?? 0,
-		};
+		const rect = scroller?.getBoundingClientRect?.();
+		if (!rect) return { x: 32, y: 32, noteScrollTop: scroller?.scrollTop ?? 0, scrollHeight: scroller?.scrollHeight ?? 0, clientHeight: scroller?.clientHeight ?? 0 };
+		const xs = [0.5, 0.35, 0.65, 0.2, 0.8].map(ratio => rect.left + rect.width * ratio);
+		const ys = [0.2, 0.35, 0.5, 0.65, 0.8].map(ratio => rect.top + rect.height * ratio);
+		for (const y of ys) {
+			for (const x of xs) {
+				const element = document.elementFromPoint(x, y);
+				if (element && !element.closest('.shiki-monaco-codeblock, .shiki-monaco-block, .monaco-editor')) {
+					return { x, y, noteScrollTop: scroller?.scrollTop ?? 0, scrollHeight: scroller?.scrollHeight ?? 0, clientHeight: scroller?.clientHeight ?? 0, tagName: element.tagName, className: element.className?.toString?.() ?? '' };
+				}
+			}
+		}
+		return { x: rect.left + rect.width / 2, y: rect.top + Math.min(rect.height - 24, Math.max(24, rect.height / 2)), noteScrollTop: scroller?.scrollTop ?? 0, scrollHeight: scroller?.scrollHeight ?? 0, clientHeight: scroller?.clientHeight ?? 0, fallback: true };
 	})()`,
 	);
 }
@@ -511,6 +508,102 @@ async function assertEditableCursorPlacement(client, modeName) {
 		editor?.setPosition?.({ lineNumber: 1, column: 1 });
 	})()`,
 	);
+}
+
+async function readSelectionToolbarButtons(client) {
+	return evaluate(
+		client,
+		`(() => {
+		const toolbar = document.querySelector('.shiki-monaco-selection-toolbar');
+		const buttons = [...document.querySelectorAll('.shiki-monaco-selection-toolbar button')].map(button => {
+			const rect = button.getBoundingClientRect();
+			return { text: (button.textContent ?? '').trim(), x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, width: rect.width, height: rect.height };
+		});
+		return { toolbarVisible: Boolean(toolbar && !toolbar.classList.contains('is-hidden')), buttons };
+	})()`,
+	);
+}
+
+function findToolbarButton(state, labels) {
+	const wanted = labels.map(label => label.toLowerCase());
+	return state.buttons.find(candidate => wanted.includes(candidate.text.toLowerCase()));
+}
+
+async function clickSelectionToolbarButton(client, modeName, labels) {
+	const state = await readSelectionToolbarButtons(client);
+	const button = findToolbarButton(state, labels);
+	assert(button && state.toolbarVisible, `${modeName}: selection toolbar button was not available`, { ...state, labels });
+	const clicked = await evaluate(
+		client,
+		`(() => {
+		const wanted = ${JSON.stringify(labels.map(label => label.toLowerCase()))};
+		const button = [...document.querySelectorAll('.shiki-monaco-selection-toolbar button')].find(candidate => wanted.includes((candidate.textContent ?? '').trim().toLowerCase()));
+		button?.click?.();
+		return Boolean(button);
+	})()`,
+	);
+	assert(clicked, `${modeName}: selection toolbar button click target disappeared`, { ...state, labels });
+	await delay(150);
+	return { ...state, button };
+}
+
+async function assertMobileSelectionToolbarActions(client, modeName) {
+	const initial = await evaluate(
+		client,
+		`(() => {
+		const host = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getModel?.());
+		const editor = host?._monacoEditor;
+		const model = editor?.getModel?.();
+		if (!host || !editor || !model) return { ok: false, reason: 'missing-monaco-editor' };
+		const lineNumber = Math.min(2, Math.max(1, model.getLineCount()));
+		const line = model.getLineContent(lineNumber);
+		const match = line.match(/[A-Za-z_$][\\w$]*/);
+		if (!match) return { ok: false, reason: 'missing-selectable-word', line };
+		const startColumn = match.index + 1;
+		const endColumn = startColumn + match[0].length;
+		editor.setSelection({ startLineNumber: lineNumber, startColumn, endLineNumber: lineNumber, endColumn });
+		editor.focus();
+		return { ok: true, selected: model.getValueInRange(editor.getSelection()), expected: match[0], fullText: model.getValue() };
+	})()`,
+	);
+	assert(initial.ok, `${modeName}: mobile selection toolbar setup failed`, initial);
+	assert(initial.selected === initial.expected, `${modeName}: mobile selection toolbar setup selected wrong text`, initial);
+
+	let toolbarState = null;
+	for (let attempt = 0; attempt < 40; attempt++) {
+		const state = await readSelectionToolbarButtons(client);
+		if (state.toolbarVisible && state.buttons.length >= 3) {
+			toolbarState = state;
+			break;
+		}
+		await delay(100);
+	}
+	assert(toolbarState, `${modeName}: selection toolbar did not appear`, toolbarState);
+
+	const selectAllClick = await clickSelectionToolbarButton(client, modeName, ['All', 'Select All', 'Select all']);
+	const selectedAll = await evaluate(
+		client,
+		`(() => {
+		const editor = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getSelection?.())?._monacoEditor;
+		const model = editor?.getModel?.();
+		return { selected: model && editor ? model.getValueInRange(editor.getSelection()) : null, fullText: model?.getValue?.() ?? null };
+	})()`,
+	);
+	assert(selectedAll.selected === selectedAll.fullText, `${modeName}: selection toolbar Select All did not select the full Monaco model`, {
+		selectedAll,
+		selectAllClick,
+	});
+
+	const clearClick = await clickSelectionToolbarButton(client, modeName, ['Clear']);
+	const cleared = await evaluate(
+		client,
+		`(() => {
+		const editor = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getSelection?.())?._monacoEditor;
+		const model = editor?.getModel?.();
+		return { selected: model && editor ? model.getValueInRange(editor.getSelection()) : null, selection: editor?.getSelection?.() ?? null };
+	})()`,
+	);
+	assert(cleared.selected === '', `${modeName}: selection toolbar Clear did not clear the Monaco selection`, { cleared, clearClick });
 }
 
 async function assertMonacoCopySelection(client, modeName) {
@@ -723,6 +816,7 @@ async function verifyMode(client, modeName, livePreview, marker) {
 	await clickLine(client, line);
 	const monaco = await waitForMonaco(client, modeName, !isMobileMode);
 	await assertMonacoCopySelection(client, modeName);
+	if (isMobileMode) await assertMobileSelectionToolbarActions(client, modeName);
 	assert(monaco.width > 0 && monaco.height > 0, `${modeName}: Monaco mounted without visible dimensions`, monaco);
 	assert(monaco.viewLines > 0, `${modeName}: Monaco mounted but rendered no visible editor lines`, monaco);
 	assert(monaco.hasEditorHook, `${modeName}: Monaco mounted without editor instance hook`, monaco);
