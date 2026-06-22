@@ -33,8 +33,20 @@ describe('startup bundle', () => {
 
 		expect(styles).toContain('.shiki-monaco-block');
 		expect(styles).toContain('.shiki-monaco-editor');
+		expect(styles).toContain('touch-action:pan-y pinch-zoom');
+		expect(styles).toContain('overscroll-behavior-x:contain');
 		expect(styles).toContain('.markdown-preview-sizer');
 		expect(styles).toContain('.markdown-preview-section');
+	});
+
+	test('Monaco CSS does not disable mobile selection or input internals', () => {
+		const styles = readFileSync(new URL('../dist/styles.css', import.meta.url), 'utf8');
+
+		expect(styles).not.toContain('body.is-mobile .shiki-monaco-selection-toolbar');
+		expect(styles).not.toContain('body.is-mobile .shiki-monaco-selection-handle');
+		expect(styles).not.toContain('.shiki-monaco-readonly .shiki-monaco-selection-toolbar');
+		expect(styles).not.toContain('.shiki-monaco-readonly .shiki-monaco-selection-handle');
+		expect(styles).not.toContain('pointer-events:none!important;resize:none');
 	});
 
 	test('Monaco code block CSS contains horizontal overflow inside the block', () => {

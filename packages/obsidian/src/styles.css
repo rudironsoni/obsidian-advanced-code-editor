@@ -130,7 +130,6 @@ span.shiki-ul {
 	color: transparent !important;
 	caret-color: transparent !important;
 	opacity: 0 !important;
-	pointer-events: none !important;
 	text-shadow: none !important;
 }
 
@@ -146,6 +145,8 @@ span.shiki-ul {
 	/* Let Obsidian own vertical scrolling. Horizontal code movement is handled
 	   by the wrapper so the note still scrolls vertically like normal. */
 	touch-action: pan-y pinch-zoom;
+	overscroll-behavior-x: contain;
+	overscroll-behavior-y: auto;
 	-webkit-tap-highlight-color: transparent;
 }
 
@@ -229,7 +230,6 @@ span.shiki-ul {
 	outline: 0 !important;
 	overflow: hidden !important;
 	padding: 0 !important;
-	pointer-events: none !important;
 	resize: none !important;
 	width: 1px !important;
 	min-width: 1px !important;
@@ -250,8 +250,6 @@ span.shiki-ul {
 	background-color: var(--code-background) !important;
 }
 
-.shiki-monaco-readonly .shiki-monaco-selection-toolbar,
-.shiki-monaco-readonly .shiki-monaco-selection-handle,
 .shiki-monaco-readonly .monaco-hover,
 .shiki-monaco-readonly .suggest-widget,
 .shiki-monaco-readonly .parameter-hints-widget,
@@ -265,14 +263,43 @@ span.shiki-ul {
 	box-shadow: none !important;
 }
 
-body.is-mobile .shiki-monaco-selection-toolbar,
-body.is-mobile .shiki-monaco-selection-handle {
+.shiki-monaco-selection-toolbar {
+	position: absolute;
+	z-index: 10;
+	display: flex;
+	gap: 4px;
+	transform: translateX(-50%);
+	padding: 4px;
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	box-shadow: var(--shadow-s);
+}
+
+.shiki-monaco-selection-toolbar[hidden],
+.shiki-monaco-selection-handle[hidden] {
 	display: none !important;
+}
+
+.shiki-monaco-selection-toolbar button {
+	font-size: var(--font-ui-smaller);
+}
+
+.shiki-monaco-selection-handle {
+	position: absolute;
+	z-index: 9;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	background: var(--interactive-accent);
+	touch-action: none;
+	transform: translate(-50%, -2px);
 }
 
 /* Mobile: allow vertical page scroll to pass through Monaco (prevent scroll trapping). */
 .shiki-monaco-editor {
-	touch-action: pan-x pan-y;
+	touch-action: pan-y pinch-zoom;
+	overscroll-behavior-x: contain;
+	overscroll-behavior-y: auto;
 }
 
 /* Prevent Monaco from creating internal vertical scroll - let Obsidian handle it */

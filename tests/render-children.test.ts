@@ -33,13 +33,7 @@ describe('render children', () => {
 				active.splice(active.indexOf(block), 1);
 			},
 		};
-		const codeBlock = new CodeBlock(
-			plugin as never,
-			container,
-			'const x = 1;',
-			'ts',
-			ctx as never,
-		);
+		const codeBlock = new CodeBlock(plugin as never, container, 'const x = 1;', 'ts', ctx as never);
 
 		codeBlock.onload();
 		await new Promise(resolve => setTimeout(resolve, 0));

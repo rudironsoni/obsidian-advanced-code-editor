@@ -54,31 +54,41 @@ export class SourceModeAdapter {
 			});
 			const highlight = cached ?? (await this.plugin.highlighter.getHighlightTokens(block.code, block.language));
 			if (!cached) {
-				this.plugin.sourceModeTokenizationCache.set({
-					sourcePath: block.sourcePath,
-					language: block.language,
-					theme,
-					contentHash: block.contentHash,
-					settingsSignature,
-				}, highlight);
+				this.plugin.sourceModeTokenizationCache.set(
+					{
+						sourcePath: block.sourcePath,
+						language: block.language,
+						theme,
+						contentHash: block.contentHash,
+						settingsSignature,
+					},
+					highlight,
+				);
 			}
 			if (requestId !== this.tokenizationRequest || !highlight || block.codeFrom === undefined || block.codeTo === undefined) {
 				continue;
 			}
-			const tokens = highlight.tokens.flat(1);
-			for (let i = 0; i < tokens.length; i++) {
-				const token = tokens[i];
-				const next = tokens[i + 1];
-				builder.add(
-					block.codeFrom + token.offset,
-					next ? block.codeFrom + next.offset : block.codeTo,
-					Decoration.mark({
-						attributes: {
-							style: this.plugin.highlighter.getTokenStyle(token).style,
-							class: this.plugin.highlighter.getTokenStyle(token).classes.join(' '),
-						},
-					}),
-				);
+			let lineOffset = 0;
+			for (const lineTokens of highlight.tokens) {
+				for (const token of lineTokens) {
+					const from = block.codeFrom + lineOffset + token.offset;
+					const to = Math.min(from + token.content.length, block.codeTo);
+					if (to <= from) {
+						continue;
+					}
+					const tokenStyle = this.plugin.highlighter.getTokenStyle(token);
+					builder.add(
+						from,
+						to,
+						Decoration.mark({
+							attributes: {
+								style: tokenStyle.style,
+								class: tokenStyle.classes.join(' '),
+							},
+						}),
+					);
+				}
+				lineOffset += this.lineLength(block.code, lineOffset) + 1;
 			}
 		}
 
@@ -101,6 +111,11 @@ export class SourceModeAdapter {
 			lines.push({ lineNumber, text: line.text, from: line.from, to: line.to });
 		}
 		return lines;
+	}
+
+	private lineLength(code: string, offset: number): number {
+		const nextNewline = code.indexOf('\n', offset);
+		return nextNewline === -1 ? code.length - offset : nextNewline - offset;
 	}
 
 	private toSourceBlock(parsed: ReturnType<CodeBlockParser['parseLivePreviewBlocks']>[number]): CodeBlockModel {

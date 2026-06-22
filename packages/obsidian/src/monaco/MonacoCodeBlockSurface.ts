@@ -214,7 +214,9 @@ export class MonacoCodeBlockSurface {
 			selectionController: this.selectionController,
 			scrollState: this.scrollState,
 			getNoteScroller: () =>
-				(this.hostEl.closest('.markdown-source-view, .markdown-preview-view')?.querySelector('.cm-scroller, .markdown-preview-sizer') as HTMLElement | null) ??
+				(this.hostEl
+					.closest('.markdown-source-view, .markdown-preview-view')
+					?.querySelector('.cm-scroller, .markdown-preview-sizer') as HTMLElement | null) ??
 				this.attachedParent ??
 				this.hostEl,
 			nativeInteraction: this.nativeMobileInteraction,

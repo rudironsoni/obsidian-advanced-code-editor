@@ -83,10 +83,7 @@ async function loadModernMonacoSource(plugin: ShikiPlugin): Promise<{ source: st
 		const path = nativeRequire('path') as typeof import('node:path');
 		const appPlugins = (plugin.app as ShikiPlugin['app'] & { plugins?: { manifests?: Record<string, { dir?: string }> } }).plugins;
 		const vaultBasePath = (plugin.app.vault.adapter as { basePath?: string }).basePath ?? '';
-		const pluginDir =
-			(plugin.manifest as { dir?: string }).dir ??
-			appPlugins?.manifests?.[plugin.manifest.id]?.dir ??
-			__dirname;
+		const pluginDir = (plugin.manifest as { dir?: string }).dir ?? appPlugins?.manifests?.[plugin.manifest.id]?.dir ?? __dirname;
 		const pluginDirPath = path.isAbsolute(pluginDir) ? pluginDir : path.join(vaultBasePath, pluginDir);
 		const modernMonacoPath = path.join(pluginDirPath, 'modern-monaco.js');
 		return { source: fs.readFileSync(modernMonacoPath, 'utf8'), requireFn };
@@ -94,9 +91,7 @@ async function loadModernMonacoSource(plugin: ShikiPlugin): Promise<{ source: st
 		console.warn('[Shiki] Sidecar modern-monaco fs load failed, falling back to adapter read.', error);
 		const appPlugins = (plugin.app as ShikiPlugin['app'] & { plugins?: { manifests?: Record<string, { dir?: string }> } }).plugins;
 		const pluginDir =
-			(plugin.manifest as { dir?: string }).dir ??
-			appPlugins?.manifests?.[plugin.manifest.id]?.dir ??
-			`.obsidian/plugins/${plugin.manifest.id}`;
+			(plugin.manifest as { dir?: string }).dir ?? appPlugins?.manifests?.[plugin.manifest.id]?.dir ?? `.obsidian/plugins/${plugin.manifest.id}`;
 		const adapterPath = `${pluginDir.replace(/\\/g, '/')}/modern-monaco.js`;
 		try {
 			const source = await plugin.app.vault.adapter.read(adapterPath);

@@ -69,4 +69,13 @@ describe('startup module boundary', () => {
 		expect(gestures).toContain('selectNativeWord');
 		expect(gestures).toContain('this.selectionController.placeCursor(clientX, clientY, false)');
 	});
+
+	test('source mode applies Shiki token offsets per source line', () => {
+		const sourceMode = read('packages/obsidian/src/modes/SourceModeAdapter.ts');
+
+		expect(sourceMode).not.toContain('highlight.tokens.flat(1)');
+		expect(sourceMode).toContain('let lineOffset = 0');
+		expect(sourceMode).toContain('block.codeFrom + lineOffset + token.offset');
+		expect(sourceMode).toContain('lineOffset += this.lineLength(block.code, lineOffset) + 1');
+	});
 });

@@ -1,6 +1,6 @@
 import type { CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
-import { MonacoCodeBlockSurface } from 'packages/obsidian/src/monaco/MonacoCodeBlockSurface';
+import type { MonacoCodeBlockSurface } from 'packages/obsidian/src/monaco/MonacoCodeBlockSurface';
 
 export class MonacoSurfaceRegistry {
 	private readonly plugin: ShikiPlugin;
@@ -17,6 +17,7 @@ export class MonacoSurfaceRegistry {
 			return existing;
 		}
 		const runtime = await this.plugin.monacoRuntime.load();
+		const { MonacoCodeBlockSurface } = await import('packages/obsidian/src/monaco/MonacoCodeBlockSurface');
 		const surface = new MonacoCodeBlockSurface(this.plugin, runtime, block);
 		this.surfaces.set(block.id, surface);
 		return surface;

@@ -45,7 +45,7 @@ export class LivePreviewAdapter {
 		await this.syncVisibleBlocks();
 	}
 
-		destroy(): void {
+	destroy(): void {
 		if (this.retrySyncTimer !== undefined) {
 			window.clearTimeout(this.retrySyncTimer);
 		}
@@ -134,7 +134,9 @@ export class LivePreviewAdapter {
 			if (block.codeTo < this.view.viewport.from || block.codeFrom > this.view.viewport.to) {
 				continue;
 			}
-			const lineElements = [...this.view.contentDOM.querySelectorAll(`.shiki-editing-codeblock-line[data-shiki-editing-block-id="${block.id}"]`)] as HTMLElement[];
+			const lineElements = [
+				...this.view.contentDOM.querySelectorAll(`.shiki-editing-codeblock-line[data-shiki-editing-block-id="${block.id}"]`),
+			] as HTMLElement[];
 			if (lineElements.length === 0) {
 				continue;
 			}
@@ -285,13 +287,15 @@ export class LivePreviewAdapter {
 		return { line: line.number - 1, ch: offset - line.from };
 	}
 
-	private getObsidianEditor(): {
-		setCursor(position: { line: number; ch: number }): void;
-		setSelection(anchor: { line: number; ch: number }, head?: { line: number; ch: number }): void;
-		scrollIntoView(range: { from: { line: number; ch: number }; to: { line: number; ch: number } }, center?: boolean): void;
-		wordAt(position: { line: number; ch: number }): { from: { line: number; ch: number }; to: { line: number; ch: number } } | null;
-		focus(): void;
-	} | undefined {
+	private getObsidianEditor():
+		| {
+				setCursor(position: { line: number; ch: number }): void;
+				setSelection(anchor: { line: number; ch: number }, head?: { line: number; ch: number }): void;
+				scrollIntoView(range: { from: { line: number; ch: number }; to: { line: number; ch: number } }, center?: boolean): void;
+				wordAt(position: { line: number; ch: number }): { from: { line: number; ch: number }; to: { line: number; ch: number } } | null;
+				focus(): void;
+		  }
+		| undefined {
 		return this.plugin.app.workspace.activeLeaf?.view && 'editor' in this.plugin.app.workspace.activeLeaf.view
 			? (this.plugin.app.workspace.activeLeaf.view.editor as ReturnType<LivePreviewAdapter['getObsidianEditor']>)
 			: undefined;

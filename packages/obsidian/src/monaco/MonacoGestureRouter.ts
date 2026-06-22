@@ -16,7 +16,9 @@ export class MonacoGestureRouter {
 	private readonly selectionController: MonacoSelectionController;
 	private readonly scrollState: MonacoScrollState;
 	private readonly getNoteScroller: () => HTMLElement;
-	private readonly nativeInteraction: { placeCursor(position: { lineNumber: number; column: number }): void; selectWord(position: { lineNumber: number; column: number }): void } | undefined;
+	private readonly nativeInteraction:
+		| { placeCursor(position: { lineNumber: number; column: number }): void; selectWord(position: { lineNumber: number; column: number }): void }
+		| undefined;
 	private gestureState: GestureState = 'idle';
 	private touchState: { startX: number; startY: number; scrollLeft: number; longPressTimer: number | undefined } | undefined;
 
@@ -26,7 +28,10 @@ export class MonacoGestureRouter {
 		selectionController: MonacoSelectionController;
 		scrollState: MonacoScrollState;
 		getNoteScroller: () => HTMLElement;
-		nativeInteraction?: { placeCursor(position: { lineNumber: number; column: number }): void; selectWord(position: { lineNumber: number; column: number }): void };
+		nativeInteraction?: {
+			placeCursor(position: { lineNumber: number; column: number }): void;
+			selectWord(position: { lineNumber: number; column: number }): void;
+		};
 	}) {
 		this.host = options.host;
 		this.editor = options.editor;

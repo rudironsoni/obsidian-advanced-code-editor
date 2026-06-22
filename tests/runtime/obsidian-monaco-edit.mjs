@@ -292,9 +292,7 @@ async function dispatchTouchDrag(client, fromX, fromY, toX, toY, steps = 8) {
 		const progress = step / steps;
 		await client.send('Input.dispatchTouchEvent', {
 			type: 'touchMove',
-			touchPoints: [
-				{ x: fromX + (toX - fromX) * progress, y: fromY + (toY - fromY) * progress, radiusX: 1, radiusY: 1, force: 1, id: 1 },
-			],
+			touchPoints: [{ x: fromX + (toX - fromX) * progress, y: fromY + (toY - fromY) * progress, radiusX: 1, radiusY: 1, force: 1, id: 1 }],
 		});
 		await delay(16);
 	}
@@ -577,7 +575,10 @@ async function verifyMode(client, modeName, livePreview, marker) {
 	});
 
 	if (isMobileMode) {
-		await evaluate(client, `(() => { const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active') ?? document.querySelector('.shiki-monaco-codeblock'); block?._monacoEditor?.setScrollLeft?.(0); return true; })()`);
+		await evaluate(
+			client,
+			`(() => { const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active') ?? document.querySelector('.shiki-monaco-codeblock'); block?._monacoEditor?.setScrollLeft?.(0); return true; })()`,
+		);
 		const resetScroll = await readMonacoScrollState(client);
 		const touchDispatch = await dispatchTouchDragOnMonacoHost(client, line.x + 140, line.y, Math.max(line.x + 20, line.x - 100), line.y);
 		assert(touchDispatch?.ok, `${modeName}: touch drag dispatch failed`, touchDispatch);

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 const OBSIDIAN_APP = process.env.OBSIDIAN_APP ?? '/Applications/Obsidian.app/Contents/MacOS/Obsidian';
@@ -38,7 +38,9 @@ function prepareVault({ resetUserData }) {
 			cpSync(path.join(PLUGIN_SOURCE_DIR, file), path.join(pluginDir, file));
 		}
 	} else {
-		cpSync(PLUGIN_SOURCE_DIR, pluginDir, { recursive: true });
+		for (const file of readdirSync(PLUGIN_SOURCE_DIR)) {
+			cpSync(path.join(PLUGIN_SOURCE_DIR, file), path.join(pluginDir, file), { recursive: true });
+		}
 	}
 
 	mkdirSync(path.join(VAULT, 'customLanguages'), { recursive: true });
@@ -1056,11 +1058,14 @@ async function verifyFeatureSet(wsUrl, mobile) {
 					const activeView = app.workspace.activeLeaf?.view;
 					const editor = activeView?.editor;
 					const cursor = editor?.getCursor?.() ?? null;
-					const csharpLine = editor?.getValue?.().split('\n').findIndex(line => line.includes('List<int[]> intervals')) ?? -1;
+					const lines = editor?.getValue?.().split('\\n') ?? [];
+					const csharpLine = lines.findIndex(line => line.includes('List<int[]> intervals'));
+					const csharpEndLine = lines.findIndex(line => line.includes('intervals.Sort'));
 					const activeElement = document.activeElement;
 					globalThis.__shikiVerifyMobileNativeTap = {
 						cursor,
 						csharpLine,
+						csharpEndLine,
 						editorHasFocus: editor?.hasFocus?.() ?? false,
 						activeElementClass: activeElement?.className?.toString?.() ?? null,
 						activeElementTag: activeElement?.tagName ?? null,
@@ -1397,12 +1402,26 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			await new Promise(resolve => setTimeout(resolve, 1000));
 			if (plugin?.updateCm6Plugin) await plugin.updateCm6Plugin();
 			await new Promise(resolve => setTimeout(resolve, 500));
-			const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-			const editorTokens = [...editorRoot.querySelectorAll('.cm-content [class*="shiki"], .cm-content [style*="color"]')].map(el => ({
+			let editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
+			const collectEditorTokens = () => [...editorRoot.querySelectorAll('.cm-content [class*="shiki"], .cm-content [style*="color"]')].map(el => ({
 				text: el.textContent,
 				className: el.className,
 				style: el.getAttribute('style'),
 			}));
+			const initialEditorTokens = collectEditorTokens();
+			const activeEditor = app.workspace.activeLeaf?.view?.editor;
+			const sortLine = activeEditor?.getValue?.().split('\\n').findIndex(line => line.includes('intervals.Sort')) ?? -1;
+			if (sortLine >= 0) {
+				const sortPosition = { line: sortLine, ch: 0 };
+				activeEditor.setCursor(sortPosition);
+				activeEditor.scrollIntoView?.({ from: sortPosition, to: sortPosition }, true);
+				await new Promise(resolve => setTimeout(resolve, 500));
+				if (plugin?.updateCm6Plugin) await plugin.updateCm6Plugin();
+				await new Promise(resolve => setTimeout(resolve, 500));
+				editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
+			}
+			const scrolledEditorTokens = collectEditorTokens();
+			const editorTokens = [...initialEditorTokens, ...scrolledEditorTokens];
 			const fencedEditorTokens = editorTokens.filter(token =>
 				['List', 'intervals', 'startIndex', 'Sort'].some(text => token.text?.includes(text))
 			);
@@ -1485,7 +1504,11 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 			`${label}: Reading mode rendered wrappers without a hydrated Monaco editor`,
 			result,
 		);
-		assert(result.codeBlocks.some(block => normalizeText(block.text).includes('const') && normalizeText(block.text).includes('console.log')), `${label}: TypeScript block missing`, result);
+		assert(
+			result.codeBlocks.some(block => normalizeText(block.text).includes('const') && normalizeText(block.text).includes('console.log')),
+			`${label}: TypeScript block missing`,
+			result,
+		);
 		assert(
 			result.codeBlocks.some(block => normalizeText(block.text).includes('old line') && normalizeText(block.text).includes('new line')),
 			`${label}: diff block missing`,
@@ -1504,14 +1527,15 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 	}
 	assert(
 		uniqueLivePreviewBlocks >= 1 ||
-		result.livePreviewCodeBlocks.some(block => block.text.includes('List<int[]>') && block.text.includes('intervals.Sort')) ||
+			result.livePreviewCodeBlocks.some(block => block.text.includes('List<int[]>') && block.text.includes('intervals.Sort')) ||
 			result.fencedEditorTokens.some(token => token.text.includes('List')) ||
 			result.fencedEditorTokens.some(token => token.text.includes('Sort')),
 		`${label}: C# block missing from both live-preview and active editable editor`,
 		result,
 	);
 	assert(
-		result.livePreviewCodeBlocks.length === 0 || result.livePreviewCodeBlocks.some(block => block.hasMonacoEditor && block.hasEditorHook && block.viewLines > 0),
+		result.livePreviewCodeBlocks.length === 0 ||
+			result.livePreviewCodeBlocks.some(block => block.hasMonacoEditor && block.hasEditorHook && block.viewLines > 0),
 		`${label}: Live Preview rendered wrappers without a hydrated Monaco editor`,
 		result,
 	);
@@ -1526,7 +1550,18 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 		assert(result.mobileNativeTap !== null, `${label}: mobile native tap was not measured`, result);
 		assert(result.mobileNativeTap.editorHasFocus, `${label}: mobile tap inside Monaco did not keep Obsidian editor focused`, result.mobileNativeTap);
 		assert(!result.mobileNativeTap.activeElementInMonaco, `${label}: mobile tap focused Monaco instead of Obsidian editor`, result.mobileNativeTap);
-		assert(result.mobileNativeTap.cursor?.line === result.mobileNativeTap.csharpLine, `${label}: mobile tap did not move Obsidian cursor into code block`, result.mobileNativeTap);
+		assert(result.mobileNativeTap.csharpLine >= 0, `${label}: mobile C# block start was not found`, result.mobileNativeTap);
+		assert(
+			result.mobileNativeTap.csharpEndLine >= result.mobileNativeTap.csharpLine,
+			`${label}: mobile C# block end was not found`,
+			result.mobileNativeTap,
+		);
+		assert(
+			result.mobileNativeTap.cursor?.line >= result.mobileNativeTap.csharpLine &&
+				result.mobileNativeTap.cursor?.line <= result.mobileNativeTap.csharpEndLine,
+			`${label}: mobile tap did not move Obsidian cursor into code block`,
+			result.mobileNativeTap,
+		);
 		assert(result.monacoHorizontal !== null, `${label}: Monaco horizontal touch scroll was not measured`, result);
 		assert(result.monacoHorizontal.before?.hasOverflow, `${label}: Monaco horizontal touch target did not overflow`, result.monacoHorizontal);
 		assert(
@@ -1535,7 +1570,8 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 			result.monacoHorizontal,
 		);
 		assert(
-			result.monacoHorizontal.before?.noteScrollWidth === null || result.monacoHorizontal.before?.noteScrollWidth <= result.monacoHorizontal.before?.noteClientWidth + 1,
+			result.monacoHorizontal.before?.noteScrollWidth === null ||
+				result.monacoHorizontal.before?.noteScrollWidth <= result.monacoHorizontal.before?.noteClientWidth + 1,
 			`${label}: Monaco block expanded the note horizontal scroll width`,
 			result.monacoHorizontal,
 		);
@@ -1573,21 +1609,22 @@ async function main() {
 	const stop = async () => {
 		if (!stopped) {
 			stopped = true;
-			if (OBSIDIAN_LAUNCH_MODE !== 'existing' && OBSIDIAN_LAUNCH_MODE !== 'reuse' && OBSIDIAN_LAUNCH_MODE !== 'fresh') {
+			if (OBSIDIAN_LAUNCH_MODE !== 'existing' && OBSIDIAN_LAUNCH_MODE !== 'reuse') {
 				await closeTarget(target);
 			}
-			if (OBSIDIAN_LAUNCH_MODE !== 'reuse' && OBSIDIAN_LAUNCH_MODE !== 'fresh') {
+			if (OBSIDIAN_LAUNCH_MODE !== 'reuse') {
 				obsidian?.kill();
+				await killOwnedPortProcesses();
 			}
 		}
 	};
 	process.on('exit', () => {
-		if (OBSIDIAN_LAUNCH_MODE !== 'reuse' && OBSIDIAN_LAUNCH_MODE !== 'fresh') {
+		if (OBSIDIAN_LAUNCH_MODE !== 'reuse') {
 			obsidian?.kill();
 		}
 	});
 	process.on('SIGINT', () => {
-		if (OBSIDIAN_LAUNCH_MODE !== 'reuse' && OBSIDIAN_LAUNCH_MODE !== 'fresh') {
+		if (OBSIDIAN_LAUNCH_MODE !== 'reuse') {
 			obsidian?.kill();
 		}
 		process.exit(130);

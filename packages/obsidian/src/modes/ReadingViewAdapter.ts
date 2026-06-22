@@ -39,7 +39,7 @@ export class ReadingViewAdapter {
 		const sectionInfo = ctx.getSectionInfo(container);
 		const sectionText = sectionInfo?.text ?? '';
 		const lines = sectionText.split('\n');
-		const openingLine = sectionInfo ? lines[sectionInfo.lineStart] ?? '' : '';
+		const openingLine = sectionInfo ? (lines[sectionInfo.lineStart] ?? '') : '';
 		const meta = parseCodeBlockMeta(openingLine);
 		return this.plugin.codeBlockRegistry.createModel({
 			sourcePath: ctx.sourcePath,

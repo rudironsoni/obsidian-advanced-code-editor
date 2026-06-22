@@ -1,8 +1,8 @@
 import { debounce, Plugin, PluginSettingTab, TFile } from 'obsidian';
 import { DEFAULT_SETTINGS, type Settings } from 'packages/obsidian/src/settings/Settings';
 import { LazyHighlighter } from 'packages/obsidian/src/LazyHighlighter';
-import { CodeBlock } from 'packages/obsidian/src/CodeBlock';
-import { InlineCodeBlock } from 'packages/obsidian/src/InlineCodeBlock';
+import type { CodeBlock } from 'packages/obsidian/src/CodeBlock';
+import type { InlineCodeBlock } from 'packages/obsidian/src/InlineCodeBlock';
 import { CodeBlockRegistry } from 'packages/obsidian/src/codeblocks/CodeBlockRegistry';
 import { LazyMonacoRuntime } from 'packages/obsidian/src/monaco/LazyMonacoRuntime';
 import { MonacoSurfaceRegistry } from 'packages/obsidian/src/monaco/MonacoSurfaceRegistry';
@@ -30,6 +30,7 @@ export default class ShikiPlugin extends Plugin {
 	private unloaded = true;
 	private cm6PluginRegistered = false;
 	private codeBlockProcessorsRegistered = false;
+	private inlineCodeProcessorRegistered = false;
 	private settingsLoaded: Promise<void> | undefined;
 
 	async onload(): Promise<void> {
@@ -48,7 +49,9 @@ export default class ShikiPlugin extends Plugin {
 
 		this.addSettingTab(new LazyShikiSettingsTab(this));
 
-		this.registerInlineCodeProcessor();
+		this.deferStartupWork((): void => {
+			this.registerInlineCodeProcessor();
+		});
 
 		this.deferStartupWork((): void => {
 			void this.registerCodeBlockProcessors().catch(error => {
@@ -140,6 +143,7 @@ export default class ShikiPlugin extends Plugin {
 			const { ReadingViewAdapter } = await import('packages/obsidian/src/modes/ReadingViewAdapter');
 			this.readingViewAdapter = new ReadingViewAdapter(this);
 		}
+		const { CodeBlock } = await import('packages/obsidian/src/CodeBlock');
 		let languages: Set<string>;
 		try {
 			languages = new Set(await this.highlighter.obsidianSafeLanguageNames());
@@ -187,18 +191,25 @@ export default class ShikiPlugin extends Plugin {
 	}
 
 	registerInlineCodeProcessor(): void {
+		if (this.unloaded || this.inlineCodeProcessorRegistered) {
+			return;
+		}
+
 		this.registerMarkdownPostProcessor(async (el, ctx) => {
 			const inlineCodes = el.findAll(':not(pre) > code');
+			let InlineCodeBlockConstructor: typeof InlineCodeBlock | undefined;
 			for (const codeElm of inlineCodes) {
 				const match = SHIKI_INLINE_REGEX.exec(codeElm.textContent ?? ''); // format: `{lang} code`
 				if (!match) {
 					continue;
 				}
 
-				const codeBlock = new InlineCodeBlock(this, codeElm, match[2], match[1], ctx);
+				InlineCodeBlockConstructor ??= (await import('packages/obsidian/src/InlineCodeBlock')).InlineCodeBlock;
+				const codeBlock = new InlineCodeBlockConstructor(this, codeElm, match[2], match[1], ctx);
 				ctx.addChild(codeBlock);
 			}
 		});
+		this.inlineCodeProcessorRegistered = true;
 	}
 
 	onunload(): void {
