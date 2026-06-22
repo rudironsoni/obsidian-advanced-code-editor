@@ -255,8 +255,7 @@ span.shiki-ul {
 .shiki-monaco-readonly .parameter-hints-widget,
 .shiki-monaco-readonly .current-line,
 .shiki-monaco-readonly .current-line-margin,
-.shiki-monaco-readonly .line-numbers.active-line-number,
-.shiki-monaco-readonly .selected-text {
+.shiki-monaco-readonly .line-numbers.active-line-number {
 	display: none !important;
 	background: transparent !important;
 	border: 0 !important;

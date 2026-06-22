@@ -46,6 +46,7 @@ describe('startup bundle', () => {
 		expect(styles).not.toContain('body.is-mobile .shiki-monaco-selection-handle');
 		expect(styles).not.toContain('.shiki-monaco-readonly .shiki-monaco-selection-toolbar');
 		expect(styles).not.toContain('.shiki-monaco-readonly .shiki-monaco-selection-handle');
+		expect(styles).not.toContain('.shiki-monaco-readonly .selected-text');
 		expect(styles).not.toContain('pointer-events:none!important;resize:none');
 	});
 

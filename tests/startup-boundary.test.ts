@@ -70,6 +70,21 @@ describe('startup module boundary', () => {
 		expect(gestures).toContain('this.selectionController.placeCursor(clientX, clientY, false)');
 	});
 
+	test('live preview adapter owns a single Monaco overlay root per editor view', () => {
+		const livePreview = read('packages/obsidian/src/modes/LivePreviewAdapter.ts');
+		const main = read('packages/obsidian/src/main.ts');
+
+		expect(main).toContain('isCurrentInstance()');
+		expect(livePreview).toContain('this.plugin.isCurrentInstance()');
+		expect(livePreview).toContain('LIVE_PREVIEW_ADAPTER_OWNER');
+		expect(livePreview).toContain('destroyed || !this.plugin.isCurrentInstance()');
+		expect(livePreview).toContain('removeDuplicateBlockSurfaces');
+		expect(livePreview).toContain("closest('.markdown-source-view.mod-cm6')");
+		expect(livePreview).toContain("activeLeafView && 'contentEl' in activeLeafView");
+		expect(livePreview).toContain("querySelectorAll('.shiki-monaco-overlay-root')");
+		expect(livePreview).toContain('root.remove()');
+	});
+
 	test('source mode applies Shiki token offsets per source line', () => {
 		const sourceMode = read('packages/obsidian/src/modes/SourceModeAdapter.ts');
 

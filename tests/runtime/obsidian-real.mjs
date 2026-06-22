@@ -287,7 +287,7 @@ async function relaunchExistingTarget() {
 }
 
 function launchObsidian() {
-	const args = [`--remote-debugging-port=${PORT}`, `--user-data-dir=${USER_DATA}`];
+	const args = [`--remote-debugging-port=${PORT}`, `--user-data-dir=${USER_DATA}`, VAULT];
 	if (OBSIDIAN_LAUNCH_MODE === 'existing') {
 		return null;
 	}
@@ -874,6 +874,16 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			for (let i = 0; i < 300 && !window.app?.plugins; i++) await new Promise(resolve => setTimeout(resolve, 100));
 			if (!window.app?.plugins) throw new Error('Obsidian app was not ready');
 			const app = window.app;
+			for (let i = 0; i < 100 && app.vault?.adapter?.basePath !== ${JSON.stringify(VAULT)}; i++) {
+				await new Promise(resolve => setTimeout(resolve, 100));
+			}
+			if (app.vault?.adapter?.basePath !== ${JSON.stringify(VAULT)}) {
+				throw new Error('Verifier vault did not open: ' + JSON.stringify({ vaultPath: app.vault?.adapter?.basePath ?? null, expected: ${JSON.stringify(VAULT)} }));
+			}
+			for (let i = 0; i < 100 && !app.plugins.manifests?.['${PLUGIN_ID}']; i++) {
+				if (app.plugins.loadManifests) await app.plugins.loadManifests();
+				await new Promise(resolve => setTimeout(resolve, 100));
+			}
 				const measurements = {};
 				let loadError = null;
 				try {
@@ -951,6 +961,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			await plugin.saveSettingsAndReloadHighlighter();
 			const viewRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
 			const codeBlocks = [...viewRoot.querySelectorAll('.shiki-monaco-block')].map(el => ({
+				blockId: el.getAttribute('data-shiki-block-id'),
 				text: el.textContent,
 				hasMonacoEditor: !!el.querySelector('.monaco-editor'),
 				hasEditorHook: !!el._monacoEditor,
@@ -975,6 +986,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			await new Promise(resolve => setTimeout(resolve, 500));
 			const livePreviewRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
 			const livePreviewCodeBlocks = [...livePreviewRoot.querySelectorAll('.shiki-monaco-codeblock')].map(el => ({
+				blockId: el.getAttribute('data-shiki-block-id'),
 				text: el.textContent,
 				hasMonacoEditor: !!el.querySelector('.monaco-editor'),
 				hasEditorHook: !!el._monacoEditor,
@@ -1484,6 +1496,7 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 	const normalizeText = text => (text ?? '').replace(/\u00a0/g, ' ');
 	const uniqueReadingBlocks = new Set(result.codeBlocks.map(block => block.text)).size;
 	const uniqueLivePreviewBlocks = new Set(result.livePreviewCodeBlocks.map(block => block.text)).size;
+	const livePreviewBlockIds = result.livePreviewCodeBlocks.map(block => block.blockId).filter(Boolean);
 	assert(result.loadError === null, `${label}: plugin load failed`, result.loadError);
 	assert(result.pluginLoaded, `${label}: plugin was not loaded`, result);
 	assert(result.settingsTabLoaded, `${label}: settings tab was not loaded`, result);
@@ -1538,6 +1551,11 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 			result.livePreviewCodeBlocks.some(block => block.hasMonacoEditor && block.hasEditorHook && block.viewLines > 0),
 		`${label}: Live Preview rendered wrappers without a hydrated Monaco editor`,
 		result,
+	);
+	assert(
+		livePreviewBlockIds.length === new Set(livePreviewBlockIds).size,
+		`${label}: Live Preview rendered duplicate Monaco surfaces for the same logical block`,
+		result.livePreviewCodeBlocks,
 	);
 	assert(result.editorTokens.length > 0, `${label}: editor Shiki highlighting missing`, result);
 	assert(result.fencedEditorTokens.length >= 4, `${label}: editable fenced code block Shiki tokens missing`, result);

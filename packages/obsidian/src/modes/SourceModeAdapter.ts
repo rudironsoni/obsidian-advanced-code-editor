@@ -20,6 +20,10 @@ export class SourceModeAdapter {
 	}
 
 	update(update: ViewUpdate, isLivePreview: boolean): void {
+		if (!this.plugin.isCurrentInstance()) {
+			this.decorations = Decoration.none;
+			return;
+		}
 		this.decorations = this.decorations.map(update.changes);
 		if (isLivePreview) {
 			this.decorations = Decoration.none;
@@ -31,6 +35,10 @@ export class SourceModeAdapter {
 	}
 
 	async retokenize(): Promise<void> {
+		if (!this.plugin.isCurrentInstance()) {
+			this.decorations = Decoration.none;
+			return;
+		}
 		const requestId = ++this.tokenizationRequest;
 		const lines = this.collectLines();
 		const parsed = this.parser.parseLivePreviewBlocks(lines);

@@ -5,6 +5,10 @@ import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/co
 import type ShikiPlugin from 'packages/obsidian/src/main';
 import type { MonacoEditSync } from 'packages/obsidian/src/monaco/MonacoInputController';
 
+const LIVE_PREVIEW_ADAPTER_OWNER = '__shikiLivePreviewAdapterOwner';
+
+type LivePreviewOwnerElement = HTMLElement & { [LIVE_PREVIEW_ADAPTER_OWNER]?: LivePreviewAdapter };
+
 export class LivePreviewAdapter {
 	decorations: DecorationSet = Decoration.none;
 	private readonly plugin: ShikiPlugin;
@@ -16,6 +20,8 @@ export class LivePreviewAdapter {
 	private retrySyncTimer: number | undefined;
 	private visibilityRefreshTimer: number | undefined;
 	private activeBlockId: string | undefined;
+	private ownerRoot: LivePreviewOwnerElement | undefined;
+	private destroyed = false;
 	private readonly hiddenBlockIds = new Set<string>();
 
 	constructor(plugin: ShikiPlugin, view: EditorView, requestDecorationRefresh: () => void) {
@@ -24,11 +30,25 @@ export class LivePreviewAdapter {
 		this.view = view;
 		this.overlayRoot = document.createElement('div');
 		this.overlayRoot.className = 'shiki-monaco-overlay-root';
-		this.view.dom.appendChild(this.overlayRoot);
-		this.view.scrollDOM.addEventListener('scroll', this.handleScroll, { passive: true });
+		if (this.plugin.isCurrentInstance()) {
+			const sourceViewRoot = (this.view.dom.closest('.markdown-source-view.mod-cm6') ?? this.view.dom) as LivePreviewOwnerElement;
+			sourceViewRoot[LIVE_PREVIEW_ADAPTER_OWNER]?.destroy();
+			sourceViewRoot[LIVE_PREVIEW_ADAPTER_OWNER] = this;
+			this.ownerRoot = sourceViewRoot;
+			this.getCleanupRoot()
+				.querySelectorAll('.shiki-monaco-overlay-root')
+				.forEach(root => root.remove());
+			this.view.dom.appendChild(this.overlayRoot);
+			this.view.scrollDOM.addEventListener('scroll', this.handleScroll, { passive: true });
+		}
 	}
 
 	update(update: ViewUpdate, isLivePreview: boolean): void {
+		if (this.destroyed || !this.plugin.isCurrentInstance()) {
+			this.decorations = Decoration.none;
+			void this.detachAll();
+			return;
+		}
 		if (!isLivePreview) {
 			this.decorations = Decoration.none;
 			void this.detachAll();
@@ -41,11 +61,15 @@ export class LivePreviewAdapter {
 	}
 
 	async forceRefresh(): Promise<void> {
+		if (this.destroyed || !this.plugin.isCurrentInstance()) {
+			return;
+		}
 		this.rebuildBlocks();
 		await this.syncVisibleBlocks();
 	}
 
 	destroy(): void {
+		this.destroyed = true;
 		if (this.retrySyncTimer !== undefined) {
 			window.clearTimeout(this.retrySyncTimer);
 		}
@@ -55,6 +79,9 @@ export class LivePreviewAdapter {
 		this.view.scrollDOM.removeEventListener('scroll', this.handleScroll);
 		void this.detachAll();
 		this.overlayRoot.remove();
+		if (this.ownerRoot?.[LIVE_PREVIEW_ADAPTER_OWNER] === this) {
+			delete this.ownerRoot[LIVE_PREVIEW_ADAPTER_OWNER];
+		}
 	}
 
 	private readonly handleScroll = (): void => {
@@ -116,6 +143,9 @@ export class LivePreviewAdapter {
 	}
 
 	private scheduleSync(): void {
+		if (this.destroyed) {
+			return;
+		}
 		if (this.retrySyncTimer !== undefined) {
 			window.clearTimeout(this.retrySyncTimer);
 		}
@@ -126,6 +156,10 @@ export class LivePreviewAdapter {
 	}
 
 	private async syncVisibleBlocks(): Promise<void> {
+		if (this.destroyed || !this.plugin.isCurrentInstance()) {
+			await this.detachAll();
+			return;
+		}
 		const visibleIds = new Set<string>();
 		for (const block of this.blocks) {
 			if (block.codeTo === undefined || block.codeFrom === undefined) {
@@ -141,6 +175,9 @@ export class LivePreviewAdapter {
 				continue;
 			}
 			const surface = await this.plugin.surfaceRegistry.getOrCreate(block);
+			if (this.destroyed || !this.plugin.isCurrentInstance()) {
+				return;
+			}
 			visibleIds.add(block.id);
 			const first = lineElements[0];
 			const last = lineElements[lineElements.length - 1];
@@ -148,6 +185,7 @@ export class LivePreviewAdapter {
 			const firstRect = first.getBoundingClientRect();
 			const lastRect = last.getBoundingClientRect();
 			surface.attach(this.overlayRoot);
+			this.removeDuplicateBlockSurfaces(block.id, surface.hostEl);
 			surface.setNativeMobileInteraction(this.isMobile() ? this.createNativeMobileInteraction(block) : undefined);
 			surface.hostEl.classList.add('shiki-monaco-codeblock');
 			surface.hostEl.dataset.shikiBlockId = block.id;
@@ -193,6 +231,22 @@ export class LivePreviewAdapter {
 			this.plugin.codeBlockRegistry.delete(block.id);
 		}
 		this.blocks = [];
+	}
+
+	private getCleanupRoot(): HTMLElement {
+		const activeLeafView = this.plugin.app.workspace.activeLeaf?.view;
+		const activeLeafContent = activeLeafView && 'contentEl' in activeLeafView ? activeLeafView.contentEl : undefined;
+		return activeLeafContent instanceof HTMLElement ? activeLeafContent : (this.ownerRoot ?? this.view.dom);
+	}
+
+	private removeDuplicateBlockSurfaces(blockId: string, current: HTMLElement): void {
+		this.getCleanupRoot()
+			.querySelectorAll('.shiki-monaco-codeblock')
+			.forEach(element => {
+				if (element !== current && element.getAttribute('data-shiki-block-id') === blockId) {
+					element.remove();
+				}
+			});
 	}
 
 	private setBlockHidden(blockId: string, hidden: boolean): void {

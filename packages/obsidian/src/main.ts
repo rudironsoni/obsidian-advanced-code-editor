@@ -14,6 +14,9 @@ import type { ReadingViewAdapter } from 'packages/obsidian/src/modes/ReadingView
 import 'packages/obsidian/src/styles.css';
 
 export const SHIKI_INLINE_REGEX = /^\{([^\s]+)\} (.*)/i; // format: `{lang} code`
+const SHIKI_INSTANCE_KEY = '__shikiHighlighterInstanceId';
+
+type ShikiWindow = Window & { [SHIKI_INSTANCE_KEY]?: number };
 
 export default class ShikiPlugin extends Plugin {
 	highlighter!: LazyHighlighter;
@@ -32,9 +35,12 @@ export default class ShikiPlugin extends Plugin {
 	private codeBlockProcessorsRegistered = false;
 	private inlineCodeProcessorRegistered = false;
 	private settingsLoaded: Promise<void> | undefined;
+	private instanceId = 0;
 
 	async onload(): Promise<void> {
 		this.unloaded = false;
+		this.instanceId = ((window as ShikiWindow)[SHIKI_INSTANCE_KEY] ?? 0) + 1;
+		(window as ShikiWindow)[SHIKI_INSTANCE_KEY] = this.instanceId;
 		this.settings = structuredClone(DEFAULT_SETTINGS);
 		this.loadedSettings = structuredClone(this.settings);
 		this.monacoRuntime = new LazyMonacoRuntime(this);
@@ -218,6 +224,10 @@ export default class ShikiPlugin extends Plugin {
 		this.surfaceRegistry.clear();
 		this.hydrationQueue.clear();
 		this.codeBlockRegistry.clear();
+	}
+
+	isCurrentInstance(): boolean {
+		return !this.unloaded && (window as ShikiWindow)[SHIKI_INSTANCE_KEY] === this.instanceId;
 	}
 
 	getActiveTheme(): string {
