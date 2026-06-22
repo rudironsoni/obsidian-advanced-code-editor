@@ -13,6 +13,7 @@ export class LivePreviewAdapter {
 	private readonly view: EditorView;
 	private blocks: CodeBlockModel[] = [];
 	private retrySyncTimer: number | undefined;
+	private visibilityRefreshTimer: number | undefined;
 	private activeBlockId: string | undefined;
 	private readonly hiddenBlockIds = new Set<string>();
 
@@ -42,9 +43,12 @@ export class LivePreviewAdapter {
 		await this.syncVisibleBlocks();
 	}
 
-	destroy(): void {
+		destroy(): void {
 		if (this.retrySyncTimer !== undefined) {
 			window.clearTimeout(this.retrySyncTimer);
+		}
+		if (this.visibilityRefreshTimer !== undefined) {
+			window.clearTimeout(this.visibilityRefreshTimer);
 		}
 		this.view.scrollDOM.removeEventListener('scroll', this.handleScroll);
 		void this.detachAll();
@@ -157,11 +161,11 @@ export class LivePreviewAdapter {
 				this.setBlockHidden(block.id, true);
 			} else {
 				this.setBlockHidden(block.id, false);
-			void surface.hydrateReadonly().then(() => {
-				if (this.blocks.some(candidate => candidate.id === block.id)) {
-					this.setBlockHidden(block.id, true);
-				}
-			});
+				void surface.hydrateReadonly().then(() => {
+					if (this.blocks.some(candidate => candidate.id === block.id)) {
+						this.setBlockHidden(block.id, true);
+					}
+				});
 			}
 		}
 
@@ -192,7 +196,17 @@ export class LivePreviewAdapter {
 			return;
 		}
 		this.rebuildBlocks();
-		this.view.dispatch(this.view.state.update({}));
+		this.scheduleVisibilityRefresh();
+	}
+
+	private scheduleVisibilityRefresh(): void {
+		if (this.visibilityRefreshTimer !== undefined) {
+			return;
+		}
+		this.visibilityRefreshTimer = window.setTimeout(() => {
+			this.visibilityRefreshTimer = undefined;
+			this.view.dispatch(this.view.state.update({}));
+		}, 0);
 	}
 
 	createEditSync(block: CodeBlockModel): MonacoEditSync {

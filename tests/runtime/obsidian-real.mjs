@@ -832,9 +832,12 @@ async function setMobileEmulation(wsUrl, enabled) {
 	try {
 		await evaluate(
 			wsUrl,
-			`(() => {
+			`(async () => {
+				for (let i = 0; i < 300 && !window.app; i++) await new Promise(resolve => setTimeout(resolve, 100));
 				const app = window.app;
-				app.emulateMobile(${enabled ? 'true' : 'false'});
+				if (!app) throw new Error('Obsidian app was not ready for mobile emulation');
+				if (typeof app.emulateMobile === 'function') app.emulateMobile(${enabled ? 'true' : 'false'});
+				else app.isMobile = ${enabled ? 'true' : 'false'};
 				return { isMobile: app.isMobile };
 			})()`,
 		);
@@ -938,6 +941,9 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			const viewRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
 			const codeBlocks = [...viewRoot.querySelectorAll('.shiki-monaco-block')].map(el => ({
 				text: el.textContent,
+				hasMonacoEditor: !!el.querySelector('.monaco-editor'),
+				hasEditorHook: !!el._monacoEditor,
+				viewLines: el.querySelectorAll('.view-line').length,
 				hasLineNumbers: !!el.querySelector('.line-numbers'),
 				parentClassName: el.parentElement?.className ?? '',
 				grandParentClassName: el.parentElement?.parentElement?.className ?? '',
@@ -959,6 +965,9 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			const livePreviewRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
 			const livePreviewCodeBlocks = [...livePreviewRoot.querySelectorAll('.shiki-monaco-codeblock')].map(el => ({
 				text: el.textContent,
+				hasMonacoEditor: !!el.querySelector('.monaco-editor'),
+				hasEditorHook: !!el._monacoEditor,
+				viewLines: el.querySelectorAll('.view-line').length,
 				hasLineNumbers: !!el.querySelector('.line-numbers'),
 			}));
 			const activeView = app.workspace.activeLeaf?.view;
@@ -1042,7 +1051,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 						editor.setCursor({ line: csharpLine, ch: 12 });
 						editor.focus();
 					}
-					await plugin.updateCm6Plugin();
+					if (plugin?.updateCm6Plugin) await plugin.updateCm6Plugin();
 					await new Promise(resolve => setTimeout(resolve, 1000));
 					return {
 						csharpLine,
@@ -1242,7 +1251,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 				const view = leaf.view;
 				if (view?.setState) await view.setState({ file: file.path, mode: 'source', source: true }, { history: false });
 				await new Promise(resolve => setTimeout(resolve, 750));
-				await plugin.updateCm6Plugin();
+				if (plugin?.updateCm6Plugin) await plugin.updateCm6Plugin();
 				await new Promise(resolve => setTimeout(resolve, 750));
 				return {
 					isSourceMode: view?.getMode?.() === 'source',
@@ -1316,7 +1325,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			const editableSource = globalThis.__shikiVerifyEditableSource ?? null;
 			const plugin = app.plugins.plugins['${PLUGIN_ID}'];
 			await new Promise(resolve => setTimeout(resolve, 1000));
-			await plugin.updateCm6Plugin();
+			if (plugin?.updateCm6Plugin) await plugin.updateCm6Plugin();
 			await new Promise(resolve => setTimeout(resolve, 500));
 			const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
 			const editorTokens = [...editorRoot.querySelectorAll('.cm-content [class*="shiki"], .cm-content [style*="color"]')].map(el => ({
@@ -1397,8 +1406,13 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 	assert(result.themeSelection.dark === 'runtime-selected-dark-theme', `${label}: dark mode did not use saved dark theme setting`, result);
 	assert(result.dynamicThemeSelection.light === 'github-light-default', `${label}: dynamic light theme setting was not applied`, result);
 	assert(result.dynamicThemeSelection.dark === 'github-dark-default', `${label}: dynamic dark theme setting was not applied`, result);
-	if (VERIFY_READING_MODE) {
+	if (VERIFY_READING_MODE || result.isMobile) {
 		assert(uniqueReadingBlocks >= 4, `${label}: expected rendered reading surfaces for each fenced block`, result);
+		assert(
+			result.codeBlocks.some(block => block.hasMonacoEditor && block.hasEditorHook && block.viewLines > 0),
+			`${label}: Reading mode rendered wrappers without a hydrated Monaco editor`,
+			result,
+		);
 		assert(result.codeBlocks.some(block => normalizeText(block.text).includes('const') && normalizeText(block.text).includes('console.log')), `${label}: TypeScript block missing`, result);
 		assert(
 			result.codeBlocks.some(block => normalizeText(block.text).includes('old line') && normalizeText(block.text).includes('new line')),
@@ -1422,6 +1436,11 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 			result.fencedEditorTokens.some(token => token.text.includes('List')) ||
 			result.fencedEditorTokens.some(token => token.text.includes('Sort')),
 		`${label}: C# block missing from both live-preview and active editable editor`,
+		result,
+	);
+	assert(
+		result.livePreviewCodeBlocks.length === 0 || result.livePreviewCodeBlocks.some(block => block.hasMonacoEditor && block.hasEditorHook && block.viewLines > 0),
+		`${label}: Live Preview rendered wrappers without a hydrated Monaco editor`,
 		result,
 	);
 	assert(result.editorTokens.length > 0, `${label}: editor Shiki highlighting missing`, result);
