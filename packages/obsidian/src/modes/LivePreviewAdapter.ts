@@ -128,7 +128,7 @@ export class LivePreviewAdapter {
 			if (block.codeTo < this.view.viewport.from || block.codeFrom > this.view.viewport.to) {
 				continue;
 			}
-			const lineElements = [...this.view.contentDOM.querySelectorAll(`.shiki-editing-codeblock-line-hidden[data-shiki-editing-block-id="${block.id}"]`)] as HTMLElement[];
+			const lineElements = [...this.view.contentDOM.querySelectorAll(`.shiki-editing-codeblock-line[data-shiki-editing-block-id="${block.id}"]`)] as HTMLElement[];
 			if (lineElements.length === 0) {
 				continue;
 			}
@@ -157,11 +157,11 @@ export class LivePreviewAdapter {
 				this.setBlockHidden(block.id, true);
 			} else {
 				this.setBlockHidden(block.id, false);
-				void surface.hydrateReadonly().then(() => {
-					if (this.blocks.some(candidate => candidate.id === block.id)) {
-						this.setBlockHidden(block.id, true);
-					}
-				});
+			void surface.hydrateReadonly().then(() => {
+				if (this.blocks.some(candidate => candidate.id === block.id)) {
+					this.setBlockHidden(block.id, true);
+				}
+			});
 			}
 		}
 

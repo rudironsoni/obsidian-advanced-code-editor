@@ -17,22 +17,7 @@ async function loadModernMonacoModule(plugin: ShikiPlugin): Promise<{ runtime: M
 	runtimePromise ??= (async (): Promise<{ runtime: MonacoRuntime; grammars: unknown[] }> => {
 		try {
 			await plugin.ensureSettingsLoaded();
-			console.log('[Shiki] Loading modern-monaco sidecar...');
-			const nativeRequire =
-				(globalThis as { electron?: { remote?: { require?: NodeRequire } }; require?: NodeRequire }).electron?.remote?.require ??
-				(globalThis as { require?: NodeRequire }).require ??
-				require;
-			const fs = nativeRequire('fs') as typeof import('node:fs');
-			const path = nativeRequire('path') as typeof import('node:path');
-			const appPlugins = (plugin.app as ShikiPlugin['app'] & { plugins?: { manifests?: Record<string, { dir?: string }> } }).plugins;
-			const vaultBasePath = (plugin.app.vault.adapter as { basePath?: string }).basePath ?? '';
-			const pluginDir =
-				(plugin.manifest as { dir?: string }).dir ??
-				appPlugins?.manifests?.[plugin.manifest.id]?.dir ??
-				__dirname;
-			const pluginDirPath = path.isAbsolute(pluginDir) ? pluginDir : path.join(vaultBasePath, pluginDir);
-			const modernMonacoPath = path.join(pluginDirPath, 'modern-monaco.js');
-			const modernMonacoSource = fs.readFileSync(modernMonacoPath, 'utf8');
+			const { source: modernMonacoSource, requireFn } = await loadModernMonacoSource(plugin);
 
 			const module = { exports: {} as { createMonacoRuntime?: (options?: unknown) => Promise<MonacoRuntime>; grammars?: unknown[] } };
 			// eslint-disable-next-line @typescript-eslint/no-implied-eval
@@ -41,7 +26,7 @@ async function loadModernMonacoModule(plugin: ShikiPlugin): Promise<{ runtime: M
 				module: { exports: unknown },
 				require: (id: string) => unknown,
 			) => void;
-			runtimeFactory(module.exports, module, nativeRequire);
+			runtimeFactory(module.exports, module, requireFn);
 			console.log('[Shiki] modern-monaco module loaded');
 
 			const entry = module.exports as { createMonacoRuntime?: (options?: unknown) => Promise<MonacoRuntime>; grammars?: unknown[] };
@@ -75,4 +60,36 @@ async function loadModernMonacoModule(plugin: ShikiPlugin): Promise<{ runtime: M
 	})();
 
 	return runtimePromise;
+}
+
+async function loadModernMonacoSource(plugin: ShikiPlugin): Promise<{ source: string; requireFn: NodeRequire }> {
+	const nativeRequire =
+		(globalThis as { electron?: { remote?: { require?: NodeRequire } }; require?: NodeRequire }).electron?.remote?.require ??
+		(globalThis as { require?: NodeRequire }).require ??
+		require;
+
+	try {
+		console.log('[Shiki] Loading modern-monaco sidecar...');
+		const fs = nativeRequire('fs') as typeof import('node:fs');
+		const path = nativeRequire('path') as typeof import('node:path');
+		const appPlugins = (plugin.app as ShikiPlugin['app'] & { plugins?: { manifests?: Record<string, { dir?: string }> } }).plugins;
+		const vaultBasePath = (plugin.app.vault.adapter as { basePath?: string }).basePath ?? '';
+		const pluginDir =
+			(plugin.manifest as { dir?: string }).dir ??
+			appPlugins?.manifests?.[plugin.manifest.id]?.dir ??
+			__dirname;
+		const pluginDirPath = path.isAbsolute(pluginDir) ? pluginDir : path.join(vaultBasePath, pluginDir);
+		const modernMonacoPath = path.join(pluginDirPath, 'modern-monaco.js');
+		return { source: fs.readFileSync(modernMonacoPath, 'utf8'), requireFn: nativeRequire };
+	} catch (error) {
+		console.warn('[Shiki] Sidecar modern-monaco fs load failed, falling back to adapter read.', error);
+		const appPlugins = (plugin.app as ShikiPlugin['app'] & { plugins?: { manifests?: Record<string, { dir?: string }> } }).plugins;
+		const pluginDir =
+			(plugin.manifest as { dir?: string }).dir ??
+			appPlugins?.manifests?.[plugin.manifest.id]?.dir ??
+			`.obsidian/plugins/${plugin.manifest.id}`;
+		const adapterPath = `${pluginDir.replace(/\\/g, '/')}/modern-monaco.js`;
+		const source = await plugin.app.vault.adapter.read(adapterPath);
+		return { source, requireFn: nativeRequire };
+	}
 }

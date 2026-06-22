@@ -23,5 +23,14 @@
       "environment": {}
     }
   },
-  "permission": {}
+  "permission": {
+    "bash": {
+      "bun run build": "allow",
+      "bun run typecheck": "allow",
+      "bun run verify:*": "allow",
+      "rtk bun run build": "allow",
+      "rtk bun run typecheck": "allow",
+      "rtk bun run verify:*": "allow"
+    }
+  }
 }

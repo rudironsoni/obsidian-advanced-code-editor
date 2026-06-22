@@ -16,6 +16,7 @@ const BRAT_INSTALL = process.env.OBSIDIAN_VERIFY_BRAT_INSTALL === 'true';
 const ENFORCE_PLUGIN_LOAD_MS = OBSIDIAN_LAUNCH_MODE === 'fresh' || process.env.OBSIDIAN_VERIFY_ENFORCE_STARTUP === 'true';
 const VERIFY_READING_MODE = OBSIDIAN_LAUNCH_MODE === 'fresh' || process.env.OBSIDIAN_VERIFY_READING === 'true';
 const VERIFY_TARGET = process.env.OBSIDIAN_VERIFY_TARGET ?? 'both';
+const SOURCE_MODE_EDIT_MARKER = '__shiki_source_mode_persistence_marker__';
 
 function assert(condition, message, detail) {
 	if (!condition) {
@@ -347,7 +348,14 @@ async function evaluate(wsUrl, expression) {
 			returnByValue: true,
 		});
 		if (result.exceptionDetails) {
-			throw new Error(`Renderer exception: ${result.exceptionDetails.text}`);
+			console.error('Renderer exception details:', result.exceptionDetails);
+			if (result.exceptionDetails.stackTrace) {
+				console.error('Renderer exception stack:', result.exceptionDetails.stackTrace);
+			}
+			const description = result.exceptionDetails.exception?.description;
+			const value = result.exceptionDetails.exception?.value;
+			const message = result.exceptionDetails.text ?? description ?? value ?? 'Uncaught';
+			throw new Error(`Renderer exception: ${message}`);
 		}
 		return result.result.value;
 	} finally {
@@ -601,12 +609,31 @@ async function dispatchTouchDragOnActiveMonaco(wsUrl, fromX, fromY, toX, toY) {
 	);
 }
 
+async function readActiveMonacoScrollState(wsUrl) {
+	return evaluate(
+		wsUrl,
+		`(() => {
+			const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active');
+			const editor = block?._monacoEditor;
+			if (!block || !editor) return null;
+			const line = block.querySelector('.view-line');
+			return {
+				scrollLeft: editor.getScrollLeft?.() ?? 0,
+				hasOverflow: (editor.getScrollWidth?.() ?? block.scrollWidth) > block.clientWidth,
+				contentLeft: line?.getBoundingClientRect?.().left ?? null,
+				width: block.clientWidth,
+				scrollWidth: editor.getScrollWidth?.() ?? block.scrollWidth,
+			};
+		})()`,
+	);
+}
+
 async function measureEditableGestureSet(wsUrl, stateName, label) {
 	const target = await evaluate(
 		wsUrl,
 		`(async () => {
 			const app = window.app;
-			const plugin = app.plugins.plugins['${PLUGIN_ID}'];
+			const plugin = app.plugins.plugins['shiki-highlighter'];
 			const activeView = app.workspace.activeLeaf?.view;
 			const editor = activeView?.editor;
 			const csharpLineIndex = editor?.getValue?.().split('\\n').findIndex(line => line.includes('List<int[]> intervals')) ?? -1;
@@ -615,7 +642,7 @@ async function measureEditableGestureSet(wsUrl, stateName, label) {
 				editor.setCursor({ line: csharpLineIndex, ch: 12 });
 				editor.focus();
 			}
-			await plugin.updateCm6Plugin();
+			if (plugin?.updateCm6Plugin) await plugin.updateCm6Plugin();
 			await new Promise(resolve => setTimeout(resolve, 750));
 			const editorRoot = activeView?.contentEl ?? document;
 			const csharpLine = [...editorRoot.querySelectorAll('.cm-content .shiki-editing-codeblock-line')].find(el =>
@@ -927,7 +954,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			for (let i = 0; i < 100 && !document.querySelector('.cm-content'); i++) {
 				await new Promise(resolve => setTimeout(resolve, 100));
 			}
-			await plugin.updateCm6Plugin();
+			if (plugin?.updateCm6Plugin) await plugin.updateCm6Plugin();
 			await new Promise(resolve => setTimeout(resolve, 500));
 			const livePreviewRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
 			const livePreviewCodeBlocks = [...livePreviewRoot.querySelectorAll('.shiki-monaco-codeblock')].map(el => ({
@@ -951,7 +978,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 				editorActivation.afterCursor = editor.getCursor?.() ?? null;
 				editorActivation.activeElement = document.activeElement?.className ?? document.activeElement?.tagName ?? null;
 			}
-			await plugin.updateCm6Plugin();
+			if (plugin?.updateCm6Plugin) await plugin.updateCm6Plugin();
 			await new Promise(resolve => setTimeout(resolve, 500));
 			const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
 			editorActivation.cmContent = !!editorRoot.querySelector('.cm-content');
@@ -990,7 +1017,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			`(() => {
 				const app = window.app;
 				const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-				const renderedCodeBlock = [...editorRoot.querySelectorAll('.cm-preview-code-block div.expressive-code')].find(el =>
+				const renderedCodeBlock = [...editorRoot.querySelectorAll('.shiki-monaco-codeblock')].find(el =>
 					el.textContent?.includes('List<int[]> intervals')
 				);
 				if (!renderedCodeBlock) return null;
@@ -1227,24 +1254,55 @@ async function verifyFeatureSet(wsUrl, mobile) {
 		await measureEditableGestureSet(activeWsUrl, '__shikiVerifyEditableSource', 'source');
 	}
 
-	await evaluate(
+	const sourceModeState = await evaluate(
 		activeWsUrl,
 		`(async () => {
 			const app = window.app;
-			const plugin = app.plugins.plugins['${PLUGIN_ID}'];
+			const plugin = app.plugins.plugins['shiki-highlighter'];
 			const file = app.vault.getAbstractFileByPath('feature-test.md');
 			const leaf = app.workspace.getLeaf(false);
 			await leaf.openFile(file, { state: { mode: 'source', source: true } });
 			const view = leaf.view;
 			if (view?.setState) await view.setState({ file: file.path, mode: 'source', source: true }, { history: false });
 			await new Promise(resolve => setTimeout(resolve, 750));
-			await plugin.updateCm6Plugin();
+			if (plugin?.updateCm6Plugin) await plugin.updateCm6Plugin();
 			await new Promise(resolve => setTimeout(resolve, 750));
-			return { sourceMode: view?.getMode?.() ?? null };
+			if (!file || !view?.editor) {
+				return {
+					sourceMode: view?.getMode?.() ?? null,
+					editorMissing: true,
+					markerWasPresent: false,
+					markerInserted: false,
+					markerInEditor: false,
+					markerOnDisk: false,
+				};
+			}
+			const editor = view.editor;
+			const before = editor.getValue?.() ?? '';
+			const marker = '${SOURCE_MODE_EDIT_MARKER}';
+			const markerWasPresent = before.includes(marker);
+			if (!markerWasPresent) {
+				const withTrailingNewline = before.endsWith('\\n') || before.length === 0 ? before : before + '\\n';
+				editor.setValue(withTrailingNewline + marker);
+				await new Promise(resolve => setTimeout(resolve, 700));
+				if (typeof view.save === 'function') await view.save();
+				else if (app?.vault?.modify && typeof app?.vault?.modify === 'function') await app.vault.modify(file, before + marker);
+				await new Promise(resolve => setTimeout(resolve, 700));
+			}
+			const after = editor.getValue?.() ?? '';
+			const onDisk = await app.vault.cachedRead(file);
+			return {
+				sourceMode: view?.getMode?.() ?? null,
+				editorMissing: false,
+				markerWasPresent,
+				markerInserted: !markerWasPresent,
+				markerInEditor: after.includes(marker),
+				markerOnDisk: onDisk.includes(marker),
+			};
 		})()`,
 	);
 
-	return evaluate(
+	const finalResult = await evaluate(
 		activeWsUrl,
 		`(async () => {
 			for (let i = 0; i < 300 && !window.app?.plugins; i++) await new Promise(resolve => setTimeout(resolve, 100));
@@ -1316,6 +1374,10 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			};
 		})()`,
 	);
+	return {
+		...finalResult,
+		sourceModeState,
+	};
 }
 
 function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LOAD_MS } = {}) {
@@ -1365,6 +1427,10 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 	assert(result.editorTokens.length > 0, `${label}: editor Shiki highlighting missing`, result);
 	assert(result.fencedEditorTokens.length >= 4, `${label}: editable fenced code block Shiki tokens missing`, result);
 	assert(result.sourceModeMonacoBlocks === 0, `${label}: Source mode mounted Monaco surfaces`, result);
+	assert(result.sourceModeState, `${label}: Source mode persistence state was not captured`, result);
+	assert(!result.sourceModeState.editorMissing, `${label}: Source mode editor was not available`, result.sourceModeState);
+	assert(result.sourceModeState.markerInEditor, `${label}: Source mode marker was not present in editor`, result.sourceModeState);
+	assert(result.sourceModeState.markerOnDisk, `${label}: Source mode marker did not persist to disk`, result.sourceModeState);
 	if (result.isMobile) {
 		assert(result.editableVertical !== null, `${label}: editable fenced code block vertical touch scroll was not measured`, result);
 		assert(result.editableVertical.scrollable, `${label}: editable fenced code block vertical touch scroll had no scrollable editor`, result);
