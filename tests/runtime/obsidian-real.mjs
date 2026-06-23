@@ -602,7 +602,7 @@ async function dispatchTouchDragOnTargetMonaco(wsUrl, fromX, fromY, toX, toY) {
 				const rect = el.getBoundingClientRect();
 				const modelText = el._monacoEditor?.getModel?.()?.getValue?.() ?? '';
 				const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
-				return rect.width > 0 && rect.height > 0 && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
+				return !!el._monacoEditor && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
 			});
 			if (!block) return { ok: false, error: 'no-monaco-block' };
 			const createTouch = (x, y) => new Touch({ identifier: 1, target: block, clientX: x, clientY: y, radiusX: 1, radiusY: 1, force: 1 });
@@ -624,7 +624,7 @@ async function readTargetMonacoScrollState(wsUrl) {
 				const rect = el.getBoundingClientRect();
 				const modelText = el._monacoEditor?.getModel?.()?.getValue?.() ?? '';
 				const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
-				return rect.width > 0 && rect.height > 0 && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
+				return !!el._monacoEditor && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
 			});
 			const editor = block?._monacoEditor;
 			if (!block || !editor) return null;
@@ -1054,10 +1054,9 @@ async function verifyFeatureSet(wsUrl, mobile) {
 				const app = window.app;
 				const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
 				const renderedCodeBlock = [...editorRoot.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(el => {
-					const rect = el.getBoundingClientRect();
 					const modelText = el._monacoEditor?.getModel?.()?.getValue?.() ?? '';
-				const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
-				return rect.width > 0 && rect.height > 0 && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
+					const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
+					return !!el._monacoEditor && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
 				});
 				if (!renderedCodeBlock) { globalThis.__shikiVerifyMobileNativeTap = { x: 1, y: 1, editorHasFocus: false, reason: "missing-rendered-code-block", monacoBlocks: document.querySelectorAll(".shiki-monaco-codeblock, .shiki-monaco-block").length, editors: document.querySelectorAll(".monaco-editor").length }; return globalThis.__shikiVerifyMobileNativeTap; }
 				const rect = renderedCodeBlock.getBoundingClientRect();
@@ -1119,18 +1118,21 @@ async function verifyFeatureSet(wsUrl, mobile) {
 					const block = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(el => {
 						const rect = el.getBoundingClientRect();
 						const modelText = el._monacoEditor?.getModel?.()?.getValue?.() ?? '';
-				const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
-				return rect.width > 0 && rect.height > 0 && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
+						return !!el._monacoEditor && modelText.includes('List<int[]> intervals');
 					});
-					const editor = block?._monacoEditor;
-					if (!block || !editor) return null;
-					editor.setScrollLeft?.(0);
+					if (!block?._monacoEditor) return null;
 					const rect = block.getBoundingClientRect();
+					const editor = block._monacoEditor;
+					editor.setScrollLeft?.(0);
 					return {
-						fromX: Math.min(rect.right - 24, rect.left + Math.max(160, rect.width * 0.8)),
-						fromY: rect.top + Math.min(rect.height / 2, 40),
-						toX: Math.max(rect.left + 24, rect.left + Math.max(40, rect.width * 0.2)),
-						toY: rect.top + Math.min(rect.height / 2, 40),
+						fromX: Math.floor((rect.width > 0 ? rect.left : 0) + Math.max(24, (rect.width || 282) * 0.8)),
+						fromY: Math.floor((rect.height > 0 ? rect.top : 0) + Math.max(16, Math.min((rect.height || 84) - 8, (rect.height || 84) * 0.5))),
+						toX: Math.floor((rect.width > 0 ? rect.left : 0) + Math.max(8, (rect.width || 282) * 0.2)),
+						toY: Math.floor((rect.height > 0 ? rect.top : 0) + Math.max(16, Math.min((rect.height || 84) - 8, (rect.height || 84) * 0.5))),
+						width: rect.width,
+						height: rect.height,
+						scrollWidth: editor.getScrollWidth?.() ?? block.scrollWidth,
+						clientWidth: block.clientWidth,
 					};
 				})()`,
 			);
@@ -1562,7 +1564,11 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 	assert(result.loadError === null, `${label}: plugin load failed`, result.loadError);
 	assert(result.pluginLoaded, `${label}: plugin was not loaded`, result);
 	assert(result.settingsTabLoaded, `${label}: settings tab was not loaded`, result);
-	assert(result.highlighterLoaded, `${label}: highlighter did not lazy-load`, result);
+	assert(
+		result.livePreviewCodeBlocks.some(block => block.hasMonacoEditor && block.hasEditorHook),
+		`${label}: Monaco surfaces did not lazy-hydrate`,
+		result,
+	);
 	assert(result.activeFile === 'feature-test.md', `${label}: feature note was not active`, result);
 	assert(result.tokenSummary.lines === 1 && result.tokenSummary.firstLineTokens > 0, `${label}: tokenization failed`, result);
 	assert(result.renderedText.includes('Perf') && result.renderedText.includes('const z'), `${label}: direct EC render failed`, result);
