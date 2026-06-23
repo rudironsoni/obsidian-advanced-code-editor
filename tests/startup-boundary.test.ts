@@ -227,3 +227,16 @@ test('settings language listing uses static metadata without loading modern Mona
 	expect(languageMetadata).toContain('getObsidianSafeLanguageNames');
 	expect(languageMetadata).toContain('LANGUAGE_METADATA');
 });
+
+test('Monaco edit verifier uses Obsidian editor scroller API for outside note scroll', () => {
+	const source = read('tests/runtime/obsidian-monaco-edit.mjs');
+
+	expect(source).toContain('async function readObsidianNoteScrollState');
+	expect(source).toContain('async function scrollObsidianNoteByApi');
+	expect(source).toContain('app.workspace.activeEditor?.editor');
+	expect(source).toContain('cm?.scrollDOM');
+	expect(source).toContain('Obsidian editor scroller API did not scroll the note');
+	expect(source).not.toContain('readOutsideNoteWheelPoint');
+	expect(source).not.toContain('vertical wheel outside Monaco did not scroll the Obsidian note');
+});
+

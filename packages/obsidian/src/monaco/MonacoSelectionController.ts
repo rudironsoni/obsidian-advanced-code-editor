@@ -299,6 +299,12 @@ export class MonacoSelectionController {
 		if (!value) {
 			return;
 		}
+
+		const copyEvent = new ClipboardEvent('copy', { bubbles: true, cancelable: true });
+		copyEvent.clipboardData?.setData('text/plain', value);
+		this.host.dispatchEvent(copyEvent);
+		if (copyEvent.defaultPrevented) return;
+
 		void navigator.clipboard?.writeText(value);
 	}
 }

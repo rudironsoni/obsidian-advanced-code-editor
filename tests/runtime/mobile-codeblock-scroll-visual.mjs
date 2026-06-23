@@ -496,13 +496,17 @@ try {
 		cdp,
 		`(() => {
 			const candidates = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')];
-			const pre = candidates.find((candidate) => {
-				const rect = candidate.getBoundingClientRect();
-				return rect.width > 20 && rect.height > 20 && candidate._monacoEditor;
-			}) ?? candidates.find((candidate) => {
-				const rect = candidate.getBoundingClientRect();
-				return rect.width > 20 && rect.height > 20;
-			});
+			const usable = candidates
+				.map((candidate) => {
+					const rect = candidate.getBoundingClientRect();
+					const editor = candidate._monacoEditor;
+					const layoutWidth = editor?.getLayoutInfo?.()?.width ?? candidate.clientWidth;
+					const scrollWidth = editor?.getScrollWidth?.() ?? candidate.scrollWidth;
+					const modelText = editor?.getModel?.()?.getValue?.() ?? candidate.innerText ?? '';
+					return { candidate, rect, editor, layoutWidth, scrollWidth, modelText };
+				})
+				.filter((entry) => entry.rect.width > 20 && entry.rect.height > 20 && entry.editor && entry.scrollWidth > entry.layoutWidth + 8);
+			const pre = usable.find((entry) => /very_long|horizontal|scroll/i.test(entry.modelText))?.candidate ?? usable[0]?.candidate;
 			if (!pre) {
 				return {
 					missing: true,

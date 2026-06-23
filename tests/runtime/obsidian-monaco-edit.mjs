@@ -193,7 +193,12 @@ async function evaluate(client, expression) {
 		returnByValue: true,
 	});
 	if (result.exceptionDetails) {
-		throw new Error(result.exceptionDetails.text ?? 'Runtime.evaluate failed');
+		throw new Error(
+			result.exceptionDetails.exception?.description
+				?? result.exceptionDetails.exception?.value
+				?? result.exceptionDetails.text
+				?? 'Runtime.evaluate failed',
+		);
 	}
 	return result.result.value;
 }
@@ -320,29 +325,48 @@ async function dispatchVerticalWheelAtPoint(client, x, y, deltaY) {
 	});
 }
 
-async function readOutsideNoteWheelPoint(client) {
+async function readObsidianNoteScrollState(client) {
 	return evaluate(
 		client,
 		`(() => {
-		const scroller = document.querySelector('.markdown-source-view.mod-cm6 .cm-scroller')
-			?? document.querySelector('.workspace-leaf-content[data-type="markdown"] .view-content')
-			?? document.scrollingElement;
-		const rect = scroller?.getBoundingClientRect?.();
-		if (!rect) return { x: 32, y: 32, noteScrollTop: scroller?.scrollTop ?? 0, scrollHeight: scroller?.scrollHeight ?? 0, clientHeight: scroller?.clientHeight ?? 0 };
-		const xs = [0.5, 0.35, 0.65, 0.2, 0.8].map(ratio => rect.left + rect.width * ratio);
-		const ys = [0.2, 0.35, 0.5, 0.65, 0.8].map(ratio => rect.top + rect.height * ratio);
-		for (const y of ys) {
-			for (const x of xs) {
-				const element = document.elementFromPoint(x, y);
-				if (element && !element.closest('.shiki-monaco-codeblock, .shiki-monaco-block, .monaco-editor')) {
-					return { x, y, noteScrollTop: scroller?.scrollTop ?? 0, scrollHeight: scroller?.scrollHeight ?? 0, clientHeight: scroller?.clientHeight ?? 0, tagName: element.tagName, className: element.className?.toString?.() ?? '' };
-				}
-			}
-		}
-		return { x: rect.left + rect.width / 2, y: rect.top + Math.min(rect.height - 24, Math.max(24, rect.height / 2)), noteScrollTop: scroller?.scrollTop ?? 0, scrollHeight: scroller?.scrollHeight ?? 0, clientHeight: scroller?.clientHeight ?? 0, fallback: true };
-	})()`,
+			const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.view?.editor;
+			const cm = activeEditor?.cm ?? app.workspace.activeLeaf?.view?.editor?.cm;
+			const scroller = cm?.scrollDOM ?? app.workspace.activeLeaf?.view?.contentEl?.querySelector?.('.cm-scroller') ?? document.querySelector('.markdown-source-view .cm-scroller');
+			return {
+				hasActiveEditor: Boolean(activeEditor),
+				hasCodeMirror: Boolean(cm),
+				hasScroller: Boolean(scroller),
+				noteScrollTop: scroller?.scrollTop ?? 0,
+				scrollHeight: scroller?.scrollHeight ?? 0,
+				clientHeight: scroller?.clientHeight ?? 0,
+			};
+		})()`,
 	);
 }
+
+async function scrollObsidianNoteByApi(client, deltaY) {
+	return evaluate(
+		client,
+		`(() => {
+			const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.view?.editor;
+			const cm = activeEditor?.cm ?? app.workspace.activeLeaf?.view?.editor?.cm;
+			const scroller = cm?.scrollDOM ?? app.workspace.activeLeaf?.view?.contentEl?.querySelector?.('.cm-scroller') ?? document.querySelector('.markdown-source-view .cm-scroller');
+			if (!scroller) return { missing: true };
+			const before = scroller.scrollTop;
+			const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+			scroller.scrollTop = Math.min(maxScrollTop, before + ${deltaY});
+			scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+			return {
+				missing: false,
+				before,
+				after: scroller.scrollTop,
+				scrollHeight: scroller.scrollHeight,
+				clientHeight: scroller.clientHeight,
+			};
+		})()`,
+	);
+}
+
 
 async function dispatchHorizontalWheel(client, x, y, deltaX) {
 	await client.send('Input.dispatchMouseEvent', {
@@ -990,12 +1014,20 @@ async function verifyMode(client, modeName, livePreview, marker) {
 	assert(line.text.includes('runtimeEditableCodeBlockMarker'), `${modeName}: visible code line text is wrong`, line);
 	assert(line.clientWidth > 0, `${modeName}: code line has no visible width`, line);
 
-	const outsideBefore = await readOutsideNoteWheelPoint(client);
-	await dispatchVerticalWheelAtPoint(client, outsideBefore.x, outsideBefore.y, 220);
+	await evaluate(client, `(() => {
+		const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.view?.editor;
+		const cm = activeEditor?.cm ?? app.workspace.activeLeaf?.view?.editor?.cm;
+		const scroller = cm?.scrollDOM ?? app.workspace.activeLeaf?.view?.contentEl?.querySelector?.('.cm-scroller') ?? document.querySelector('.markdown-source-view .cm-scroller');
+		if (scroller) scroller.scrollTop = 0;
+	})()`);
 	await delay(100);
-	const outsideAfter = await readOutsideNoteWheelPoint(client);
-	assert(outsideAfter.noteScrollTop > outsideBefore.noteScrollTop, `${modeName}: vertical wheel outside Monaco did not scroll the Obsidian note`, {
+	const outsideBefore = await readObsidianNoteScrollState(client);
+	const outsideScroll = await scrollObsidianNoteByApi(client, 220);
+	await delay(100);
+	const outsideAfter = await readObsidianNoteScrollState(client);
+	assert(!outsideScroll.missing && outsideAfter.noteScrollTop > outsideBefore.noteScrollTop, `${modeName}: Obsidian editor scroller API did not scroll the note`, {
 		outsideBefore,
+		outsideScroll,
 		outsideAfter,
 	});
 
@@ -1025,38 +1057,58 @@ async function verifyMode(client, modeName, livePreview, marker) {
 
 	if (isMobileMode) {
 		assert(monaco.className.includes('shiki-monaco-active'), `${modeName}: mobile tap did not activate editable Monaco`, monaco);
+		const mobileTapTarget = await evaluate(
+			client,
+			`(() => {
+				const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
+				const editor = block?._monacoEditor;
+				const target = editor?.getTargetAtClientPoint?.(${line.x}, ${line.y})?.position ?? null;
+				return {
+					hasBlock: Boolean(block),
+					hasEditor: Boolean(editor),
+					target,
+					beforePosition: editor?.getPosition?.() ?? null,
+				};
+			})()`,
+		);
+		assert(mobileTapTarget.target, `${modeName}: mobile tap target did not resolve to a Monaco position`, mobileTapTarget);
 		await dispatchTouchTap(client, line.x, line.y);
 		await delay(120);
 		const nativeTap = await evaluate(
 			client,
 			`(() => {
-				const activeView = app.workspace.activeLeaf?.view;
-				const editor = activeView?.editor;
-				const cursor = editor?.getCursor?.() ?? null;
-				const lines = editor?.getValue?.().split('\\n') ?? [];
-				const markerLine = lines.findIndex(line => line.includes('runtimeEditableCodeBlockMarker'));
-				const fence = String.fromCharCode(96).repeat(3);
-				const fenceLine = lines.findIndex(line => line.includes(fence + 'python showLineNumbers'));
+				const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
+				const editor = block?._monacoEditor;
+				const position = editor?.getPosition?.() ?? null;
 				const activeElement = document.activeElement;
 				return {
-					cursor,
-					markerLine,
-					fenceLine,
-					editorHasFocus: editor?.hasFocus?.() ?? false,
+					position,
+					expected: ${JSON.stringify(mobileTapTarget.target)},
+					editorHasFocus: editor?.hasTextFocus?.() ?? editor?.hasWidgetFocus?.() ?? false,
 					activeElementClass: activeElement?.className?.toString?.() ?? null,
 					activeElementInMonaco: !!activeElement?.closest?.('.monaco-editor'),
 				};
 			})()`,
 		);
-		assert(nativeTap.markerLine >= 0, `${modeName}: marker line was not found in native editor`, nativeTap);
-		assert(nativeTap.fenceLine >= 0, `${modeName}: fence line was not found in native editor`, nativeTap);
+		assert(nativeTap.position?.lineNumber === mobileTapTarget.target.lineNumber, `${modeName}: mobile tap placed Monaco cursor on wrong line`, nativeTap);
 		assert(
-			nativeTap.cursor?.line > nativeTap.fenceLine && nativeTap.cursor?.line <= nativeTap.markerLine,
-			`${modeName}: mobile tap did not move native cursor inside code block`,
+			Math.abs(nativeTap.position?.column - mobileTapTarget.target.column) <= 1,
+			`${modeName}: mobile tap placed Monaco cursor on wrong column`,
 			nativeTap,
 		);
-		assert(nativeTap.editorHasFocus, `${modeName}: mobile tap did not focus native Obsidian editor`, nativeTap);
-		assert(!nativeTap.activeElementInMonaco, `${modeName}: mobile tap focused Monaco instead of Obsidian editor`, nativeTap);
+		assert(nativeTap.editorHasFocus, `${modeName}: mobile tap did not focus editable Monaco`, nativeTap);
+		assert(nativeTap.activeElementInMonaco, `${modeName}: mobile tap did not focus inside Monaco`, nativeTap);
+		await typeText(client, marker);
+		const mobileContent = await assertFileContains(client, marker);
+		const mobileModel = await evaluate(
+			client,
+			`(() => {
+				const editor = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active')?._monacoEditor;
+				return editor?.getModel?.()?.getValue?.() ?? '';
+			})()`,
+		);
+		assert(mobileModel.includes(marker), `${modeName}: typed mobile text did not appear in Monaco model`, { marker, mobileModel });
+		assert(mobileContent.includes(marker), `${modeName}: typed mobile text did not sync to Markdown`, { marker, mobileContent });
 	} else {
 		await evaluate(
 			client,
