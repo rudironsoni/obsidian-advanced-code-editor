@@ -32,6 +32,7 @@ export class MonacoCodeBlockSurface {
 	private gestureRouter: MonacoGestureRouter | undefined;
 	private nativeMobileInteraction: NativeMobileInteraction | undefined;
 	private activationHandler: ((point: { clientX: number; clientY: number }) => void) | undefined;
+	private noteScrollerProvider: (() => HTMLElement | null) | undefined;
 	private attachedParent: HTMLElement | undefined;
 	private hydrated = false;
 	private disposed = false;
@@ -94,6 +95,13 @@ export class MonacoCodeBlockSurface {
 
 	setActivationHandler(activationHandler: ((point: { clientX: number; clientY: number }) => void) | undefined): void {
 		this.activationHandler = activationHandler;
+		if (this.editor) {
+			this.installGestureRouter();
+		}
+	}
+
+	setNoteScrollerProvider(noteScrollerProvider: (() => HTMLElement | null) | undefined): void {
+		this.noteScrollerProvider = noteScrollerProvider;
 		if (this.editor) {
 			this.installGestureRouter();
 		}
@@ -275,6 +283,7 @@ export class MonacoCodeBlockSurface {
 			selectionController: this.selectionController,
 			scrollState: this.scrollState,
 			getNoteScroller: (): HTMLElement =>
+				this.noteScrollerProvider?.() ??
 				(this.hostEl
 					.closest('.markdown-source-view, .markdown-preview-view')
 					?.querySelector('.cm-scroller, .markdown-preview-sizer') as HTMLElement | null) ??

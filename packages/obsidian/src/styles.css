@@ -129,8 +129,11 @@ span.shiki-ul {
 .markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-fence.shiki-editing-codeblock-line-hidden * {
 	color: transparent !important;
 	caret-color: transparent !important;
-	opacity: 0 !important;
+	-webkit-text-fill-color: transparent !important;
 	text-shadow: none !important;
+	background: transparent !important;
+	border-color: transparent !important;
+	opacity: 1 !important;
 }
 
 .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock {
@@ -148,6 +151,8 @@ span.shiki-ul {
 	overscroll-behavior-x: contain;
 	overscroll-behavior-y: auto;
 	-webkit-tap-highlight-color: transparent;
+	isolation: isolate;
+	touch-action: pan-y;
 }
 
 .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-overlay-root {
@@ -361,4 +366,10 @@ span.shiki-ul {
 /* Settings tab */
 .setting-item-control input.shiki-custom-theme-folder {
 	min-width: 250px;
+}
+
+body.is-mobile .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock {
+	max-width: calc(100vw - 24px);
+	overscroll-behavior-x: contain;
+	touch-action: pan-y;
 }

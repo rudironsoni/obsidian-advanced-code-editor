@@ -47,6 +47,7 @@ export class LivePreviewAdapter {
 				.forEach(root => root.remove());
 			this.view.dom.appendChild(this.overlayRoot);
 			this.view.scrollDOM.addEventListener('scroll', this.handleScroll, { passive: true });
+			window.addEventListener('resize', this.handleScroll, { passive: true });
 		}
 	}
 
@@ -99,6 +100,7 @@ export class LivePreviewAdapter {
 			window.clearTimeout(this.visibilityRefreshTimer);
 		}
 		this.view.scrollDOM.removeEventListener('scroll', this.handleScroll);
+		window.removeEventListener('resize', this.handleScroll);
 		this.detachAll();
 		this.overlayRoot.remove();
 		if (this.ownerRoot?.[LIVE_PREVIEW_ADAPTER_OWNER] === this) {
@@ -200,6 +202,7 @@ export class LivePreviewAdapter {
 			}
 			this.missingLineRetryCount = 0;
 			const surface = this.plugin.surfaceRegistry.getOrCreate(block);
+			surface.setNoteScrollerProvider(() => this.view.scrollDOM);
 			if (this.destroyed || !this.plugin.isCurrentInstance()) {
 				return;
 			}
@@ -218,14 +221,19 @@ export class LivePreviewAdapter {
 			surface.setNativeMobileInteraction(mobileMode ? this.createNativeMobileInteraction(block) : undefined);
 			surface.hostEl.classList.add('shiki-monaco-codeblock');
 			surface.hostEl.dataset.shikiBlockId = block.id;
+			surface.hostEl.onclick = event => {
+				this.activateBlock(block.id, { clientX: event.clientX, clientY: event.clientY });
+			};
+			surface.hostEl.ontouchend = event => {
+				const touch = event.changedTouches[0];
+				this.activateBlock(block.id, { clientX: touch?.clientX ?? 0, clientY: touch?.clientY ?? 0 });
+			};
 			surface.setActivationHandler(point => void this.activateBlock(block.id, point));
-			surface.hostEl.onclick = null;
-			surface.hostEl.onmousedown = null;
-			surface.hostEl.ontouchend = null;
 			surface.hostEl.style.position = 'absolute';
 			surface.hostEl.style.left = `${firstRect.left - rootRect.left}px`;
 			surface.hostEl.style.top = `${firstRect.top - rootRect.top}px`;
-			surface.hostEl.style.width = `${firstRect.width}px`;
+			const overlayWidth = Math.max(firstRect.width, this.view.scrollDOM.clientWidth, rootRect.width);
+			surface.hostEl.style.width = `${overlayWidth}px`;
 			surface.hostEl.style.height = `${Math.max(lastRect.bottom - firstRect.top, first.offsetHeight)}px`;
 			if (surface.isHydrated()) {
 				this.setBlockHidden(block.id, true);

@@ -83,7 +83,8 @@ export class MonacoGestureRouter {
 
 	private readonly onWheel = (event: WheelEvent): void => {
 		const horizontalDelta = event.shiftKey && Math.abs(event.deltaX) < Math.abs(event.deltaY) ? event.deltaY : event.deltaX;
-		if (Math.abs(horizontalDelta) <= Math.abs(event.deltaY) || horizontalDelta === 0) {
+		const isHorizontalIntent = event.shiftKey ? horizontalDelta !== 0 : Math.abs(horizontalDelta) > Math.abs(event.deltaY);
+		if (!isHorizontalIntent) {
 			const noteScroller = this.getNoteScroller();
 			if (noteScroller && event.deltaY !== 0) {
 				noteScroller.scrollTop += event.deltaY;
@@ -181,13 +182,18 @@ export class MonacoGestureRouter {
 		}
 		if (!touch || state?.axis !== 'pending') return;
 		const nativePosition = this.editor.getTargetAtClientPoint?.(touch.clientX, touch.clientY)?.position ?? null;
-		if (nativePosition && this.isEditable()) {
+		if (this.isEditable()) {
 			event.preventDefault();
 			event.stopPropagation();
-			this.editor.setPosition(nativePosition);
+			const placedPosition = nativePosition ?? this.selectionController.placeCursor(touch.clientX, touch.clientY, true);
+			if (placedPosition) {
+				this.editor.setPosition(placedPosition);
+			}
 			this.editor.focus?.();
 			window.setTimeout(() => {
-				this.editor.setPosition(nativePosition);
+				if (placedPosition) {
+					this.editor.setPosition(placedPosition);
+				}
 				this.editor.focus?.();
 			}, 0);
 			this.lastTouchTime = Date.now();

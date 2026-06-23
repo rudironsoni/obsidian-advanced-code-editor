@@ -254,3 +254,30 @@ test('real Obsidian verifier bounds CDP evaluation waits', () => {
 	expect(evaluateSource).not.toContain('const pending = new Map');
 	expect(evaluateSource).not.toContain('pending.set(id');
 });
+
+test('Monaco gesture routing uses explicit horizontal intent and Obsidian note scrollers', () => {
+	const router = read('packages/obsidian/src/monaco/MonacoGestureRouter.ts');
+	const surface = read('packages/obsidian/src/monaco/MonacoCodeBlockSurface.ts');
+	const livePreview = read('packages/obsidian/src/modes/LivePreviewAdapter.ts');
+	const readingView = read('packages/obsidian/src/modes/ReadingViewAdapter.ts');
+
+	expect(router).toContain('const isHorizontalIntent = event.shiftKey ? horizontalDelta !== 0 : Math.abs(horizontalDelta) > Math.abs(event.deltaY);');
+	expect(router).toContain('if (!isHorizontalIntent)');
+	expect(surface).toContain('setNoteScrollerProvider(noteScrollerProvider: (() => HTMLElement | null) | undefined): void');
+	expect(surface).toContain('this.noteScrollerProvider?.() ??');
+	expect(livePreview).toContain('surface.setNoteScrollerProvider(() => this.view.scrollDOM);');
+	expect(livePreview).toContain('surface.hostEl.onclick = event => {');
+	expect(livePreview).toContain('this.activateBlock(block.id, { clientX: event.clientX, clientY: event.clientY });');
+	expect(livePreview).toContain('surface.hostEl.ontouchend = event => {');
+	expect(livePreview).toContain('const overlayWidth = Math.max(firstRect.width, this.view.scrollDOM.clientWidth, rootRect.width);');
+	expect(livePreview).toContain("window.addEventListener('resize', this.handleScroll, { passive: true });");
+	expect(livePreview).toContain("window.removeEventListener('resize', this.handleScroll);");
+	expect(readingView).toContain('surface.setNoteScrollerProvider(');
+	expect(readingView).toContain("container.closest('.markdown-preview-view')?.querySelector('.markdown-preview-sizer')");
+
+	const styles = read('packages/obsidian/src/styles.css');
+	expect(styles).toContain('-webkit-text-fill-color: transparent !important;');
+	expect(styles).toContain('touch-action: pan-y;');
+	expect(styles).toContain('body.is-mobile .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock');
+	expect(styles).toContain('overscroll-behavior-x: contain;');
+});
