@@ -35,6 +35,7 @@ export class SourceModeAdapter {
 	}
 
 	async retokenize(): Promise<void> {
+		this.removeMonacoArtifacts();
 		if (!this.plugin.isCurrentInstance()) {
 			this.decorations = Decoration.none;
 			return;
@@ -144,4 +145,19 @@ export class SourceModeAdapter {
 			closingFenceLine: parsed.closingFenceLine,
 		});
 	}
+
+	private removeMonacoArtifacts(): void {
+		for (const element of Array.from(this.view.dom.querySelectorAll<HTMLElement>('.shiki-monaco-block, .shiki-monaco-codeblock'))) {
+			const blockId = element.getAttribute('data-shiki-block-id');
+			if (blockId !== null) {
+				this.plugin.surfaceRegistry.release(blockId);
+				this.plugin.codeBlockRegistry.delete(blockId);
+			}
+			element.remove();
+		}
+		for (const root of Array.from(this.view.dom.querySelectorAll<HTMLElement>('.shiki-monaco-overlay-root'))) {
+			root.remove();
+		}
+	}
+
 }

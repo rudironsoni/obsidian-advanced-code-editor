@@ -1,10 +1,31 @@
 $ node tests/runtime/obsidian-monaco-edit.mjs
-Error: Timed out waiting for visible editable code line
-Last value:
-null
+Error: live preview: editable cursor placement landed on wrong line
+{
+  "target": {
+    "ok": true,
+    "x": 380,
+    "y": 442.7734375,
+    "expectedLine": 1,
+    "expectedColumn": 5,
+    "rect": {
+      "left": 344,
+      "top": 424.2734375,
+      "right": 664,
+      "bottom": 860.2734375
+    }
+  },
+  "actual": {
+    "position": {
+      "lineNumber": 20,
+      "column": 40
+    },
+    "hasFocus": true
+  }
+}
 Launch output:
 
-    at waitFor (file:///Users/rudironsoni/src/github/rudironsoni/obsidian-shiki-plugin/tests/runtime/obsidian-monaco-edit.mjs:128:8)
-    at async verifyMode (file:///Users/rudironsoni/src/github/rudironsoni/obsidian-shiki-plugin/tests/runtime/obsidian-monaco-edit.mjs:1048:15)
-    at async main (file:///Users/rudironsoni/src/github/rudironsoni/obsidian-shiki-plugin/tests/runtime/obsidian-monaco-edit.mjs:1273:3)
+    at assert (file:///Users/rudironsoni/src/github/rudironsoni/obsidian-shiki-plugin/tests/runtime/obsidian-monaco-edit.mjs:38:9)
+    at assertEditableCursorPlacement (file:///Users/rudironsoni/src/github/rudironsoni/obsidian-shiki-plugin/tests/runtime/obsidian-monaco-edit.mjs:538:2)
+    at async verifyMode (file:///Users/rudironsoni/src/github/rudironsoni/obsidian-shiki-plugin/tests/runtime/obsidian-monaco-edit.mjs:1086:3)
+    at async main (file:///Users/rudironsoni/src/github/rudironsoni/obsidian-shiki-plugin/tests/runtime/obsidian-monaco-edit.mjs:1204:3)
 error: script "verify:obsidian-monaco-edit" exited with code 1

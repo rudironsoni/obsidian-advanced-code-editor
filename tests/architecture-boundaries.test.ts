@@ -123,7 +123,8 @@ describe('architecture boundaries', () => {
 		expect(sourceMode).not.toContain('MonacoCodeBlockSurface');
 		expect(sourceMode).not.toContain('MonacoSurfaceRegistry');
 		expect(sourceMode).not.toContain('monaco.editor.create');
-		expect(sourceMode).not.toContain('shiki-monaco-block');
+		expect(sourceMode).toContain('removeMonacoArtifacts');
+		expect(sourceMode).toContain('.shiki-monaco-block, .shiki-monaco-codeblock');
 	});
 	test('production source has no console spam or unguarded debug globals', () => {
 		const matches = readProductionSources().flatMap(({ path, source }) => {

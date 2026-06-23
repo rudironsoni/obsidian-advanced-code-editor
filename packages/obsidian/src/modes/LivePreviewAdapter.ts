@@ -21,6 +21,7 @@ export class LivePreviewAdapter {
 	private retrySyncTimer: number | undefined;
 	private visibilityRefreshTimer: number | undefined;
 	private activeBlockId: string | undefined;
+	private activeBlockAnchor: string | undefined;
 	private lastMobileMode: boolean | undefined;
 	private lastViewportKey = '';
 	private mobileClassObserver: MutationObserver | undefined;
@@ -244,7 +245,15 @@ export class LivePreviewAdapter {
 			surface.hostEl.style.position = 'absolute';
 			surface.hostEl.style.left = `${firstRect.left - rootRect.left}px`;
 			surface.hostEl.style.top = `${firstRect.top - rootRect.top}px`;
-			const overlayWidth = Math.max(firstRect.width, this.view.scrollDOM.clientWidth, rootRect.width);
+			const contentRect = (this.view.dom.closest('.workspace-leaf-content, .view-content, .markdown-source-view') ?? this.view.dom).getBoundingClientRect();
+			const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+			const availableViewportWidth = Math.max(0, viewportWidth - firstRect.left - 24);
+			const availableContentWidth = Math.max(0, contentRect.right - firstRect.left);
+			const overlayWidth = Math.max(firstRect.width, this.view.scrollDOM.clientWidth, rootRect.width, availableContentWidth, availableViewportWidth, 320);
+			const overlayRoot = surface.hostEl.parentElement instanceof HTMLElement ? surface.hostEl.parentElement : undefined;
+			if (overlayRoot?.classList.contains('shiki-monaco-overlay-root')) {
+				overlayRoot.style.width = `${Math.max(rootRect.width, contentRect.width, this.view.scrollDOM.clientWidth, viewportWidth)}px`;
+			}
 			surface.hostEl.style.width = `${overlayWidth}px`;
 			surface.hostEl.style.height = `${Math.max(lastRect.bottom - firstRect.top, first.offsetHeight)}px`;
 			if (surface.isHydrated()) {
@@ -316,9 +325,21 @@ export class LivePreviewAdapter {
 	private prepareSurfaceHost(block: CodeBlockModel, host: HTMLElement): void {
 		host.setAttribute('data-shiki-live-anchor', this.getLiveBlockAnchor(block));
 	}
-
 	private getLiveBlockAnchor(block: CodeBlockModel): string {
-		return [block.sourcePath, block.hostMode, block.openingFenceLine, block.codeFrom, block.language].join('::');
+		return `${block.sourcePath}::${block.hostMode}::${block.openingFenceLine}::${block.language}`;
+	}
+
+	private getActiveBlock(): CodeBlockModel | undefined {
+		if (this.activeBlockId !== undefined) {
+			const byId = this.blocks.find(block => block.id === this.activeBlockId);
+			if (byId !== undefined) {
+				return byId;
+			}
+		}
+		if (this.activeBlockAnchor !== undefined) {
+			return this.blocks.find(block => this.getLiveBlockAnchor(block) === this.activeBlockAnchor);
+		}
+		return undefined;
 	}
 
 	private ensureSingleOverlayRoot(): void {
@@ -377,9 +398,22 @@ export class LivePreviewAdapter {
 	}
 
 	createEditSync(block: CodeBlockModel): MonacoEditSync {
+		const resolveCurrent = (): CodeBlockModel | undefined => {
+			const anchor = this.getLiveBlockAnchor(block);
+			return this.blocks.find(candidate => candidate.id === block.id)
+				?? this.blocks.find(candidate => this.getLiveBlockAnchor(candidate) === anchor)
+				?? this.blocks.find(candidate => candidate.sourcePath === block.sourcePath
+					&& candidate.hostMode === block.hostMode
+					&& candidate.openingFenceLine === block.openingFenceLine
+					&& candidate.language === block.language);
+		};
 		return {
+			getCurrentRange: () => {
+				const current = resolveCurrent();
+				return current?.codeFrom !== undefined && current.codeTo !== undefined ? { from: current.codeFrom, to: current.codeTo } : undefined;
+			},
 			commit: (value: string): void => {
-				const current = this.blocks.find(candidate => candidate.id === block.id);
+				const current = resolveCurrent();
 				if (current?.codeFrom === undefined || current.codeTo === undefined) {
 					return;
 				}
@@ -387,16 +421,12 @@ export class LivePreviewAdapter {
 					return;
 				}
 				this.view.dispatch({ changes: { from: current.codeFrom, to: current.codeTo, insert: value } });
-			},
-			getCurrentRange: (): { from: number; to: number } | undefined => {
-				const current = this.blocks.find(candidate => candidate.id === block.id);
-				if (current?.codeFrom === undefined || current.codeTo === undefined) {
-					return undefined;
-				}
-				return { from: current.codeFrom, to: current.codeTo };
+				this.rebuildBlocks();
+				this.scheduleSync(0);
 			},
 		};
 	}
+
 
 	private createNativeMobileInteraction(block: CodeBlockModel): {
 		placeCursor(position: { lineNumber: number; column: number }): void;
@@ -513,23 +543,27 @@ export class LivePreviewAdapter {
 			(window.visualViewport?.width ?? window.innerWidth) <= 820
 		);
 	}
-
 	async activateBlock(blockId: string, point?: { clientX: number; clientY: number }): Promise<void> {
-		if (this.activeBlockId && this.activeBlockId !== blockId) {
-			this.deactivateBlock(this.activeBlockId);
-		}
 		const block = this.blocks.find(candidate => candidate.id === blockId);
 		if (!block) {
 			return;
 		}
-		const surface = this.plugin.surfaceRegistry.getOrCreate(block);
-		this.activeBlockId = blockId;
+		const activeBlock = this.getActiveBlock();
+		if (activeBlock !== undefined && this.getLiveBlockAnchor(activeBlock) !== this.getLiveBlockAnchor(block)) {
+			this.deactivateBlock(activeBlock.id);
+		}
+		const surface = this.plugin.surfaceRegistry.get(block.id);
+		if (surface === undefined) {
+			return;
+		}
+		this.activeBlockId = block.id;
+		this.activeBlockAnchor = this.getLiveBlockAnchor(block);
 		await surface.activateEditable(this.createEditSync(block), point);
 	}
-
 	deactivateBlock(blockId: string): void {
 		if (this.activeBlockId === blockId) {
 			this.activeBlockId = undefined;
+			this.activeBlockAnchor = undefined;
 		}
 		this.plugin.surfaceRegistry.get(blockId)?.deactivateToReadonly();
 	}

@@ -181,7 +181,7 @@ export class MonacoGestureRouter {
 			return;
 		}
 		if (!touch || state?.axis !== 'pending') return;
-		const nativePosition = this.editor.getTargetAtClientPoint?.(touch.clientX, touch.clientY)?.position ?? null;
+		const nativePosition = this.positionFromClientPoint(touch.clientX, touch.clientY) ?? null;
 		if (this.isEditable()) {
 			event.preventDefault();
 			event.stopPropagation();
@@ -271,11 +271,38 @@ export class MonacoGestureRouter {
 		this.longPressTimer = null;
 	}
 	private focusEditorAtPoint(clientX: number, clientY: number): void {
-		const position = this.editor.getTargetAtClientPoint?.(clientX, clientY)?.position;
+		const position = this.positionFromClientPoint(clientX, clientY);
 		if (position) {
+			(this.editor as MonacoEditorLike & { setSelection?: (selection: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) => void }).setSelection?.({ startLineNumber: position.lineNumber, startColumn: position.column, endLineNumber: position.lineNumber, endColumn: position.column });
 			this.editor.setPosition(position);
 		}
 		this.editor.focus?.();
+	}
+
+	private positionFromClientPoint(clientX: number, clientY: number): { lineNumber: number; column: number } | undefined {
+		const hitPosition = this.editor.getTargetAtClientPoint?.(clientX, clientY)?.position;
+		const editorWithModel = this.editor as MonacoEditorLike & { getModel?: () => { getLineCount(): number; getLineContent(lineNumber: number): string; getLineMaxColumn(lineNumber: number): number } | null; getScrollTop?: () => number };
+		const model = editorWithModel.getModel?.();
+		if (model === undefined || model === null) {
+			return hitPosition ?? undefined;
+		}
+		const editorEl = this.host.querySelector<HTMLElement>('.monaco-editor') ?? this.host;
+		const rect = editorEl.getBoundingClientRect();
+		if (rect.width <= 0 || rect.height <= 0) {
+			return hitPosition ?? undefined;
+		}
+		const lineEl = this.host.querySelector<HTMLElement>('.view-line');
+		const measuredLineHeight = lineEl?.getBoundingClientRect().height ?? 0;
+		const lineHeight = measuredLineHeight > 0 ? measuredLineHeight : 20;
+		const scrollLeft = this.editor.getScrollLeft?.() ?? 0;
+		const lineCount = model.getLineCount();
+		const lineNumber = Math.max(1, Math.min(lineCount, Math.floor((clientY - rect.top) / lineHeight) + 1));
+		const lineContent = model.getLineContent(lineNumber);
+		const contentLeft = rect.left + 34;
+		const measuredCharWidth = lineEl !== null && lineContent.length > 0 ? lineEl.getBoundingClientRect().width / Math.max(1, lineContent.length) : 0;
+		const charWidth = Number.isFinite(measuredCharWidth) && measuredCharWidth > 2 ? measuredCharWidth : 8;
+		const column = Math.max(1, Math.min(model.getLineMaxColumn(lineNumber), Math.round((clientX - contentLeft + scrollLeft) / charWidth) + 1));
+		return { lineNumber, column };
 	}
 
 }

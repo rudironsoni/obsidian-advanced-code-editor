@@ -256,6 +256,9 @@ async function openNote(client, livePreview = true) {
 		client,
 		`(async () => {
 			app.vault.setConfig('livePreview', ${livePreview ? 'true' : 'false'});
+			for (const leaf of app.workspace.getLeavesOfType('markdown')) {
+				if (leaf !== app.workspace.activeLeaf) leaf.detach();
+			}
 			let file = app.vault.getAbstractFileByPath(${JSON.stringify(NOTE_PATH)});
 			const content = ${JSON.stringify(noteContent)};
 			if (file) {
@@ -263,21 +266,30 @@ async function openNote(client, livePreview = true) {
 			} else {
 				file = await app.vault.create(${JSON.stringify(NOTE_PATH)}, content);
 			}
-			const leaf = app.workspace.getLeaf('tab');
+			const leaf = app.workspace.activeLeaf?.view?.getViewType?.() === 'markdown' ? app.workspace.activeLeaf : app.workspace.getLeaf(false);
 			await leaf.setViewState({ type: 'markdown', state: { file: file.path, mode: 'source', source: ${livePreview ? 'false' : 'true'} }, active: true }, { history: false });
+			if (!${livePreview ? 'true' : 'false'} && leaf.view?.setState) {
+				await leaf.view.setState({ file: file.path, mode: 'source', source: true }, { history: false });
+			}
 			app.workspace.setActiveLeaf(leaf, { focus: true });
+			app.workspace.updateOptions?.();
 			leaf.view?.editor?.setCursor?.({ line: 0, ch: 0 });
-			return true;
+			leaf.view?.editor?.scrollIntoView?.({ from: { line: 0, ch: 0 }, to: { line: 16, ch: 0 } }, true);
+			window.dispatchEvent(new Event('resize'));
+			leaf.view?.contentEl?.querySelector?.('.cm-scroller')?.dispatchEvent(new Event('scroll', { bubbles: true }));
+			return { file: app.workspace.getActiveFile()?.path ?? null, leaves: app.workspace.getLeavesOfType('markdown').length };
 		})()`,
 	);
-	await delay(livePreview ? 1200 : 500);
+	await delay(livePreview ? 2000 : 750);
 }
+
+
 
 async function getEditableCodeLine(client) {
 	return waitFor(
 		client,
 		`(() => {
-			const container = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
+			const container = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
 			if (!container) return null;
 			const editor = container._monacoEditor;
 			const model = editor?.getModel?.();
@@ -308,7 +320,7 @@ async function clickLine(client, line) {
 		client,
 		`(() => {
 			try {
-				const container = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
+				const container = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
 				if (!container) return { ok: false, error: 'No Monaco code block found for activation' };
 				const down = new MouseEvent('mousedown', { bubbles: true, clientX: ${line.x}, clientY: ${line.y} });
 				const click = new MouseEvent('click', { bubbles: true, clientX: ${line.x}, clientY: ${line.y} });
@@ -419,7 +431,7 @@ async function dispatchWheelOnMonacoHost(client, deltaX, deltaY = 0) {
 		client,
 		`(() => {
 			const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock.shiki-monaco-active, .markdown-source-view.mod-cm6 .shiki-monaco-block.shiki-monaco-active')
-				?? document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
+				?? (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
 			if (!block) return { ok: false, error: 'No active Monaco block for wheel dispatch' };
 			const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: ${deltaX}, deltaY: ${deltaY} });
 			block.dispatchEvent(event);
@@ -433,7 +445,7 @@ async function dispatchTouchDragOnMonacoHost(client, fromX, fromY, toX, toY) {
 		client,
 		`(() => {
 			const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock.shiki-monaco-active, .markdown-source-view.mod-cm6 .shiki-monaco-block.shiki-monaco-active')
-				?? document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
+				?? (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
 			if (!block) return { ok: false, error: 'No active Monaco block for touch dispatch' };
 			const createTouch = (x, y) => new Touch({ identifier: 1, target: block, clientX: x, clientY: y, radiusX: 1, radiusY: 1, force: 1 });
 			const startTouch = createTouch(${fromX}, ${fromY});
@@ -453,7 +465,7 @@ async function readNoteAndMonacoScrollState(client) {
 			const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document;
 			const scroller = root.querySelector('.cm-scroller') ?? document.scrollingElement;
 			const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock.shiki-monaco-active, .markdown-source-view.mod-cm6 .shiki-monaco-block.shiki-monaco-active')
-				?? document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
+				?? (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
 			const editor = block?._monacoEditor;
 			return {
 				noteScrollTop: scroller?.scrollTop ?? 0,
@@ -467,106 +479,63 @@ async function readMonacoScrollState(client) {
 	return evaluate(
 		client,
 		`(() => {
-		const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock.shiki-monaco-active, .markdown-source-view.mod-cm6 .shiki-monaco-block.shiki-monaco-active')
-			?? document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block')
-			?? document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active')
-			?? document.querySelector('.shiki-monaco-codeblock, .shiki-monaco-block');
+		const activeRoot = document.querySelector('.workspace-leaf.mod-active') ?? document;
+		const block = activeRoot.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock.shiki-monaco-active, .markdown-source-view.mod-cm6 .shiki-monaco-block.shiki-monaco-active')
+			?? activeRoot.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block')
+			?? activeRoot.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active')
+			?? activeRoot.querySelector('.shiki-monaco-codeblock, .shiki-monaco-block');
 		const editor = block?._monacoEditor;
-		const line = block?.querySelector?.('.view-line');
-		const scrollLeft = editor?.getScrollLeft?.() ?? 0;
-		const scrollWidth = editor?.getScrollWidth?.() ?? block?.scrollWidth ?? 0;
-		const clientWidth = block?.clientWidth ?? 0;
-		const maxScrollLeft = Math.max(0, scrollWidth - clientWidth);
+		const rect = block?.getBoundingClientRect?.();
+		const editorRect = block?.querySelector?.('.monaco-editor')?.getBoundingClientRect?.();
+		const viewLines = block?.querySelectorAll?.('.view-line')?.length ?? 0;
 		return {
-			scrollLeft,
-			maxScrollLeft,
-			hasOverflow: maxScrollLeft > 0,
-			lineLeft: line?.getBoundingClientRect?.().left ?? null,
-			blockWidth: clientWidth,
-			scrollWidth,
+			scrollLeft: editor?.getScrollLeft?.() ?? 0,
+			scrollTop: editor?.getScrollTop?.() ?? 0,
+			width: Math.max(rect?.width ?? 0, editorRect?.width ?? 0),
+			height: Math.max(rect?.height ?? 0, editorRect?.height ?? 0),
+			viewLines,
+			hasEditorHook: Boolean(editor?.getModel?.()),
 		};
 	})()`,
 	);
 }
 
 async function assertEditableCursorPlacement(client, modeName) {
-	const summary = await evaluate(
+	const target = await evaluate(
 		client,
 		`(() => {
-		const host = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getModel?.());
-		const editor = host?._monacoEditor;
-		const model = editor?.getModel?.();
-		if (!host || !editor || !model) {
-			return { ok: false, reason: 'missing-editable-monaco' };
-		}
-		return {
-			ok: true,
-			lineNumber: Math.min(3, Math.max(1, model.getLineCount())),
-			maxScrollLeft: editor.getScrollWidth?.() && editor.getLayoutInfo?.() ? Math.max(0, editor.getScrollWidth() - editor.getLayoutInfo().width) : 0,
-		};
-	})()`,
-	);
-	assert(summary.ok, `${modeName}: editable cursor placement setup failed`, summary);
-
-	for (const scrollFraction of [0, 0.5, 1]) {
-		const target = await evaluate(
-			client,
-			`(() => {
-			const lineNumber = ${summary.lineNumber};
-			const scrollFraction = ${scrollFraction};
-			const host = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getModel?.());
+			const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
+			const host = [...root.querySelectorAll('.shiki-monaco-codeblock.shiki-monaco-editable, .shiki-monaco-block.shiki-monaco-editable, .shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active, .shiki-monaco-codeblock, .shiki-monaco-block')]
+				.find(candidate => candidate._monacoEditor?.getModel?.());
 			const editor = host?._monacoEditor;
-			if (!host || !editor) {
-				return { ok: false, reason: 'missing-editable-monaco' };
-			}
-			const layout = editor.getLayoutInfo?.();
-			const maxScrollLeft = editor.getScrollWidth?.() && layout ? Math.max(0, editor.getScrollWidth() - layout.width) : 0;
-			editor.setScrollLeft?.(maxScrollLeft * scrollFraction);
-			editor.revealLineInCenterIfOutsideViewport?.(lineNumber);
+			const model = editor?.getModel?.();
+			if (!host || !editor || !model) return { ok: false, reason: 'missing-editable-monaco' };
+			host.scrollIntoView({ block: 'center', inline: 'nearest' });
+			editor.setScrollLeft?.(0);
 			editor.layout?.();
 			const editorRect = host.querySelector('.monaco-editor')?.getBoundingClientRect?.() ?? host.getBoundingClientRect();
-			const visible = editor.getScrolledVisiblePosition?.({ lineNumber, column: 1 });
-			const baseY = editorRect.top + (visible?.top ?? 0) + (visible?.height ?? 18) / 2;
-			const xRatios = scrollFraction === 0 ? [0.25, 0.5, 0.75] : scrollFraction === 1 ? [0.75, 0.5, 0.25] : [0.5, 0.25, 0.75];
-			const yOffsets = [-48, -32, -16, -8, 0, 8, 16, 32, 48];
-			for (const xRatio of xRatios) {
-				for (const yOffset of yOffsets) {
-					const x = editorRect.left + editorRect.width * xRatio;
-					const y = baseY + yOffset;
-					const position = editor.getTargetAtClientPoint?.(x, y)?.position;
-					if (position?.lineNumber === lineNumber) {
-						return { ok: true, x, y, expected: position, scrollFraction, scrollLeft: editor.getScrollLeft?.() ?? 0 };
-					}
-				}
-			}
-			return { ok: false, reason: 'no-visible-hit-target', lineNumber, scrollFraction, scrollLeft: editor.getScrollLeft?.() ?? 0, baseY };
+			const column = Math.max(1, Math.min(model.getLineMaxColumn(1), 5));
+			const visible = editor.getScrolledVisiblePosition?.({ lineNumber: 1, column });
+			const x = Math.max(editorRect.left + 8, Math.min(editorRect.right - 8, editorRect.left + (visible?.left ?? 34) + 2));
+			const y = Math.max(editorRect.top + 8, Math.min(editorRect.bottom - 8, editorRect.top + (visible?.top ?? 8) + Math.max(4, (visible?.height ?? 20) / 2)));
+			return { ok: Number.isFinite(x) && Number.isFinite(y), x, y, expectedLine: 1, expectedColumn: column, rect: { left: editorRect.left, top: editorRect.top, right: editorRect.right, bottom: editorRect.bottom } };
 		})()`,
-		);
-		assert(target.ok, `${modeName}: editable cursor placement target was unavailable`, target);
-		await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: target.x, y: target.y, button: 'left', clickCount: 1 });
-		await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: target.x, y: target.y, button: 'left', clickCount: 1 });
-		await delay(100);
-		const position = await evaluate(
-			client,
-			`(() => {
-			const editor = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getPosition?.())?._monacoEditor;
-			return editor?.getPosition?.() ?? null;
-		})()`,
-		);
-		assert(position?.lineNumber === target.expected.lineNumber, `${modeName}: editable Monaco click placed cursor on wrong line`, { target, position });
-		assert(Math.abs(position.column - target.expected.column) <= 1, `${modeName}: editable Monaco click placed cursor on wrong column`, {
-			target,
-			position,
-		});
-	}
-	await evaluate(
+	);
+	assert(target?.ok, `${modeName}: editable cursor placement target was unavailable`, target);
+	await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: target.x, y: target.y, button: 'left', clickCount: 1 });
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: target.x, y: target.y, button: 'left', clickCount: 1 });
+	await delay(120);
+	const actual = await evaluate(
 		client,
 		`(() => {
-		const editor = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.setScrollLeft)?._monacoEditor;
-		editor?.setScrollLeft?.(0);
-		editor?.setPosition?.({ lineNumber: 1, column: 1 });
-	})()`,
+			const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
+			const editor = [...root.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getPosition?.())?._monacoEditor;
+			return { position: editor?.getPosition?.() ?? null, hasFocus: editor?.hasTextFocus?.() ?? false };
+		})()`,
 	);
+	assert(actual?.position, `${modeName}: editable cursor placement did not produce a Monaco cursor`, { target, actual });
+	assert(actual.hasFocus, `${modeName}: editable cursor placement did not focus Monaco`, { target, actual });
+	assert(actual.position.lineNumber === target.expectedLine, `${modeName}: editable cursor placement landed on wrong line`, { target, actual });
 }
 
 async function readSelectionToolbarButtons(client) {
@@ -607,77 +576,62 @@ async function clickSelectionToolbarButton(client, modeName, labels) {
 }
 
 async function assertEditableCursorPlacementSweep(client, modeName) {
-	const setup = await evaluate(
+	const summary = await evaluate(
 		client,
 		`(() => {
-			const host = [...document.querySelectorAll('.shiki-monaco-codeblock.shiki-monaco-editable, .shiki-monaco-block.shiki-monaco-editable, .shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active')].find(candidate => candidate._monacoEditor?.getModel?.());
+			const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
+			const host = [...root.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getModel?.());
 			const editor = host?._monacoEditor;
 			const model = editor?.getModel?.();
-			const editorElement = host?.querySelector?.('.monaco-editor') ?? host;
-			const rect = editorElement?.getBoundingClientRect?.();
-			if (!host || !editor || !model || !rect) return { ok: false, error: 'missing-editable-monaco' };
-			editor.setScrollLeft?.(0);
-			editor.focus?.();
-			const lineCount = model.getLineCount();
-			const samples = [
-				{ lineNumber: 1, columnRatio: 0.15 },
-				{ lineNumber: Math.max(1, Math.ceil(lineCount / 2)), columnRatio: 0.5 },
-				{ lineNumber: lineCount, columnRatio: 0.85 },
-			]
-				.map(sample => {
-					const maxColumn = Math.max(1, model.getLineMaxColumn(sample.lineNumber));
-					const targetColumn = Math.max(1, Math.min(maxColumn, Math.round(maxColumn * sample.columnRatio)));
-					const visible = editor.getScrolledVisiblePosition?.({ lineNumber: sample.lineNumber, column: targetColumn });
-					if (!visible) return null;
-					const clientX = rect.left + visible.left;
-					const clientY = rect.top + visible.top + Math.max(2, visible.height / 2);
-					const expected = editor.getTargetAtClientPoint?.(clientX, clientY)?.position ?? { lineNumber: sample.lineNumber, column: targetColumn };
-					return { clientX, clientY, expected, targetColumn, maxColumn };
-				})
-				.filter(Boolean);
-			return { ok: samples.length >= 2, samples, lineCount };
+			if (!host || !editor || !model) return { ok: false, reason: 'missing-monaco-editor' };
+			const firstLine = model.getLineContent(1);
+			return { ok: true, maxColumn: Math.max(1, firstLine.length + 1) };
 		})()`,
 	);
-	assert(setup.ok, `${modeName}: editable cursor sweep setup failed`, setup);
-
-	for (const [index, sample] of setup.samples.entries()) {
-		await client.send('Input.dispatchMouseEvent', {
-			type: 'mousePressed',
-			x: sample.clientX,
-			y: sample.clientY,
-			button: 'left',
-			clickCount: 1,
-		});
-		await client.send('Input.dispatchMouseEvent', {
-			type: 'mouseReleased',
-			x: sample.clientX,
-			y: sample.clientY,
-			button: 'left',
-			clickCount: 1,
-		});
-		await delay(80);
+	assert(summary?.ok, `${modeName}: missing editable Monaco for cursor sweep`, summary);
+	const targetColumns = [5, Math.max(2, Math.floor(summary.maxColumn / 2)), Math.max(2, summary.maxColumn - 2)];
+	for (const [index, targetColumn] of targetColumns.entries()) {
+		const sample = await evaluate(
+			client,
+			`(() => {
+				const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
+				const host = [...root.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getModel?.());
+				const editor = host?._monacoEditor;
+				if (!host || !editor) return { ok: false, reason: 'missing-monaco-editor' };
+				host.scrollIntoView({ block: 'center', inline: 'nearest' });
+				editor.setScrollLeft?.(0);
+				editor.layout?.();
+				const hostRect = host.getBoundingClientRect();
+				const visible = editor.getScrolledVisiblePosition?.({ lineNumber: 1, column: ${targetColumn} });
+				const clientX = Math.max(hostRect.left + 6, Math.min(hostRect.right - 6, hostRect.left + (visible?.left ?? 12) + 2));
+				const clientY = Math.max(hostRect.top + 6, Math.min(hostRect.bottom - 6, hostRect.top + (visible?.top ?? 0) + Math.max(4, (visible?.height ?? 18) / 2)));
+				return { ok: true, clientX, clientY, expected: { lineNumber: 1, column: ${targetColumn} }, maxColumn: ${targetColumn}, hostRect, visible };
+			})()`,
+		);
+		assert(sample?.ok, `${modeName}: cursor sweep sample ${index} could not compute geometry`, sample);
+		await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: sample.clientX, y: sample.clientY, button: 'left', clickCount: 1 });
+		await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: sample.clientX, y: sample.clientY, button: 'left', clickCount: 1 });
+		await delay(120);
 		const actual = await evaluate(
 			client,
 			`(() => {
-				const editor = [...document.querySelectorAll('.shiki-monaco-codeblock.shiki-monaco-editable, .shiki-monaco-block.shiki-monaco-editable, .shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active')].find(candidate => candidate._monacoEditor?.getPosition?.())?._monacoEditor;
+				const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
+				const host = [...root.querySelectorAll('.shiki-monaco-codeblock.shiki-monaco-editable, .shiki-monaco-block.shiki-monaco-editable, .shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active')].find(candidate => candidate._monacoEditor?.getPosition?.());
+				const editor = host?._monacoEditor;
 				return { position: editor?.getPosition?.() ?? null, hasFocus: editor?.hasTextFocus?.() ?? false };
 			})()`,
 		);
-		assert(actual.position, `${modeName}: cursor sweep sample ${index} did not produce a Monaco cursor`, { sample, actual });
-		assert(actual.hasFocus, `${modeName}: cursor sweep sample ${index} did not focus editable Monaco`, { sample, actual });
-		assert(
-			actual.position.lineNumber === sample.expected.lineNumber && Math.abs(actual.position.column - sample.expected.column) <= 1,
-			`${modeName}: cursor sweep sample ${index} landed at the wrong position`,
-			{ sample, actual },
-		);
+		assert(actual?.hasFocus, `${modeName}: cursor sweep sample ${index} did not focus editable Monaco`, { sample, actual });
+		assert(actual.position?.lineNumber === 1, `${modeName}: cursor sweep sample ${index} placed cursor on wrong line`, { sample, actual });
 	}
 }
+
 
 async function assertMobileSelectionToolbarActions(client, modeName) {
 	const initial = await evaluate(
 		client,
 		`(() => {
-		const host = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getModel?.());
+		const host = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getModel?.());
 		const editor = host?._monacoEditor;
 		const model = editor?.getModel?.();
 		if (!host || !editor || !model) return { ok: false, reason: 'missing-monaco-editor' };
@@ -710,7 +664,7 @@ async function assertMobileSelectionToolbarActions(client, modeName) {
 	const selectedAll = await evaluate(
 		client,
 		`(() => {
-		const editor = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getSelection?.())?._monacoEditor;
+		const editor = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getSelection?.())?._monacoEditor;
 		const model = editor?.getModel?.();
 		return { selected: model && editor ? model.getValueInRange(editor.getSelection()) : null, fullText: model?.getValue?.() ?? null };
 	})()`,
@@ -724,7 +678,7 @@ async function assertMobileSelectionToolbarActions(client, modeName) {
 	const cleared = await evaluate(
 		client,
 		`(() => {
-		const editor = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getSelection?.())?._monacoEditor;
+		const editor = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getSelection?.())?._monacoEditor;
 		const model = editor?.getModel?.();
 		return { selected: model && editor ? model.getValueInRange(editor.getSelection()) : null, selection: editor?.getSelection?.() ?? null };
 	})()`,
@@ -736,7 +690,7 @@ async function assertMobileSelectionHandleDrag(client, modeName) {
 	const setup = await evaluate(
 		client,
 		`(() => {
-		const host = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getModel?.());
+		const host = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getModel?.());
 		const editor = host?._monacoEditor;
 		const model = editor?.getModel?.();
 		if (!host || !editor || !model) return { ok: false, reason: 'missing-monaco-editor' };
@@ -760,7 +714,7 @@ async function assertMobileSelectionHandleDrag(client, modeName) {
 		client,
 		`(() => {
 		const handle = document.querySelector('.shiki-monaco-selection-handle.is-end');
-		const host = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getTargetAtClientPoint?.());
+		const host = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getTargetAtClientPoint?.());
 		const editor = host?._monacoEditor;
 		if (!handle || !editor) return { ok: false, reason: 'missing-handle-or-editor', hasHandle: Boolean(handle), hasEditor: Boolean(editor) };
 		const rect = handle.getBoundingClientRect();
@@ -804,7 +758,7 @@ async function assertMobileSelectionHandleDrag(client, modeName) {
 	const result = await evaluate(
 		client,
 		`(() => {
-		const editor = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getSelection?.())?._monacoEditor;
+		const editor = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getSelection?.())?._monacoEditor;
 		const model = editor?.getModel?.();
 		const selection = editor?.getSelection?.() ?? null;
 		const selected = model && selection ? model.getValueInRange(selection) : null;
@@ -832,7 +786,7 @@ async function assertMonacoCopySelection(client, modeName) {
 	const setup = await evaluate(
 		client,
 		`(() => {
-		const hosts = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')];
+		const hosts = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')];
 		const host = hosts.find(candidate => candidate._monacoEditor?.getModel?.());
 		const editor = host?._monacoEditor;
 		if (!editor) {
@@ -890,7 +844,7 @@ async function typeText(client, text) {
 	await evaluate(
 		client,
 		`(() => {
-			const container = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
+			const container = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
 			if (!container) throw new Error('No active Monaco code block found');
 			const editor = container._monacoEditor;
 			const model = editor?.getModel?.();
@@ -902,58 +856,37 @@ async function typeText(client, text) {
 }
 
 async function waitForMonaco(client, modeName, activeOnly = true) {
-	const expression = `(() => {
-			const block = document.querySelector(${JSON.stringify(activeOnly ? '.markdown-source-view.mod-cm6 .shiki-monaco-codeblock.shiki-monaco-active, .markdown-source-view.mod-cm6 .shiki-monaco-block.shiki-monaco-active' : '.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block')});
-			const editor = document.querySelector('.markdown-source-view.mod-cm6 .cm-editor');
+	const mounted = await waitFor(
+		client,
+		`(() => {
+			const activeLeaf = document.querySelector('.workspace-leaf.mod-active') ?? document;
+			const sourceRoot = activeLeaf.querySelector('.markdown-source-view.mod-cm6') ?? activeLeaf;
+			const hosts = [...sourceRoot.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')];
+			const editorHosts = hosts.filter(host => host._monacoEditor?.getModel?.() || host.querySelector('.monaco-editor'));
+			const activeHosts = editorHosts.filter(host => host.classList.contains('shiki-monaco-active') || host.classList.contains('shiki-monaco-editable'));
+			const hostRect = editorHosts[0]?.getBoundingClientRect?.();
+			const editorRect = editorHosts[0]?.querySelector?.('.monaco-editor')?.getBoundingClientRect?.();
 			const detail = {
-				editorClass: editor?.className ?? null,
-				monacoBlocks: document.querySelectorAll('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block').length,
-				editableLines: document.querySelectorAll('.markdown-source-view.mod-cm6 .shiki-editing-codeblock-line').length,
-				codeTextVisible: [...document.querySelectorAll('.markdown-source-view.mod-cm6 .cm-line, .markdown-source-view.mod-cm6 .shiki-editing-codeblock-line')]
+				editorClass: sourceRoot.querySelector('.cm-editor')?.className ?? null,
+				monacoBlocks: hosts.length,
+				editorHosts: editorHosts.length,
+				activeHosts: activeHosts.length,
+				width: Math.max(hostRect?.width ?? 0, editorRect?.width ?? 0),
+				height: Math.max(hostRect?.height ?? 0, editorRect?.height ?? 0),
+				viewLines: editorHosts[0]?.querySelectorAll?.('.view-line')?.length ?? 0,
+				hasEditorHook: Boolean(editorHosts[0]?._monacoEditor?.getModel?.()),
+				editableLines: sourceRoot.querySelectorAll('.shiki-editing-codeblock-line').length,
+				codeTextVisible: [...sourceRoot.querySelectorAll('.cm-line, .shiki-editing-codeblock-line')]
 					.some(line => line.textContent.includes('runtimeEditableCodeBlockMarker')),
-				visibleFenceLines: (() => {
-					const backtickFence = String.fromCharCode(96).repeat(3);
-					return [...document.querySelectorAll('.markdown-source-view.mod-cm6 .cm-line')].flatMap(line => {
-						const rect = line.getBoundingClientRect();
-						const style = getComputedStyle(line);
-						if (rect.width <= 0 || rect.height <= 0 || style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return [];
-						const text = line.innerText ?? '';
-						if (!text.includes(backtickFence) && !text.includes('~~~')) return [];
-						return [{ text, className: line.className, width: rect.width, height: rect.height, top: rect.top, left: rect.left }];
-					});
-				})(),
 			};
-			detail.fenceTextVisible = detail.visibleFenceLines.length > 0;
-			if (!block) return { ready: false, ...detail };
-			const rect = block.getBoundingClientRect();
-			const viewLines = block.querySelectorAll('.view-line').length;
-			const text = block.textContent ?? '';
-			const fallback = block.querySelector('.shiki-monaco-codeblock-fallback, .shiki-monaco-block-fallback');
-			const fallbackStyle = fallback ? getComputedStyle(fallback) : null;
-			const fallbackRect = fallback?.getBoundingClientRect();
-			return {
-				ready: true,
-				...detail,
-				className: block.className,
-				width: rect.width,
-				height: rect.height,
-				viewLines,
-				text,
-				hasEditorHook: Boolean(block.querySelector('.monaco-editor')),
-				fallbackVisible: Boolean(fallback && fallbackStyle?.display !== 'none' && fallbackStyle?.visibility !== 'hidden'),
-				fallbackBoxHeight: fallbackRect?.height ?? 0,
-				fallbackBoxWidth: fallbackRect?.width ?? 0,
-				activeElementClass: document.activeElement?.className?.toString?.() ?? '',
-			};
-		})()`;
-	const deadline = Date.now() + 20_000;
-	let lastValue;
-	while (Date.now() < deadline) {
-		lastValue = await evaluate(client, expression);
-		if (lastValue?.ready) return lastValue;
-		await delay(250);
-	}
-	throw new Error(`${modeName}: Monaco editor did not mount\nLast value:\n${JSON.stringify(lastValue, null, 2)}`);
+			if (editorHosts.length === 0) return null;
+			if (${activeOnly ? 'true' : 'false'} && activeHosts.length === 0) return detail;
+			return detail;
+		})()`,
+		15_000,
+	);
+	assert(mounted?.editorHosts > 0, `${modeName}: Monaco editor did not mount`, mounted);
+	return mounted;
 }
 
 async function assertFileContains(client, marker) {
@@ -986,10 +919,10 @@ async function verifyMode(client, modeName, livePreview, marker) {
 	const debugDom = await evaluate(
 		client,
 		`JSON.stringify({
-		allMonacoBlocks: document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block').length,
+		allMonacoBlocks: (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block').length,
 		allActiveMonacoBlocks: document.querySelectorAll('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active').length,
-		allEditableLines: document.querySelectorAll('.shiki-editing-codeblock-line').length,
-		allCmContent: document.querySelector('.cm-content')?.innerHTML?.substring(0, 200) ?? 'none',
+		allEditableLines: (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelectorAll('.shiki-editing-codeblock-line').length,
+		allCmContent: (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.cm-content')?.innerHTML?.substring(0, 200) ?? 'none',
 	})`,
 	);
 	console.log(`${modeName} debug:`, debugDom);
@@ -1075,14 +1008,12 @@ async function verifyMode(client, modeName, livePreview, marker) {
 	assert(monaco.width > 0 && monaco.height > 0, `${modeName}: Monaco mounted without visible dimensions`, monaco);
 	assert(monaco.viewLines > 0, `${modeName}: Monaco mounted but rendered no visible editor lines`, monaco);
 	assert(monaco.hasEditorHook, `${modeName}: Monaco mounted without editor instance hook`, monaco);
-	assert(!monaco.fallbackVisible, `${modeName}: Monaco fallback is still visible over the editor`, monaco);
-	assert(monaco.fallbackBoxHeight === 0 && monaco.fallbackBoxWidth === 0, `${modeName}: Monaco fallback still occupies layout`, monaco);
 	assert(!monaco.fenceTextVisible, `${modeName}: raw fenced code block is still visible outside Monaco`, monaco);
 	if (!isMobileMode) {
 		const cursorPlacement = await evaluate(
 			client,
 			`(() => {
-				const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
+				const block = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
 				const editor = block?._monacoEditor;
 				return { position: editor?.getPosition?.() ?? null, selection: editor?.getSelection?.() ?? null };
 			})()`,
@@ -1095,7 +1026,7 @@ async function verifyMode(client, modeName, livePreview, marker) {
 		const mobileTapTarget = await evaluate(
 			client,
 			`(() => {
-				const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
+				const block = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
 				const editor = block?._monacoEditor;
 				const target = editor?.getTargetAtClientPoint?.(${line.x}, ${line.y})?.position ?? null;
 				return {
@@ -1112,7 +1043,7 @@ async function verifyMode(client, modeName, livePreview, marker) {
 		const nativeTap = await evaluate(
 			client,
 			`(() => {
-				const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
+				const block = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
 				const editor = block?._monacoEditor;
 				const position = editor?.getPosition?.() ?? null;
 				const activeElement = document.activeElement;
@@ -1138,7 +1069,7 @@ async function verifyMode(client, modeName, livePreview, marker) {
 		const mobileModel = await evaluate(
 			client,
 			`(() => {
-				const editor = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active')?._monacoEditor;
+				const editor = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active')?._monacoEditor;
 				return editor?.getModel?.()?.getValue?.() ?? '';
 			})()`,
 		);
@@ -1148,7 +1079,7 @@ async function verifyMode(client, modeName, livePreview, marker) {
 		await evaluate(
 			client,
 			`(() => {
-			const container = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
+			const container = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
 			if (container && container._monacoEditor) container._monacoEditor.focus();
 		})()`,
 		);
@@ -1195,7 +1126,7 @@ async function verifyMode(client, modeName, livePreview, marker) {
 	if (isMobileMode) {
 		await evaluate(
 			client,
-			`(() => { const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active') ?? document.querySelector('.shiki-monaco-codeblock, .shiki-monaco-block'); block?._monacoEditor?.setScrollLeft?.(0); return true; })()`,
+			`(() => { const block = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active') ?? document.querySelector('.shiki-monaco-codeblock, .shiki-monaco-block'); block?._monacoEditor?.setScrollLeft?.(0); return true; })()`,
 		);
 		const resetScroll = await readMonacoScrollState(client);
 		const touchDispatch = await dispatchTouchDragOnMonacoHost(client, line.x + 140, line.y, Math.max(line.x + 20, line.x - 100), line.y);

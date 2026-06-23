@@ -269,7 +269,9 @@ test('Monaco gesture routing uses explicit horizontal intent and Obsidian note s
 	expect(livePreview).toContain('surface.hostEl.onclick = event => {');
 	expect(livePreview).toContain('this.activateBlock(block.id, { clientX: event.clientX, clientY: event.clientY });');
 	expect(livePreview).toContain('surface.hostEl.ontouchend = event => {');
-	expect(livePreview).toContain('const overlayWidth = Math.max(firstRect.width, this.view.scrollDOM.clientWidth, rootRect.width);');
+	expect(livePreview).toContain('const availableViewportWidth = Math.max(0, viewportWidth - firstRect.left - 24);');
+	expect(livePreview).toContain('const overlayWidth = Math.max(firstRect.width, this.view.scrollDOM.clientWidth, rootRect.width, availableContentWidth, availableViewportWidth, 320);');
+	expect(livePreview).toContain("overlayRoot.style.width = `${Math.max(rootRect.width, contentRect.width, this.view.scrollDOM.clientWidth, viewportWidth)}px`;");
 	expect(livePreview).toContain("window.addEventListener('resize', this.handleScroll, { passive: true });");
 	expect(livePreview).toContain("window.removeEventListener('resize', this.handleScroll);");
 	expect(readingView).toContain('surface.setNoteScrollerProvider(');
