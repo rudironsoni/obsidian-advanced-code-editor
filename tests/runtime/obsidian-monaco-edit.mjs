@@ -870,7 +870,7 @@ async function verifyMode(client, modeName, livePreview, marker) {
 	if (!livePreview) {
 		const sourceState = await waitFor(
 			client,
-			`(() => {
+			`(async () => {
 				const editorRoot = document.querySelector('.markdown-source-view.mod-cm6');
 				if (!editorRoot) return null;
 				const monacoBlocks = editorRoot.querySelectorAll('.cm-content .shiki-monaco-codeblock').length;
@@ -879,12 +879,31 @@ async function verifyMode(client, modeName, livePreview, marker) {
 					const text = line.textContent ?? '';
 					return text.includes(fence + 'python showLineNumbers') || text === fence;
 				});
-				const styledTokens = [...editorRoot.querySelectorAll('.cm-line [style*="color"]')].map(el => el.textContent).filter(Boolean);
+				const styledTokens = [...editorRoot.querySelectorAll('.cm-line [style*="color"]')]
+					.map(el => ({ text: el.textContent ?? '', color: getComputedStyle(el).color, style: el.getAttribute('style') ?? '' }))
+					.filter(token => token.text);
+				const plugin = app.plugins.plugins['shiki-highlighter'];
+				const expectedTokens = await plugin?.highlighter?.getHighlightTokens?.('const x: number = 1;\nconsole.log(x);', 'ts');
+				const expectedConstToken = expectedTokens?.tokens?.flat?.().find(token => token.content === 'const') ?? null;
+				const expectedConstStyle = expectedConstToken ? plugin.highlighter.getTokenStyle(expectedConstToken) : null;
+				const expectedConstColor = expectedConstStyle?.style?.match(/color:\s*([^;]+)/)?.[1] ?? null;
+				let normalizedExpectedConstColor = null;
+				if (expectedConstColor) {
+					const probe = document.createElement('span');
+					probe.style.color = expectedConstColor;
+					document.body.appendChild(probe);
+					normalizedExpectedConstColor = getComputedStyle(probe).color;
+					probe.remove();
+				}
+				const sourceConstToken = styledTokens.find(token => token.text.trim() === 'const') ?? null;
 				return {
 					monacoBlocks,
 					fenceCount: fenceLines.length,
 					styledTokensCount: styledTokens.length,
-					styledTokens,
+					styledTokens: styledTokens.map(token => token.text),
+					sourceConstColor: sourceConstToken?.color ?? null,
+					expectedConstColor: normalizedExpectedConstColor,
+					expectedConstStyle: expectedConstStyle?.style ?? null,
 				};
 			})()`,
 			`${modeName}: source mode did not render`,
@@ -892,6 +911,11 @@ async function verifyMode(client, modeName, livePreview, marker) {
 		assert(sourceState.monacoBlocks === 0, `${modeName}: source mode mounted Monaco`, sourceState);
 		assert(sourceState.fenceCount >= 2, `${modeName}: source mode fences are not visible`, sourceState);
 		assert(sourceState.styledTokensCount > 0, `${modeName}: source mode token styling missing`, sourceState);
+		assert(
+			sourceState.sourceConstColor && sourceState.expectedConstColor && sourceState.sourceConstColor === sourceState.expectedConstColor,
+			`${modeName}: source mode const token color does not match exact highlighter style`,
+			sourceState,
+		);
 		await captureScreenshot(client, modeName);
 		return;
 	}
