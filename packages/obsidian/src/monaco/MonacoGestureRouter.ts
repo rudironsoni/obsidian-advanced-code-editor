@@ -100,7 +100,7 @@ export class MonacoGestureRouter {
 		this.lastTouchTime = Date.now();
 		const touch = event.touches[0];
 		if (!touch) return;
-		const handle = this.selectionController.startHandleDrag(event.target);
+		const handle = this.selectionController.startHandleDrag(document.elementFromPoint(touch.clientX, touch.clientY) ?? event.target);
 		this.touchState = {
 			startX: touch.clientX,
 			startY: touch.clientY,

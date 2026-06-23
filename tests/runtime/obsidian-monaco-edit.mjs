@@ -606,6 +606,102 @@ async function assertMobileSelectionToolbarActions(client, modeName) {
 	assert(cleared.selected === '', `${modeName}: selection toolbar Clear did not clear the Monaco selection`, { cleared, clearClick });
 }
 
+async function assertMobileSelectionHandleDrag(client, modeName) {
+	const setup = await evaluate(
+		client,
+		`(() => {
+		const host = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getModel?.());
+		const editor = host?._monacoEditor;
+		const model = editor?.getModel?.();
+		if (!host || !editor || !model) return { ok: false, reason: 'missing-monaco-editor' };
+		const lineNumber = Math.min(2, Math.max(1, model.getLineCount()));
+		const line = model.getLineContent(lineNumber);
+		const match = line.match(/[A-Za-z_$][\\w$]*/);
+		if (!match) return { ok: false, reason: 'missing-selectable-word', line };
+		const startColumn = match.index + 1;
+		const endColumn = startColumn + match[0].length;
+		editor.setScrollLeft?.(0);
+		editor.revealPositionInCenterIfOutsideViewport?.({ lineNumber, column: startColumn });
+		editor.setSelection({ startLineNumber: lineNumber, startColumn, endLineNumber: lineNumber, endColumn });
+		editor.focus();
+		return { ok: true, lineNumber, startColumn, endColumn, selected: model.getValueInRange(editor.getSelection()) };
+	})()`,
+	);
+	assert(setup.ok, `${modeName}: mobile selection handle setup failed`, setup);
+	await delay(150);
+
+	const drag = await evaluate(
+		client,
+		`(() => {
+		const handle = document.querySelector('.shiki-monaco-selection-handle.is-end');
+		const host = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getTargetAtClientPoint?.());
+		const editor = host?._monacoEditor;
+		if (!handle || !editor) return { ok: false, reason: 'missing-handle-or-editor', hasHandle: Boolean(handle), hasEditor: Boolean(editor) };
+		const rect = handle.getBoundingClientRect();
+		const fromX = rect.left + rect.width / 2;
+		const fromY = rect.top + rect.height / 2;
+		const elementAtHandle = document.elementFromPoint(fromX, fromY);
+		for (const dx of [24, 36, 48, 60, 72, 96, 120, 144, 168]) {
+			for (const dy of [0, -4, 4, -8, 8, -12, 12]) {
+				const toX = fromX + dx;
+				const toY = fromY + dy;
+				const position = editor.getTargetAtClientPoint?.(toX, toY)?.position;
+				if (position?.lineNumber === ${setup.lineNumber} && position.column > ${setup.endColumn}) {
+					return { ok: true, fromX, fromY, toX, toY, expected: position, handleClassName: handle.className?.toString?.() ?? '', elementAtHandleClassName: elementAtHandle?.className?.toString?.() ?? '', elementAtHandleTagName: elementAtHandle?.tagName ?? '' };
+				}
+			}
+		}
+		return { ok: false, reason: 'missing-forward-target', fromX, fromY, handleClassName: handle.className?.toString?.() ?? '', elementAtHandleClassName: elementAtHandle?.className?.toString?.() ?? '', elementAtHandleTagName: elementAtHandle?.tagName ?? '', selection: editor.getSelection?.() ?? null };
+	})()`,
+	);
+	assert(drag.ok, `${modeName}: mobile selection handle drag target was unavailable`, drag);
+
+	const dispatched = await evaluate(
+		client,
+		`(() => {
+		const handle = document.querySelector('.shiki-monaco-selection-handle.is-end');
+		if (!handle) return { ok: false, reason: 'missing-end-handle' };
+		const pointerId = 17;
+		const eventOptions = { bubbles: true, cancelable: true, pointerId, pointerType: 'touch', isPrimary: true, buttons: 1, button: 0 };
+		const down = new PointerEvent('pointerdown', { ...eventOptions, clientX: ${drag.fromX}, clientY: ${drag.fromY}, screenX: ${drag.fromX}, screenY: ${drag.fromY} });
+		const move = new PointerEvent('pointermove', { ...eventOptions, clientX: ${drag.toX}, clientY: ${drag.toY}, screenX: ${drag.toX}, screenY: ${drag.toY} });
+		const up = new PointerEvent('pointerup', { ...eventOptions, buttons: 0, clientX: ${drag.toX}, clientY: ${drag.toY}, screenX: ${drag.toX}, screenY: ${drag.toY} });
+		handle.dispatchEvent(down);
+		handle.dispatchEvent(move);
+		handle.dispatchEvent(up);
+		return { ok: true, downDefaultPrevented: down.defaultPrevented, moveDefaultPrevented: move.defaultPrevented, upDefaultPrevented: up.defaultPrevented };
+	})()`,
+	);
+	assert(dispatched.ok, `${modeName}: mobile selection handle pointer events were not dispatched`, { drag, dispatched });
+	await delay(150);
+
+	const result = await evaluate(
+		client,
+		`(() => {
+		const editor = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getSelection?.())?._monacoEditor;
+		const model = editor?.getModel?.();
+		const selection = editor?.getSelection?.() ?? null;
+		const selected = model && selection ? model.getValueInRange(selection) : null;
+		return { selection, selected };
+	})()`,
+	);
+	assert(
+		result.selected && result.selected.length > setup.selected.length,
+		`${modeName}: dragging the selection handle did not expand the Monaco selection`,
+		{ setup, drag, dispatched, result },
+	);
+	assert(result.selection?.endLineNumber === drag.expected.lineNumber, `${modeName}: dragging the selection handle ended on the wrong line`, {
+		setup,
+		drag,
+		result,
+	});
+	assert(Math.abs(result.selection.endColumn - drag.expected.column) <= 1, `${modeName}: dragging the selection handle ended on the wrong column`, {
+		setup,
+		drag,
+		result,
+	});
+}
+
 async function assertMonacoCopySelection(client, modeName) {
 	const setup = await evaluate(
 		client,
@@ -817,6 +913,7 @@ async function verifyMode(client, modeName, livePreview, marker) {
 	const monaco = await waitForMonaco(client, modeName, !isMobileMode);
 	await assertMonacoCopySelection(client, modeName);
 	if (isMobileMode) await assertMobileSelectionToolbarActions(client, modeName);
+	if (isMobileMode) await assertMobileSelectionHandleDrag(client, modeName);
 	assert(monaco.width > 0 && monaco.height > 0, `${modeName}: Monaco mounted without visible dimensions`, monaco);
 	assert(monaco.viewLines > 0, `${modeName}: Monaco mounted but rendered no visible editor lines`, monaco);
 	assert(monaco.hasEditorHook, `${modeName}: Monaco mounted without editor instance hook`, monaco);

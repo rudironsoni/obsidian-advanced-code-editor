@@ -139,14 +139,22 @@ export class MonacoSelectionController {
 	updateHandleDrag(clientX: number, clientY: number): void {
 		const editor = this.editor;
 		const selection = editor?.getSelection();
-		const position = this.positionFromClientPoint(clientX, clientY) ?? editor?.getTargetAtClientPoint?.(clientX, clientY)?.position;
-		if (!editor || !selection || !position || !this.draggingHandle) {
-			return;
-		}
+		const position = editor?.getTargetAtClientPoint?.(clientX, clientY)?.position ?? this.positionFromClientPoint(clientX, clientY);
+		if (!editor || !selection || !position || !this.draggingHandle) return;
 		if (this.draggingHandle === 'start') {
-			editor.setSelection({ ...selection, startLineNumber: position.lineNumber, startColumn: position.column });
+			editor.setSelection({
+				startLineNumber: position.lineNumber,
+				startColumn: position.column,
+				endLineNumber: selection.endLineNumber,
+				endColumn: selection.endColumn,
+			});
 		} else {
-			editor.setSelection({ ...selection, endLineNumber: position.lineNumber, endColumn: position.column });
+			editor.setSelection({
+				startLineNumber: selection.startLineNumber,
+				startColumn: selection.startColumn,
+				endLineNumber: position.lineNumber,
+				endColumn: position.column,
+			});
 		}
 	}
 
@@ -161,11 +169,34 @@ export class MonacoSelectionController {
 		this.endHandle.remove();
 	}
 
-	private bindHandle(handle: HTMLDivElement, kind: 'start' | 'end'): void {
+	private bindHandle(handle: HTMLElement, kind: 'start' | 'end'): void {
 		handle.addEventListener('pointerdown', event => {
 			event.preventDefault();
 			event.stopPropagation();
 			this.draggingHandle = kind;
+			const pointerId = event.pointerId;
+			const move = (moveEvent: PointerEvent): void => {
+				if (moveEvent.pointerId !== pointerId) {
+					return;
+				}
+				moveEvent.preventDefault();
+				moveEvent.stopPropagation();
+				this.updateHandleDrag(moveEvent.clientX, moveEvent.clientY);
+			};
+			const end = (endEvent: PointerEvent): void => {
+				if (endEvent.pointerId !== pointerId) {
+					return;
+				}
+				endEvent.preventDefault();
+				endEvent.stopPropagation();
+				document.removeEventListener('pointermove', move, true);
+				document.removeEventListener('pointerup', end, true);
+				document.removeEventListener('pointercancel', end, true);
+				this.endHandleDrag();
+			};
+			document.addEventListener('pointermove', move, true);
+			document.addEventListener('pointerup', end, true);
+			document.addEventListener('pointercancel', end, true);
 		});
 	}
 
