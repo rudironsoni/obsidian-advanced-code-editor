@@ -31,17 +31,12 @@ export class MonacoCodeBlockSurface {
 	private resizeObserver: ResizeObserver | undefined;
 	private gestureRouter: MonacoGestureRouter | undefined;
 	private nativeMobileInteraction: NativeMobileInteraction | undefined;
-	private mobileModeObserver: MutationObserver | undefined;
-	private mobileModePollTimer: number | undefined;
 	private activationHandler: ((point: { clientX: number; clientY: number }) => void) | undefined;
 	private attachedParent: HTMLElement | undefined;
 	private hydrated = false;
 	private disposed = false;
 
 	constructor(plugin: ShikiPlugin, block: CodeBlockModel) {
-		this.mobileModeObserver = new MutationObserver(this.handleDocumentModeChange);
-		this.mobileModeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-		window.addEventListener('resize', this.handleDocumentModeChange);
 		this.plugin = plugin;
 		this.block = block;
 		this.hostEl = document.createElement('div');
@@ -123,11 +118,6 @@ export class MonacoCodeBlockSurface {
 		this.modeController.setMode('editable');
 		this.editor?.updateOptions({ readOnly: false, domReadOnly: false, contextmenu: true, renderLineHighlight: 'line' });
 		this.updateModeClass();
-		this.startMobileModePoll(true);
-		if (this.isDocumentMobileMode() && !cursorPoint) {
-			this.deactivateToReadonly();
-			return;
-		}
 		if (cursorPoint) {
 			await this.waitForEditorFrame();
 			this.placeCursorFromPoint(cursorPoint.clientX, cursorPoint.clientY);
@@ -141,7 +131,6 @@ export class MonacoCodeBlockSurface {
 	}
 
 	deactivateToReadonly(): void {
-		this.stopMobileModePoll();
 		this.inputController.setSync(undefined);
 		this.modeController.setMode('readonly');
 		this.editor?.updateOptions({ readOnly: true, domReadOnly: true, contextmenu: false, renderLineHighlight: 'none' });
@@ -171,10 +160,6 @@ export class MonacoCodeBlockSurface {
 	}
 
 	dispose(): void {
-		this.mobileModeObserver?.disconnect();
-		this.mobileModeObserver = undefined;
-		window.removeEventListener('resize', this.handleDocumentModeChange);
-		this.stopMobileModePoll();
 		this.disposed = true;
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = undefined;
@@ -232,53 +217,8 @@ export class MonacoCodeBlockSurface {
 		this.layout();
 	}
 
-	private startMobileModePoll(enabled: boolean): void {
-		this.stopMobileModePoll();
-		if (!enabled) {
-			return;
-		}
-		this.mobileModePollTimer = window.setInterval(() => {
-			if (this.disposed || !this.modeController.isEditable()) {
-				this.stopMobileModePoll();
-				return;
-			}
-			if (this.isDocumentMobileMode()) {
-				this.deactivateToReadonly();
-			}
-		}, 100);
-	}
-
-	private stopMobileModePoll(): void {
-		if (this.mobileModePollTimer === undefined) {
-			return;
-		}
-		window.clearInterval(this.mobileModePollTimer);
-		this.mobileModePollTimer = undefined;
-	}
-
-	private readonly handleDocumentModeChange = (): void => {
-		if (!this.isDocumentMobileMode()) {
-			return;
-		}
-		this.deactivateToReadonly();
-	};
-
-	private isDocumentMobileMode(): boolean {
-		return (
-			document.body.classList.contains('emulate-mobile') ||
-			document.body.classList.contains('is-mobile') ||
-			document.body.classList.contains('is-phone') ||
-			document.body.classList.contains('is-tablet')
-		);
-	}
-
 	private placeCursorFromPoint(clientX: number, clientY: number): void {
 		this.selectionController.placeCursor(clientX, clientY, true);
-		const approximate = this.approximatePositionFromPoint(clientX, clientY);
-		if (approximate) {
-			this.editor?.setPosition(approximate);
-			this.editor?.focus();
-		}
 	}
 
 	private approximatePositionFromPoint(clientX: number, clientY: number): { lineNumber: number; column: number } | undefined {

@@ -1,13 +1,13 @@
 {
 	"targetInfos": [
 		{
-			"targetId": "2E7F391DCC5DC62567CB2D966B8E9CD9",
+			"targetId": "E51EAD3FEC75C859784A51BB4CE395C6",
 			"type": "page",
 			"title": "",
 			"url": "app://obsidian.md/index.html",
 			"attached": false,
 			"canAccessOpener": false,
-			"browserContextId": "5760A1027BBCC3B9B51F3340F0C05E54"
+			"browserContextId": "296992F9633899DE0DAC97F002D81028"
 		}
 	]
 }

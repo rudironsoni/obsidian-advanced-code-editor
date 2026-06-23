@@ -207,6 +207,94 @@ async function click(client, x, y) {
 	await delay(600);
 }
 
+async function longPress(client, x, y) {
+	await client.send('Input.dispatchTouchEvent', {
+		type: 'touchStart',
+		touchPoints: [{ x, y, id: 1, radiusX: 4, radiusY: 4, force: 1 }],
+	});
+	await delay(700);
+	await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+	await delay(500);
+}
+
+async function getSelectionToolbarState(client) {
+	return evaluate(
+		client,
+		`(() => {
+			const block = [...document.querySelectorAll('.shiki-monaco-block, .shiki-monaco-codeblock')]
+				.find(candidate => candidate._monacoEditor);
+			const editor = block?._monacoEditor;
+			const selection = editor?.getSelection?.();
+			const model = editor?.getModel?.();
+			const selectedText = selection && model ? model.getValueInRange(selection) : '';
+			const toolbar = document.querySelector('.shiki-monaco-selection-toolbar');
+			return {
+				toolbarVisible: !!toolbar && !toolbar.hasAttribute('hidden'),
+				buttons: [...document.querySelectorAll('.shiki-monaco-selection-toolbar button')].map(button => button.textContent ?? ''),
+				handles: document.querySelectorAll('.shiki-monaco-selection-handle:not([hidden])').length,
+				selectedText,
+				modelText: model?.getValue?.() ?? '',
+				selection,
+			};
+		})()`,
+	);
+}
+
+async function installClipboardProbe(client) {
+	await evaluate(
+		client,
+		`(() => {
+			window.__codexSelectionClipboardText = null;
+			const capture = text => {
+				window.__codexSelectionClipboardText = String(text ?? '');
+			};
+			try {
+				const clipboard = navigator.clipboard ?? {};
+				Object.defineProperty(clipboard, 'writeText', {
+					configurable: true,
+					value: async text => capture(text),
+				});
+				Object.defineProperty(navigator, 'clipboard', { configurable: true, value: clipboard });
+			} catch {
+				// Some embedded browser builds expose navigator.clipboard as non-configurable.
+			}
+			const originalExecCommand = document.execCommand?.bind(document);
+			document.execCommand = command => {
+				if (command === 'copy') {
+					const block = [...document.querySelectorAll('.shiki-monaco-block, .shiki-monaco-codeblock')]
+						.find(candidate => candidate._monacoEditor);
+					const editor = block?._monacoEditor;
+					const selection = editor?.getSelection?.();
+					const model = editor?.getModel?.();
+					capture(selection && model ? model.getValueInRange(selection) : '');
+					return true;
+				}
+				return originalExecCommand?.(command) ?? false;
+			};
+		})()`,
+	);
+}
+
+async function getClipboardProbeText(client) {
+	return evaluate(client, `(() => window.__codexSelectionClipboardText ?? '')()`);
+}
+
+async function clickSelectionToolbarButton(client, label) {
+	await evaluate(
+		client,
+		`(() => {
+			const button = [...document.querySelectorAll('.shiki-monaco-selection-toolbar button')]
+				.find(candidate => candidate.textContent === ${JSON.stringify(label)});
+			if (!button) {
+				throw new Error('Selection toolbar button not found: ' + ${JSON.stringify(label)});
+			}
+			button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+			button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		})()`,
+	);
+	await delay(300);
+}
+
 async function main() {
 	const client = await connectToExistingObsidian(PORT);
 	try {
@@ -235,6 +323,37 @@ async function main() {
 		assert(afterClick.position?.lineNumber >= 1 && afterClick.position?.column > 1, 'Click did not place a Monaco cursor', {
 			before,
 			afterClick,
+		});
+
+		await longPress(client, insideX, insideY);
+		const afterLongPress = await getSelectionToolbarState(client);
+		assert(afterLongPress.toolbarVisible, 'Long press did not show the mobile selection toolbar', { afterLongPress });
+		assert(afterLongPress.handles === 2, 'Long press did not show both mobile selection handles', { afterLongPress });
+		assert(afterLongPress.selectedText.length > 0, 'Long press did not select text', { afterLongPress });
+		for (const label of ['Copy', 'Select All', 'Clear']) {
+			assert(afterLongPress.buttons.includes(label), 'Selection toolbar is missing an expected action', { label, afterLongPress });
+		}
+
+		await clickSelectionToolbarButton(client, 'Select All');
+		const afterSelectAll = await getSelectionToolbarState(client);
+		assert(afterSelectAll.selectedText === afterSelectAll.modelText, 'Select All did not select the full Monaco model', {
+			afterSelectAll,
+		});
+
+		await clickSelectionToolbarButton(client, 'Clear');
+		const afterClear = await getSelectionToolbarState(client);
+		assert(afterClear.selectedText === '', 'Clear did not collapse the Monaco selection', { afterClear });
+		assert(afterClear.handles === 0, 'Clear did not hide mobile selection handles', { afterClear });
+
+		await longPress(client, insideX, insideY);
+		const beforeCopy = await getSelectionToolbarState(client);
+		assert(beforeCopy.selectedText.length > 0, 'Second long press did not select text before Copy', { beforeCopy });
+		await installClipboardProbe(client);
+		await clickSelectionToolbarButton(client, 'Copy');
+		const copiedText = await getClipboardProbeText(client);
+		assert(copiedText.length > 0 && copiedText.includes('abcdefghijklmnopqrstuvwxyz'), 'Copy did not write selected Monaco text content', {
+			copiedText,
+			beforeCopy,
 		});
 
 		await dispatchWheel(client, insideX, insideY, 900, 0);

@@ -1024,7 +1024,7 @@ async function verifyMode(client, modeName, livePreview, marker) {
 	}
 
 	if (isMobileMode) {
-		assert(!monaco.className.includes('shiki-monaco-active'), `${modeName}: mobile tap activated editable Monaco`, monaco);
+		assert(monaco.className.includes('shiki-monaco-active'), `${modeName}: mobile tap did not activate editable Monaco`, monaco);
 		await dispatchTouchTap(client, line.x, line.y);
 		await delay(120);
 		const nativeTap = await evaluate(

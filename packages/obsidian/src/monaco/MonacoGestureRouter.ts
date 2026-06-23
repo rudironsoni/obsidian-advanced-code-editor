@@ -37,7 +37,7 @@ export class MonacoGestureRouter {
 	private nativeInteraction: NativeMobileInteraction | undefined;
 	private onActivate: ((point: { clientX: number; clientY: number }) => void) | undefined;
 	private mouseDown: { clientX: number; clientY: number; button: number } | null = null;
-	private touchState: { startX: number; startY: number; scrollLeft: number; axis: GestureAxis; handle: boolean } | null = null;
+	private touchState: { startX: number; startY: number; scrollLeft: number; axis: GestureAxis; longPressed: boolean; handle: boolean } | null = null;
 	private lastTouchTime = 0;
 	private longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -116,6 +116,7 @@ export class MonacoGestureRouter {
 			startX: touch.clientX,
 			startY: touch.clientY,
 			scrollLeft: this.editor.getScrollLeft(),
+			longPressed: false,
 			axis: handle ? 'handle' : 'pending',
 			handle,
 		};
@@ -126,6 +127,9 @@ export class MonacoGestureRouter {
 		}
 		this.clearLongPressTimer();
 		this.longPressTimer = setTimeout(() => {
+			if (this.touchState) {
+				this.touchState.longPressed = true;
+			}
 			this.selectionController.selectWordAt(touch.clientX, touch.clientY);
 		}, 450);
 	};
@@ -167,6 +171,14 @@ export class MonacoGestureRouter {
 		this.touchState = null;
 		this.selectionController.endHandleDrag();
 		this.clearLongPressTimer();
+
+		if (state?.longPressed) {
+			event.preventDefault();
+			event.stopPropagation();
+			this.touchState = null;
+			this.lastTouchTime = Date.now();
+			return;
+		}
 		if (!touch || state?.axis !== 'pending') return;
 		const nativePosition = this.editor.getTargetAtClientPoint?.(touch.clientX, touch.clientY)?.position ?? null;
 		if (nativePosition && this.nativeInteraction) {

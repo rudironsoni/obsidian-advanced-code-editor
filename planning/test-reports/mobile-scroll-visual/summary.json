@@ -2,28 +2,28 @@
 	"before": {
 		"missing": false,
 		"scrollLeft": 0,
-		"scrollWidth": 5838,
+		"scrollWidth": 5788,
 		"clientWidth": 282,
 		"rect": {
 			"x": 84,
-			"y": 276,
+			"y": 297,
 			"width": 282,
-			"height": 103
+			"height": 63
 		},
 		"pre": {
-			"overflowX": "auto",
-			"whiteSpace": "pre"
+			"overflowX": "hidden",
+			"whiteSpace": "normal"
 		},
 		"code": {
 			"display": "block",
-			"minWidth": "max-content",
-			"flexBasis": "max-content"
+			"minWidth": "0px",
+			"flexBasis": "auto"
 		},
 		"text": "print(\"START_abcdefghijklmnopqrstuvwxyz0123456789_abcdefghijklmnopqrstuvwxyz0123456789_abcdefghijklmnopqrstuvwxyz0123456"
 	},
 	"afterTouch": {
 		"scrollLeft": 212,
-		"line": ""
+		"line": "\"START_abcdefghijklmnopqrstuvwxyz0123456789_abcdef"
 	},
 	"afterWheel": {
 		"scrollLeft": 912

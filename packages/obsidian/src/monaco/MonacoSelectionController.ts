@@ -110,7 +110,7 @@ export class MonacoSelectionController {
 		if (!editor) return null;
 		const fallbackPosition = this.positionFromClientPoint(clientX, clientY);
 		const hitPosition = editor.getTargetAtClientPoint?.(clientX, clientY)?.position ?? null;
-		const position = fallbackPosition ?? hitPosition;
+		const position = hitPosition ?? fallbackPosition;
 		if (!position) return null;
 		editor.setPosition(position);
 		if (focus) {
