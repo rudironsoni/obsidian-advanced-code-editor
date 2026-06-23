@@ -11,6 +11,7 @@ import { type ThemedToken } from 'shiki';
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 export function createCm6Plugin(plugin: ShikiPlugin) {
+	const activeViewPlugins = new Set<{ retokenizeSourceMode(): void }>();
 	const cm6Plugin = ViewPlugin.fromClass(
 		class Cm6ViewPlugin {
 			decorations = Decoration.none;
@@ -27,6 +28,7 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 				this.livePreviewAdapter = new LivePreviewAdapter(plugin, view, this.scheduleDecorationRefresh);
 				this.sourceModeAdapter = new SourceModeAdapter(plugin, view, this.scheduleDecorationRefresh);
 				this.lastIsLivePreview = this.isLivePreview(view.state);
+				activeViewPlugins.add(this);
 				void this.updateInlineDecorations();
 				if (this.lastIsLivePreview) {
 					void this.livePreviewAdapter.forceRefresh();
@@ -56,7 +58,18 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 				this.refreshDecorations();
 			}
 
+			retokenizeSourceMode(): void {
+				if (this.lastIsLivePreview) {
+					return;
+				}
+
+				void this.sourceModeAdapter.retokenize();
+
+				this.scheduleDecorationRefresh();
+			}
+
 			destroy(): void {
+				activeViewPlugins.delete(this);
 				this.destroyed = true;
 				if (this.decorationRefreshTimer !== undefined) {
 					window.clearTimeout(this.decorationRefreshTimer);
@@ -158,6 +171,9 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 	plugin.updateCm6Plugin = async (): Promise<void> => {
 		plugin.surfaceRegistry.updateThemes();
 		plugin.sourceModeTokenizationCache.clear();
+		for (const viewPlugin of activeViewPlugins) {
+			viewPlugin.retokenizeSourceMode();
+		}
 		plugin.app.workspace.updateOptions();
 	};
 

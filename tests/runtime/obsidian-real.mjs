@@ -1486,9 +1486,63 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			};
 		})()`,
 	);
+	const sourceThemeReloadState = await evaluate(
+		wsUrl,
+		`(async () => {
+			const plugin = app.plugins.getPlugin?.(${JSON.stringify(PLUGIN_ID)}) ?? app.plugins.plugins?.[${JSON.stringify(PLUGIN_ID)}];
+			const readSourceTokenSignature = () => {
+				const tokens = [...document.querySelectorAll('.cm-content .shiki-editing-token, .cm-content [style*="color"]')];
+				const sample = tokens.slice(0, 80).map(el => ({
+					text: el.textContent,
+					style: el.getAttribute('style') ?? '',
+					color: getComputedStyle(el).color,
+				}));
+				const fences = [...document.querySelectorAll('.cm-content .cm-line')].filter(line => line.textContent?.includes(String.fromCharCode(96).repeat(3))).length;
+				return {
+					tokenCount: tokens.length,
+					signature: sample.map(token => [token.text, token.style, token.color].join('|')).join('::'),
+					sample,
+					fences,
+					monacoBlocks: document.querySelectorAll('.cm-content .shiki-monaco-codeblock, .cm-content .shiki-monaco-block').length,
+				};
+			};
+			if (!plugin) return { ok: false, error: 'missing-plugin' };
+			const previous = { darkTheme: plugin.settings.darkTheme, lightTheme: plugin.settings.lightTheme, bodyLight: document.body.classList.contains('theme-light'), bodyDark: document.body.classList.contains('theme-dark') };
+			const before = readSourceTokenSignature();
+			const nextTheme = 'github-light-default';
+			document.body.classList.remove('theme-dark');
+			document.body.classList.add('theme-light');
+			plugin.settings.lightTheme = nextTheme;
+			try {
+				await plugin.reloadHighlighter?.();
+				if (plugin.updateCm6Plugin) await plugin.updateCm6Plugin();
+				let after = readSourceTokenSignature();
+				for (let attempt = 0; attempt < 20 && before.signature === after.signature; attempt++) {
+					await new Promise(resolve => setTimeout(resolve, 100));
+					after = readSourceTokenSignature();
+				}
+				return {
+					ok: before.tokenCount > 0 && after.tokenCount > 0,
+					before,
+					after,
+					changed: before.signature !== after.signature,
+					nextTheme,
+				};
+			} finally {
+				plugin.settings.darkTheme = previous.darkTheme;
+				plugin.settings.lightTheme = previous.lightTheme;
+				document.body.classList.toggle('theme-light', previous.bodyLight);
+				document.body.classList.toggle('theme-dark', previous.bodyDark);
+				await plugin.reloadHighlighter?.();
+				if (plugin.updateCm6Plugin) await plugin.updateCm6Plugin();
+			}
+		})()`,
+	);
+
 	return {
 		...finalResult,
 		sourceModeState,
+		sourceThemeReloadState,
 	};
 }
 
@@ -1564,6 +1618,11 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 	assert(!result.sourceModeState.editorMissing, `${label}: Source mode editor was not available`, result.sourceModeState);
 	assert(result.sourceModeState.markerInEditor, `${label}: Source mode marker was not present in editor`, result.sourceModeState);
 	assert(result.sourceModeState.markerOnDisk, `${label}: Source mode marker did not persist to disk`, result.sourceModeState);
+	assert(result.sourceThemeReloadState, `${label}: Source mode theme reload state was not captured`, result);
+	assert(result.sourceThemeReloadState.ok, `${label}: Source mode theme reload token was not measured`, result.sourceThemeReloadState);
+	assert(result.sourceThemeReloadState.changed, `${label}: Source mode token color did not update after theme reload`, result.sourceThemeReloadState);
+	assert(result.sourceThemeReloadState.after.fences >= 2, `${label}: Source mode theme reload hid raw fences`, result.sourceThemeReloadState);
+	assert(result.sourceThemeReloadState.after.monacoBlocks === 0, `${label}: Source mode theme reload mounted Monaco surfaces`, result.sourceThemeReloadState);
 	if (result.isMobile) {
 		assert(result.livePreviewCodeBlocks.length > 0, `${label}: mobile Live Preview did not render Monaco before touch`, result);
 		assert(
