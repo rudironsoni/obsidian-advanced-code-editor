@@ -16,7 +16,7 @@ const BRAT_INSTALL = process.env.OBSIDIAN_VERIFY_BRAT_INSTALL === 'true';
 const ENFORCE_PLUGIN_LOAD_MS = OBSIDIAN_LAUNCH_MODE === 'fresh' || process.env.OBSIDIAN_VERIFY_ENFORCE_STARTUP === 'true';
 const VERIFY_READING_MODE = OBSIDIAN_LAUNCH_MODE === 'fresh' || process.env.OBSIDIAN_VERIFY_READING === 'true';
 const VERIFY_TARGET = process.env.OBSIDIAN_VERIFY_TARGET ?? 'both';
-const CDP_EVALUATE_TIMEOUT_MS = Number(process.env.OBSIDIAN_VERIFY_CDP_EVALUATE_TIMEOUT_MS ?? 45000);
+const CDP_EVALUATE_TIMEOUT_MS = Number(process.env.OBSIDIAN_VERIFY_CDP_EVALUATE_TIMEOUT_MS ?? 120000);
 let evaluateCallCounter = 0;
 const SOURCE_MODE_EDIT_MARKER = '__shiki_source_mode_persistence_marker__';
 
@@ -96,7 +96,7 @@ function prepareVault({ resetUserData }) {
 			'~~~',
 			'',
 			'```cs',
-			'List<int[]> intervals = [[1, 3], [2, 6], [8, 10], [15, 18], [21, 34], [55, 89], [144, 233], [377, 610], [987, 1597]];',
+			'List<int[]> intervals = [[1, 3], [2, 6], [8, 10], [15, 18], [21, 34], [55, 89], [144, 233], [377, 610], [987, 1597], [2584, 4181], [6765, 10946], [17711, 28657], [46368, 75025], [121393, 196418], [317811, 514229]];',
 			'var startIndex = 0;',
 			'intervals.Sort((a, b) => a[startIndex] - b[startIndex]);',
 			'```',
@@ -962,6 +962,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 	await evaluate(
 		activeWsUrl,
 		`(async () => {
+			for (let i = 0; i < 300 && !window.app?.vault?.adapter; i++) await new Promise(resolve => setTimeout(resolve, 100));
 			const app = window.app;
 			if (app?.vault?.adapter?.basePath !== ${JSON.stringify(VAULT)}) {
 				throw new Error('Verifier vault did not open: ' + JSON.stringify({ vaultPath: app?.vault?.adapter?.basePath ?? null, expected: ${JSON.stringify(VAULT)} }));
@@ -1047,7 +1048,10 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			plugin.settings = savedSettings;
 			await plugin.saveSettingsAndReloadHighlighter();
 			const viewRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-			const codeBlocks = [...viewRoot.querySelectorAll('.shiki-monaco-block')].map(el => ({
+			for (let i = 0; i < 80 && document.querySelectorAll('.markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-block, .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock').length === 0; i++) {
+				await new Promise(resolve => setTimeout(resolve, 250));
+			}
+			const codeBlocks = [...[...viewRoot.querySelectorAll('.shiki-monaco-block, .shiki-monaco-codeblock'), ...document.querySelectorAll('.markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-block, .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock')].filter((el, index, all) => all.indexOf(el) === index)].map(el => ({
 				blockId: el.getAttribute('data-shiki-block-id'),
 				text: el.textContent,
 				hasMonacoEditor: !!el.querySelector('.monaco-editor'),

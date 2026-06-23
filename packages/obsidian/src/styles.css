@@ -406,3 +406,20 @@ body.is-mobile .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeb
 	caret-color: transparent !important;
 	border-color: transparent !important;
 }
+
+/* Live Preview owns rendered code through Monaco; keep the raw CM fenced block invisible. */
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-line[data-shiki-editing-block-id],
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-line[data-shiki-editing-block-id] *,
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-fence[data-shiki-editing-block-id],
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-fence[data-shiki-editing-block-id] * {
+	color: transparent !important;
+	-webkit-text-fill-color: transparent !important;
+	text-shadow: none !important;
+	caret-color: transparent !important;
+	border-color: transparent !important;
+}
+
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-line[data-shiki-editing-block-id] ::selection,
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-fence[data-shiki-editing-block-id] ::selection {
+	background: transparent !important;
+}

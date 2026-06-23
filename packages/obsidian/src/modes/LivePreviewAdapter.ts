@@ -221,7 +221,9 @@ export class LivePreviewAdapter {
 			const rootRect = this.view.dom.getBoundingClientRect();
 			const firstRect = first.getBoundingClientRect();
 			const lastRect = last.getBoundingClientRect();
+			this.removeDuplicateSurfaceHosts(block.id, surface.hostEl);
 			surface.attach(this.overlayRoot);
+			this.removeDuplicateSurfaceHosts(block.id, surface.hostEl);
 			this.removeDuplicateBlockSurfaces(block.id, surface.hostEl);
 			const mobileMode = this.isMobile();
 			if (mobileMode && this.activeBlockId !== block.id) {
@@ -306,6 +308,21 @@ export class LivePreviewAdapter {
 		}
 		this.rebuildBlocks();
 		this.scheduleVisibilityRefresh();
+	}
+
+	private removeDuplicateSurfaceHosts(blockId: string, ownedHost: HTMLElement): void {
+		const selector = `.shiki-monaco-block[data-shiki-block-id="${blockId}"], .shiki-monaco-codeblock[data-shiki-block-id="${blockId}"]`;
+		for (const element of Array.from(document.querySelectorAll<HTMLElement>(selector))) {
+			if (element !== ownedHost) {
+				element.remove();
+			}
+		}
+		for (const element of Array.from(this.overlayRoot.querySelectorAll<HTMLElement>('.shiki-monaco-block, .shiki-monaco-codeblock'))) {
+			const id = element.getAttribute('data-shiki-block-id');
+			if (id && !this.blocks.some(block => block.id === id)) {
+				element.remove();
+			}
+		}
 	}
 
 	private scheduleVisibilityRefresh(): void {

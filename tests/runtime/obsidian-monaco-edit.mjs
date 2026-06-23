@@ -3,7 +3,7 @@ import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const OBSIDIAN_APP = process.env.OBSIDIAN_APP ?? '/Applications/Obsidian.app/Contents/MacOS/Obsidian';
-const PORT = Number(process.env.OBSIDIAN_REMOTE_DEBUGGING_PORT ?? 9231);
+const PORT = Number(process.env.OBSIDIAN_REMOTE_DEBUGGING_PORT ?? 9230);
 const VAULT = process.env.OBSIDIAN_EDITABLE_CODEBLOCK_VAULT ?? '/private/tmp/obsidian-shiki-editable-codeblock-vault';
 const USER_DATA = process.env.OBSIDIAN_EDITABLE_CODEBLOCK_USER_DATA ?? '/private/tmp/obsidian-shiki-editable-codeblock-user-data';
 const PLUGIN_ID = 'shiki-highlighter';
@@ -108,6 +108,15 @@ async function fetchJson(url) {
 	return response.json();
 }
 
+async function hasRunningTarget() {
+	try {
+		const targets = await fetchJson(`http://127.0.0.1:${PORT}/json`);
+		return targets.some(candidate => candidate.webSocketDebuggerUrl);
+	} catch {
+		return false;
+	}
+}
+
 async function waitForTarget() {
 	const deadline = Date.now() + 45_000;
 	let lastTargets = [];
@@ -186,12 +195,19 @@ function createCdpClient(wsUrl) {
 	};
 }
 
+let evaluateCount = 0;
+
 async function evaluate(client, expression) {
-	const result = await client.send('Runtime.evaluate', {
+	const expressionId = ++evaluateCount;
+	console.log(`[verify-edit] evaluate #${expressionId}`);
+	const result = await Promise.race([
+		client.send('Runtime.evaluate', {
 		expression,
 		awaitPromise: true,
 		returnByValue: true,
-	});
+		}),
+		new Promise((_, reject) => setTimeout(() => reject(new Error(`Timed out evaluating expression #${expressionId}`)), 45000)),
+	]);
 	if (result.exceptionDetails) {
 		throw new Error(
 			result.exceptionDetails.exception?.description
@@ -1182,13 +1198,16 @@ async function verifyMode(client, modeName, livePreview, marker) {
 async function main() {
 	await prepareVault();
 
-	const obsidian = spawn(OBSIDIAN_APP, [`--remote-debugging-port=${PORT}`, `--user-data-dir=${USER_DATA}`, VAULT], {
-		stdio: ['ignore', 'pipe', 'pipe'],
-	});
-	obsidian.stdout.on('data', chunk => {
+	const reuseRunningTarget = await hasRunningTarget();
+	const obsidian = reuseRunningTarget
+		? null
+		: spawn(OBSIDIAN_APP, [`--remote-debugging-port=${PORT}`, `--user-data-dir=${USER_DATA}`, VAULT], {
+			stdio: ['ignore', 'pipe', 'pipe'],
+		});
+	obsidian?.stdout?.on('data', chunk => {
 		launchOutput += chunk.toString();
 	});
-	obsidian.stderr.on('data', chunk => {
+	obsidian?.stderr?.on('data', chunk => {
 		launchOutput += chunk.toString();
 	});
 
@@ -1257,7 +1276,7 @@ async function main() {
 		assert(finalContent.includes('LIVE_PREVIEW_EDIT_'), 'Live preview edit marker missing from disk', { finalContent });
 	} finally {
 		client?.close();
-		obsidian.kill();
+		obsidian?.kill();
 	}
 }
 

@@ -38,7 +38,9 @@ class MockPlugin {
 				on: () => ({}),
 			},
 			workspace: {
+				containerEl: document.createElement('div'),
 				on: () => ({}),
+				updateOptions: () => {},
 			},
 			openWithDefaultApp: () => {},
 		};
@@ -54,6 +56,14 @@ class MockPlugin {
 	registerMarkdownPostProcessor() {}
 	registerMarkdownCodeBlockProcessor() {}
 	registerEditorExtension() {}
+	register(registerable) {
+		return registerable;
+	}
+
+	registerInterval(id) {
+		return id;
+	}
+
 	registerEvent() {}
 	addCommand() {}
 }

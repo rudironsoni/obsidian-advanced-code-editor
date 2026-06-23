@@ -62,6 +62,14 @@ mock.module('obsidian', () => ({
 			this.editorExtensions.push(extension);
 		}
 
+		register<T>(registerable: T): T {
+			return registerable;
+		}
+
+		registerInterval(id: number): number {
+			return id;
+		}
+
 		registerEvent(event: unknown): void {
 			this.events.push(event);
 		}
