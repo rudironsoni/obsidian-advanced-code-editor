@@ -1,11 +1,31 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { relative } from 'node:path';
 
 const repoRoot = new URL('..', import.meta.url);
 
 function readSource(path: string): string {
 	return readFileSync(new URL(path, repoRoot), 'utf8');
+}
+
+function productionSourceFiles(dir = new URL('packages/obsidian/src/', repoRoot)): URL[] {
+	return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+		const child = new URL(entry.name, dir);
+		if (entry.isDirectory()) {
+			return productionSourceFiles(new URL(entry.name + '/', dir));
+		}
+		if (!entry.isFile() || !/\.(ts|css)$/.test(entry.name)) {
+			return [];
+		}
+		return [child];
+	});
+}
+
+function readProductionSources(): Array<{ path: string; source: string }> {
+	return productionSourceFiles().map(file => ({
+		path: relative(repoRoot.pathname, file.pathname),
+		source: readFileSync(file, 'utf8'),
+	}));
 }
 
 function extractBlock(source: string, needle: string): string {
@@ -104,5 +124,24 @@ describe('architecture boundaries', () => {
 		expect(sourceMode).not.toContain('MonacoSurfaceRegistry');
 		expect(sourceMode).not.toContain('monaco.editor.create');
 		expect(sourceMode).not.toContain('shiki-monaco-block');
+	});
+	test('production source has no console spam or unguarded debug globals', () => {
+		const matches = readProductionSources().flatMap(({ path, source }) => {
+			const disallowed = [...source.matchAll(/console\.(?:log|debug|info)\s*\(|(?:globalThis|window)\.__shiki[A-Za-z0-9_]*|debugger\b/g)];
+			return disallowed.map(match => ({ path, match: match[0] }));
+		});
+
+		expect(matches).toEqual([]);
+	});
+
+	test('Monaco CSS does not globally hide editable mobile input or selection internals', () => {
+		const styles = readSource('packages/obsidian/src/styles.css');
+
+		expect(styles).not.toContain('textarea');
+		expect(styles).not.toContain('inputarea');
+		expect(styles).not.toContain('body.is-mobile .shiki-monaco-selection-toolbar');
+		expect(styles).not.toContain('body.is-mobile .shiki-monaco-selection-handle');
+		expect(styles).not.toContain('pointer-events:none!important;resize:none');
+		expect(styles).not.toContain('pointer-events: none !important');
 	});
 });
