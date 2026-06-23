@@ -478,18 +478,19 @@ try {
 	const before = await evaluate(
 		cdp,
 		`(() => {
-			const pre = document.querySelector('div.expressive-code pre');
+			const pre = document.querySelector('.shiki-monaco-codeblock');
 			if (!pre) return { missing: true, html: document.body.innerText.slice(0, 500) };
+			pre._monacoEditor?.setScrollLeft?.(0);
 			pre.scrollLeft = 0;
 			pre.scrollIntoView({ block: 'center', inline: 'nearest' });
 			const rect = pre.getBoundingClientRect();
 			const styles = getComputedStyle(pre);
-			const codeStyles = getComputedStyle(pre.querySelector('code'));
+			const codeStyles = getComputedStyle(pre.querySelector('code') ?? pre);
 			return {
 				missing: false,
-				scrollLeft: pre.scrollLeft,
-				scrollWidth: pre.scrollWidth,
-				clientWidth: pre.clientWidth,
+				scrollLeft: pre._monacoEditor?.getScrollLeft?.() ?? pre.scrollLeft,
+				scrollWidth: pre._monacoEditor?.getScrollWidth?.() ?? pre.scrollWidth,
+				clientWidth: pre._monacoEditor?.getLayoutInfo?.()?.width ?? pre.clientWidth,
 				rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
 				pre: { overflowX: styles.overflowX, whiteSpace: styles.whiteSpace, webkitOverflowScrolling: styles.webkitOverflowScrolling },
 				code: { display: codeStyles.display, minWidth: codeStyles.minWidth, flexBasis: codeStyles.flexBasis },
@@ -497,7 +498,7 @@ try {
 			};
 		})()`,
 	);
-	if (before.missing) throw new Error(`No rendered Expressive Code block found: ${JSON.stringify(before)}`);
+	if (before.missing) throw new Error(`No rendered Monaco code block surface found: ${JSON.stringify(before)}`);
 	await screenshot(cdp, '01-before.png');
 	const x1 = Math.floor(before.rect.x + before.rect.width - 30);
 	const x2 = Math.floor(before.rect.x + 40);
@@ -518,9 +519,9 @@ try {
 	const afterTouch = await evaluate(
 		cdp,
 		`(() => {
-			const pre = document.querySelector('div.expressive-code pre');
+			const pre = document.querySelector('.shiki-monaco-codeblock');
 			const line = document.elementFromPoint(${Math.floor(before.rect.x + before.rect.width - 20)}, ${y})?.textContent?.slice(0, 120);
-			return { scrollLeft: pre?.scrollLeft ?? null, line };
+			return { scrollLeft: pre?._monacoEditor?.getScrollLeft?.() ?? pre?.scrollLeft ?? null, line };
 		})()`,
 	);
 	await screenshot(cdp, '02-after-touch-drag.png');
@@ -535,8 +536,8 @@ try {
 	const afterWheel = await evaluate(
 		cdp,
 		`(() => {
-			const pre = document.querySelector('div.expressive-code pre');
-			return { scrollLeft: pre?.scrollLeft ?? null };
+			const pre = document.querySelector('.shiki-monaco-codeblock');
+			return { scrollLeft: pre?._monacoEditor?.getScrollLeft?.() ?? pre?.scrollLeft ?? null };
 		})()`,
 	);
 	await screenshot(cdp, '03-after-wheel.png');
