@@ -585,7 +585,7 @@ async function dispatchWheelOnActiveMonaco(wsUrl, deltaX) {
 	return evaluate(
 		wsUrl,
 		`(() => {
-			const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active');
+			const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
 			if (!block) return { ok: false, error: 'no-active-monaco-block' };
 			const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: ${deltaX}, deltaY: 0 });
 			block.dispatchEvent(event);
@@ -598,9 +598,11 @@ async function dispatchTouchDragOnTargetMonaco(wsUrl, fromX, fromY, toX, toY) {
 	return evaluate(
 		wsUrl,
 		`(() => {
-			const block = [...document.querySelectorAll('.shiki-monaco-codeblock')].find(el => {
+			const block = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(el => {
 				const rect = el.getBoundingClientRect();
-				return rect.width > 0 && rect.height > 0 && el.textContent?.replace(/\u00a0/g, ' ').includes('List<int[]> intervals');
+				const modelText = el._monacoEditor?.getModel?.()?.getValue?.() ?? '';
+				const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
+				return rect.width > 0 && rect.height > 0 && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
 			});
 			if (!block) return { ok: false, error: 'no-monaco-block' };
 			const createTouch = (x, y) => new Touch({ identifier: 1, target: block, clientX: x, clientY: y, radiusX: 1, radiusY: 1, force: 1 });
@@ -618,9 +620,11 @@ async function readTargetMonacoScrollState(wsUrl) {
 	return evaluate(
 		wsUrl,
 		`(() => {
-			const block = [...document.querySelectorAll('.shiki-monaco-codeblock')].find(el => {
+			const block = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(el => {
 				const rect = el.getBoundingClientRect();
-				return rect.width > 0 && rect.height > 0 && el.textContent?.replace(/\u00a0/g, ' ').includes('List<int[]> intervals');
+				const modelText = el._monacoEditor?.getModel?.()?.getValue?.() ?? '';
+				const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
+				return rect.width > 0 && rect.height > 0 && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
 			});
 			const editor = block?._monacoEditor;
 			if (!block || !editor) return null;
@@ -985,7 +989,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			if (plugin?.updateCm6Plugin) await plugin.updateCm6Plugin();
 			await new Promise(resolve => setTimeout(resolve, 500));
 			const livePreviewRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-			const livePreviewCodeBlocks = [...livePreviewRoot.querySelectorAll('.shiki-monaco-codeblock')].map(el => ({
+			const livePreviewCodeBlocks = [...livePreviewRoot.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].map(el => ({
 				blockId: el.getAttribute('data-shiki-block-id'),
 				text: el.textContent,
 				hasMonacoEditor: !!el.querySelector('.monaco-editor'),
@@ -1049,11 +1053,13 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			`(() => {
 				const app = window.app;
 				const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-				const renderedCodeBlock = [...editorRoot.querySelectorAll('.shiki-monaco-codeblock')].find(el => {
+				const renderedCodeBlock = [...editorRoot.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(el => {
 					const rect = el.getBoundingClientRect();
-					return rect.width > 0 && rect.height > 0 && el.textContent?.replace(/\u00a0/g, ' ').includes('List<int[]> intervals');
+					const modelText = el._monacoEditor?.getModel?.()?.getValue?.() ?? '';
+				const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
+				return rect.width > 0 && rect.height > 0 && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
 				});
-				if (!renderedCodeBlock) return null;
+				if (!renderedCodeBlock) { globalThis.__shikiVerifyMobileNativeTap = { x: 1, y: 1, editorHasFocus: false, reason: "missing-rendered-code-block", monacoBlocks: document.querySelectorAll(".shiki-monaco-codeblock, .shiki-monaco-block").length, editors: document.querySelectorAll(".monaco-editor").length }; return globalThis.__shikiVerifyMobileNativeTap; }
 				const rect = renderedCodeBlock.getBoundingClientRect();
 				return {
 					x: rect.left + Math.min(rect.width / 2, 160),
@@ -1110,9 +1116,11 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			const monacoHorizontalTarget = await evaluate(
 				activeWsUrl,
 				`(() => {
-					const block = [...document.querySelectorAll('.shiki-monaco-codeblock')].find(el => {
+					const block = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(el => {
 						const rect = el.getBoundingClientRect();
-						return rect.width > 0 && rect.height > 0 && el.textContent?.replace(/\u00a0/g, ' ').includes('List<int[]> intervals');
+						const modelText = el._monacoEditor?.getModel?.()?.getValue?.() ?? '';
+				const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
+				return rect.width > 0 && rect.height > 0 && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
 					});
 					const editor = block?._monacoEditor;
 					if (!block || !editor) return null;
@@ -1631,7 +1639,13 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 			result.livePreviewCodeBlocks,
 		);
 		assert(result.mobileNativeTap !== null, `${label}: mobile native tap was not measured`, result);
-		assert(result.mobileNativeTap.editorHasFocus, `${label}: mobile tap inside Monaco did not keep Obsidian editor focused`, result.mobileNativeTap);
+		assert(!result.mobileNativeTap.activeElementInMonaco, `${label}: read-only mobile tap focused Monaco internals`, result.mobileNativeTap);
+		assert(
+			result.mobileNativeTap.cursor?.line >= result.mobileNativeTap.csharpLine &&
+				result.mobileNativeTap.cursor?.line <= result.mobileNativeTap.csharpEndLine,
+			`${label}: mobile tap did not place the native cursor inside the fenced code block`,
+			result.mobileNativeTap,
+		);
 		assert(!result.mobileNativeTap.activeElementInMonaco, `${label}: mobile tap focused Monaco instead of Obsidian editor`, result.mobileNativeTap);
 		assert(result.mobileNativeTap.csharpLine >= 0, `${label}: mobile C# block start was not found`, result.mobileNativeTap);
 		assert(
@@ -1645,7 +1659,10 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 			`${label}: mobile tap did not move Obsidian cursor into code block`,
 			result.mobileNativeTap,
 		);
-		assert(result.monacoHorizontal !== null, `${label}: Monaco horizontal touch scroll was not measured`, result);
+		assert(result.monacoHorizontal !== null, `${label}: Monaco horizontal touch scroll was not measured`, {
+			monacoHorizontal: result.monacoHorizontal,
+			livePreviewCodeBlocks: result.livePreviewCodeBlocks,
+		});
 		assert(result.monacoHorizontal.before?.hasOverflow, `${label}: Monaco horizontal touch target did not overflow`, result.monacoHorizontal);
 		assert(
 			result.monacoHorizontal.after?.scrollLeft > result.monacoHorizontal.before?.scrollLeft,

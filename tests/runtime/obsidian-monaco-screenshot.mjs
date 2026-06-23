@@ -199,7 +199,7 @@ async function waitForMonaco(client, label) {
 	return waitFor(
 		client,
 		`(() => {
-			const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock');
+			const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
 			const backtickFence = String.fromCharCode(96).repeat(3);
 			const visibleFenceLines = [...document.querySelectorAll('.markdown-source-view.mod-cm6 .cm-line')].flatMap(line => {
 				const rect = line.getBoundingClientRect();
@@ -211,12 +211,12 @@ async function waitForMonaco(client, label) {
 			});
 			if (!block) return { ok: false, reason: 'missing-monaco', visibleFenceLines };
 			const rect = block.getBoundingClientRect();
-			const fallback = block.querySelector('.shiki-monaco-codeblock-fallback');
+			const fallback = block.querySelector('.shiki-monaco-codeblock-fallback, .shiki-monaco-block-fallback');
 			const fallbackRect = fallback?.getBoundingClientRect();
 			const fallbackStyle = fallback ? getComputedStyle(fallback) : null;
 			return {
 				ok: rect.width > 0 && rect.height > 0 && block.querySelectorAll('.view-line').length > 0 && visibleFenceLines.length === 0,
-				monacoBlocks: document.querySelectorAll('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock').length,
+				monacoBlocks: document.querySelectorAll('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block').length,
 				width: rect.width,
 				height: rect.height,
 				viewLines: block.querySelectorAll('.view-line').length,
@@ -234,7 +234,7 @@ async function clickMonacoAndType(client, marker) {
 	const box = await evaluate(
 		client,
 		`(() => {
-			const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock');
+			const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
 			const rect = block.getBoundingClientRect();
 			return { x: rect.left + Math.min(80, rect.width / 2), y: rect.top + Math.min(60, rect.height / 2) };
 		})()`,

@@ -195,4 +195,13 @@ describe('startup module boundary', () => {
 			selectors.some(selector => selector.includes('.markdown-source-view.mod-cm6.is-live-preview') && !selector.includes('.shiki-monaco-readonly')),
 		).toBe(false);
 	});
+
+	test('live preview adapter avoids selection-only rebuild churn', () => {
+		const livePreview = read('packages/obsidian/src/modes/LivePreviewAdapter.ts');
+		expect(livePreview).toContain('private lastViewportKey');
+		expect(livePreview).toContain('const viewportActuallyChanged = update.viewportChanged && viewportKey !== this.lastViewportKey');
+		expect(livePreview).toContain('if (!update.docChanged && !viewportActuallyChanged)');
+		expect(livePreview).toContain('this.lastViewportKey = viewportKey');
+		expect(livePreview).not.toContain('if (update.viewportChanged || update.selectionSet)');
+	});
 });

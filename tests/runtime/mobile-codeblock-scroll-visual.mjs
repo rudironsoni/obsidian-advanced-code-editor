@@ -478,7 +478,7 @@ try {
 	const before = await evaluate(
 		cdp,
 		`(() => {
-			const pre = document.querySelector('.shiki-monaco-codeblock');
+			const pre = document.querySelector('.shiki-monaco-codeblock, .shiki-monaco-block');
 			if (!pre) return { missing: true, html: document.body.innerText.slice(0, 500) };
 			pre._monacoEditor?.setScrollLeft?.(0);
 			pre.scrollLeft = 0;
@@ -519,7 +519,7 @@ try {
 	const afterTouch = await evaluate(
 		cdp,
 		`(() => {
-			const pre = document.querySelector('.shiki-monaco-codeblock');
+			const pre = document.querySelector('.shiki-monaco-codeblock, .shiki-monaco-block');
 			const line = document.elementFromPoint(${Math.floor(before.rect.x + before.rect.width - 20)}, ${y})?.textContent?.slice(0, 120);
 			return { scrollLeft: pre?._monacoEditor?.getScrollLeft?.() ?? pre?.scrollLeft ?? null, line };
 		})()`,
@@ -536,7 +536,7 @@ try {
 	const afterWheel = await evaluate(
 		cdp,
 		`(() => {
-			const pre = document.querySelector('.shiki-monaco-codeblock');
+			const pre = document.querySelector('.shiki-monaco-codeblock, .shiki-monaco-block');
 			return { scrollLeft: pre?._monacoEditor?.getScrollLeft?.() ?? pre?.scrollLeft ?? null };
 		})()`,
 	);

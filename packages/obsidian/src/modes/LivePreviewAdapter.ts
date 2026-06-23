@@ -21,6 +21,7 @@ export class LivePreviewAdapter {
 	private visibilityRefreshTimer: number | undefined;
 	private activeBlockId: string | undefined;
 	private lastMobileMode: boolean | undefined;
+	private lastViewportKey = '';
 	private mobileClassObserver: MutationObserver | undefined;
 	private ownerRoot: LivePreviewOwnerElement | undefined;
 	private destroyed = false;
@@ -52,7 +53,7 @@ export class LivePreviewAdapter {
 	update(update: ViewUpdate, isLivePreview: boolean): void {
 		if (this.destroyed || !this.plugin.isCurrentInstance()) {
 			this.decorations = Decoration.none;
-			void this.detachAll();
+			this.detachAll();
 			return;
 		}
 
@@ -60,17 +61,24 @@ export class LivePreviewAdapter {
 
 		if (!isLivePreview) {
 			this.decorations = Decoration.none;
-			void this.detachAll();
+			this.lastViewportKey = '';
+			this.detachAll();
 			return;
 		}
-		if (update.docChanged) {
-			this.rebuildBlocks();
-			this.scheduleSync();
+
+		const viewportKey = this.getViewportKey();
+		const viewportActuallyChanged = update.viewportChanged && viewportKey !== this.lastViewportKey;
+		if (!update.docChanged && !viewportActuallyChanged) {
 			return;
 		}
-		if (update.viewportChanged || update.selectionSet) {
-			this.scheduleSync();
-		}
+
+		this.lastViewportKey = viewportKey;
+		this.rebuildBlocks();
+		this.scheduleSync();
+	}
+
+	private getViewportKey(): string {
+		return this.view.visibleRanges.map(range => range.from + ':' + range.to).join('|');
 	}
 
 	async forceRefresh(): Promise<void> {
@@ -91,7 +99,7 @@ export class LivePreviewAdapter {
 			window.clearTimeout(this.visibilityRefreshTimer);
 		}
 		this.view.scrollDOM.removeEventListener('scroll', this.handleScroll);
-		void this.detachAll();
+		this.detachAll();
 		this.overlayRoot.remove();
 		if (this.ownerRoot?.[LIVE_PREVIEW_ADAPTER_OWNER] === this) {
 			delete this.ownerRoot[LIVE_PREVIEW_ADAPTER_OWNER];
@@ -171,7 +179,7 @@ export class LivePreviewAdapter {
 
 	private async syncVisibleBlocks(): Promise<void> {
 		if (this.destroyed || !this.plugin.isCurrentInstance()) {
-			await this.detachAll();
+			this.detachAll();
 			return;
 		}
 		const visibleIds = new Set<string>();
@@ -246,7 +254,7 @@ export class LivePreviewAdapter {
 		}
 	}
 
-	private async detachAll(): Promise<void> {
+	private detachAll(): void {
 		for (const block of this.blocks) {
 			this.hiddenBlockIds.delete(block.id);
 			this.plugin.surfaceRegistry.release(block.id);
