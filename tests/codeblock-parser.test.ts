@@ -62,4 +62,25 @@ describe('code block parser', () => {
 			closingFenceLine: 6,
 		});
 	});
+	test('parseLivePreviewBlocks gives identical blocks distinct logical identities', () => {
+		const parser = new CodeBlockParser();
+		const source = ['```ts', 'const repeated = true;', '```', '', '```ts', 'const repeated = true;', '```'].join('\n');
+		let offset = 0;
+		const lines: CodeBlockLineInfo[] = source.split('\n').map((line, index) => {
+			const from = offset;
+			const to = from + line.length;
+			offset = to + 1;
+			return { lineNumber: index + 1, text: line, from, to };
+		});
+
+		const blocks = parser.parseLivePreviewBlocks(lines);
+
+		expect(blocks).toHaveLength(2);
+		expect(blocks.map(block => block.range)).toEqual([
+			{ lineFrom: 2, lineTo: 2, charFrom: 6, charTo: 28 },
+			{ lineFrom: 6, lineTo: 6, charFrom: 40, charTo: 62 },
+		]);
+		expect(new Set(blocks.map(block => block.blockId)).size).toBe(2);
+		expect(blocks.map(block => block.blockId)).toEqual(['0:1:```', '34:5:```']);
+	});
 });
