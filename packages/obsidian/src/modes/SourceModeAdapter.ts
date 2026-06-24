@@ -24,6 +24,9 @@ export class SourceModeAdapter {
 			this.decorations = Decoration.none;
 			return;
 		}
+		if (!isLivePreview) {
+			this.scheduleStaleMonacoOverlayCleanup();
+		}
 		this.decorations = this.decorations.map(update.changes);
 		if (isLivePreview) {
 			this.decorations = Decoration.none;
@@ -108,6 +111,17 @@ export class SourceModeAdapter {
 		this.requestDecorationRefresh();
 	}
 
+	private scheduleStaleMonacoOverlayCleanup(): void {
+		window.setTimeout(() => this.removeStaleMonacoOverlays(), 0);
+		window.setTimeout(() => this.removeStaleMonacoOverlays(), 50);
+	}
+
+	private removeStaleMonacoOverlays(): void {
+		const sourceViewRoot = this.view.dom.closest('.markdown-source-view.mod-cm6') ?? this.view.dom;
+		for (const root of Array.from(sourceViewRoot.querySelectorAll<HTMLElement>('.shiki-monaco-overlay-root'))) {
+			root.remove();
+		}
+	}
 	destroy(): void {
 		this.tokenizationRequest++;
 		this.decorations = Decoration.none;

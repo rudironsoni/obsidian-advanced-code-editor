@@ -1600,6 +1600,9 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			}
 			const editableLineNumbers = [...editorRoot.querySelectorAll('.cm-content .shiki-editing-line-number')].map(el => el.textContent);
 			const sourceModeMonacoBlocks = editorRoot.querySelectorAll('.cm-content .shiki-monaco-codeblock, .cm-content .shiki-monaco-block').length;
+			const globalMonacoBlocks = document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block').length;
+			const globalMonacoEditors = document.querySelectorAll('.monaco-editor').length;
+			const globalOverlayRoots = document.querySelectorAll('.shiki-monaco-overlay-root').length;
 			return {
 				...state,
 				editorTokens,
@@ -1615,6 +1618,9 @@ async function verifyFeatureSet(wsUrl, mobile) {
 				mobileNativeTap,
 				editableLineNumbers,
 				sourceModeMonacoBlocks,
+				globalMonacoBlocks,
+				globalMonacoEditors,
+				globalOverlayRoots,
 			};
 		})()`,
 	);
@@ -1749,7 +1755,10 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 	);
 	assert(result.editorTokens.length > 0, `${label}: editor Shiki highlighting missing`, result);
 	assert(result.fencedEditorTokens.length >= 4, `${label}: editable fenced code block Shiki tokens missing`, result);
-	assert(result.sourceModeMonacoBlocks === 0, `${label}: Source mode mounted Monaco surfaces`, result);
+	assert(result.sourceModeMonacoBlocks === 0, `${label}: Source mode mounted Monaco surfaces inside CM content`, result);
+	assert(result.globalMonacoBlocks === 0, `${label}: Source mode left Monaco block hosts mounted`, result);
+	assert(result.globalMonacoEditors === 0, `${label}: Source mode left Monaco editors mounted`, result);
+	assert(result.globalOverlayRoots === 0, `${label}: Source mode left Live Preview overlay roots mounted`, result);
 	assert(result.sourceModeState, `${label}: Source mode persistence state was not captured`, result);
 	assert(!result.sourceModeState.editorMissing, `${label}: Source mode editor was not available`, result.sourceModeState);
 	assert(result.sourceModeState.markerInEditor, `${label}: Source mode marker was not present in editor`, result.sourceModeState);
