@@ -40,6 +40,7 @@ export class MonacoGestureRouter {
 	private touchState: { startX: number; startY: number; scrollLeft: number; axis: GestureAxis; longPressed: boolean; handle: boolean } | null = null;
 	private lastTouchTime = 0;
 	private longPressTimer: ReturnType<typeof setTimeout> | null = null;
+	private longPressActivated = false;
 
 	constructor(options: MonacoGestureRouterOptions) {
 		this.host = options.host;
@@ -123,6 +124,7 @@ export class MonacoGestureRouter {
 		const touch = event.touches[0];
 		if (!touch) return;
 		const handle = this.selectionController.startHandleDrag(document.elementFromPoint(touch.clientX, touch.clientY) ?? event.target);
+		this.longPressActivated = false;
 		this.touchState = {
 			startX: touch.clientX,
 			startY: touch.clientY,
@@ -141,6 +143,7 @@ export class MonacoGestureRouter {
 			if (this.touchState) {
 				this.touchState.longPressed = true;
 			}
+			this.longPressActivated = true;
 			this.selectionController.selectWordAt(touch.clientX, touch.clientY);
 		}, 450);
 	};
@@ -182,6 +185,11 @@ export class MonacoGestureRouter {
 		this.touchState = null;
 		this.selectionController.endHandleDrag();
 		this.clearLongPressTimer();
+		if (this.longPressActivated) {
+			this.touchState = null;
+			this.longPressActivated = false;
+			return;
+		}
 
 		if (state?.longPressed) {
 			event.preventDefault();

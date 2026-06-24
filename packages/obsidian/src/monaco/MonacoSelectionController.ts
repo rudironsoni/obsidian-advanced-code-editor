@@ -160,24 +160,31 @@ export class MonacoSelectionController {
 
 	updateHandleDrag(clientX: number, clientY: number): void {
 		const editor = this.editor;
-		const selection = editor?.getSelection();
-		const position = editor?.getTargetAtClientPoint?.(clientX, clientY)?.position ?? this.positionFromClientPoint(clientX, clientY);
-		if (!editor || !selection || !position || !this.draggingHandle) return;
-		if (this.draggingHandle === 'start') {
-			editor.setSelection({
-				startLineNumber: position.lineNumber,
-				startColumn: position.column,
-				endLineNumber: selection.endLineNumber,
-				endColumn: selection.endColumn,
-			});
-		} else {
-			editor.setSelection({
-				startLineNumber: selection.startLineNumber,
-				startColumn: selection.startColumn,
-				endLineNumber: position.lineNumber,
-				endColumn: position.column,
-			});
+		const model = editor?.getModel?.();
+		const draggingHandle = this.draggingHandle;
+		if (!editor || !model || !draggingHandle) {
+			return;
 		}
+
+		const position = editor.getTargetAtClientPoint?.(clientX, clientY)?.position ?? this.positionFromClientPoint(clientX, clientY);
+		if (!position) {
+			return;
+		}
+
+		const selection = editor.getSelection?.();
+		if (!selection) {
+			return;
+		}
+
+		const anchor = draggingHandle === 'start'
+			? { lineNumber: selection.endLineNumber, column: selection.endColumn }
+			: { lineNumber: selection.startLineNumber, column: selection.startColumn };
+		editor.setSelection({
+			startLineNumber: draggingHandle === 'start' ? position.lineNumber : anchor.lineNumber,
+			startColumn: draggingHandle === 'start' ? position.column : anchor.column,
+			endLineNumber: draggingHandle === 'start' ? anchor.lineNumber : position.lineNumber,
+			endColumn: draggingHandle === 'start' ? anchor.column : position.column,
+		});
 	}
 
 	endHandleDrag(): void {

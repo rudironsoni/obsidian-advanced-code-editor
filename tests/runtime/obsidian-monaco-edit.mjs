@@ -420,18 +420,52 @@ async function clickLine(client, line) {
 	console.log('Activation log:', log);
 }
 
-async function dispatchTouchDrag(client, fromX, fromY, toX, toY, steps = 8) {
-	const touchStart = { x: fromX, y: fromY, radiusX: 1, radiusY: 1, force: 1, id: 1 };
-	await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [touchStart] });
-	for (let step = 1; step <= steps; step++) {
-		const progress = step / steps;
-		await client.send('Input.dispatchTouchEvent', {
-			type: 'touchMove',
-			touchPoints: [{ x: fromX + (toX - fromX) * progress, y: fromY + (toY - fromY) * progress, radiusX: 1, radiusY: 1, force: 1, id: 1 }],
-		});
-		await delay(16);
-	}
-	await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+async function dispatchTouchDrag(client, start, end, steps = 6) {
+	const startJson = JSON.stringify(start);
+	const endJson = JSON.stringify(end);
+	await evaluate(
+		client,
+		`(() => {
+			const makeTouch = (target, point) => {
+				try {
+					return new Touch({ identifier: 1, target, clientX: point.x, clientY: point.y, radiusX: 2, radiusY: 2, force: 1 });
+				} catch {
+					return { identifier: 1, target, clientX: point.x, clientY: point.y, pageX: point.x, pageY: point.y, screenX: point.x, screenY: point.y, radiusX: 2, radiusY: 2, force: 1 };
+				}
+			};
+			let activeTouchTarget = null;
+			const dispatchAt = (type, point) => {
+				if (type === 'touchstart') {
+					activeTouchTarget = document.elementFromPoint(point.x, point.y) ?? document.querySelector('.shiki-monaco-block, .shiki-monaco-codeblock') ?? document.body;
+				}
+				const target = activeTouchTarget ?? document.elementFromPoint(point.x, point.y) ?? document.querySelector('.shiki-monaco-block, .shiki-monaco-codeblock') ?? document.body;
+				const pointerType = type === 'touchstart' ? 'pointerdown' : type === 'touchmove' ? 'pointermove' : 'pointerup';
+				try {
+					target.dispatchEvent(new PointerEvent(pointerType, { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'touch', isPrimary: true, clientX: point.x, clientY: point.y, buttons: type === 'touchend' ? 0 : 1 }));
+				} catch {}
+				const touch = makeTouch(target, point);
+				try {
+					target.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [touch], targetTouches: type === 'touchend' ? [] : [touch], changedTouches: [touch] }));
+				} catch {
+					const event = new Event(type, { bubbles: true, cancelable: true });
+					Object.defineProperties(event, { touches: { value: type === 'touchend' ? [] : [touch] }, targetTouches: { value: type === 'touchend' ? [] : [touch] }, changedTouches: { value: [touch] } });
+					target.dispatchEvent(event);
+				}
+			};
+			const start = ${startJson};
+			const end = ${endJson};
+			const steps = ${steps};
+			dispatchAt('touchstart', start);
+			for (let index = 1; index <= steps; index++) {
+				const progress = index / steps;
+				dispatchAt('touchmove', { x: start.x + (end.x - start.x) * progress, y: start.y + (end.y - start.y) * progress });
+			}
+			dispatchAt('touchend', end);
+			activeTouchTarget = null;
+			return true;
+		})()`,
+	);
+	await delay(80);
 }
 
 async function dispatchTouchTap(client, x, y) {
@@ -1162,14 +1196,36 @@ async function verifyMode(client, modeName, livePreview, marker) {
 		const mobileTapTarget = await evaluate(
 			client,
 			`(() => {
-				const block = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
-				const editor = block?._monacoEditor;
-				const target = editor?.getTargetAtClientPoint?.(${line.x}, ${line.y})?.position ?? null;
+				const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
+				const host = [...root.querySelectorAll('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active, .shiki-monaco-codeblock.shiki-monaco-editable, .shiki-monaco-block.shiki-monaco-editable, .shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => candidate._monacoEditor?.getModel?.());
+				const editor = host?._monacoEditor;
+				const model = editor?.getModel?.();
+				let target = editor?.getTargetAtClientPoint?.(${line.x}, ${line.y})?.position ?? null;
+				if (!target && host && model) {
+					const lines = [...host.querySelectorAll('.view-line')];
+					const firstLineRect = lines[0]?.getBoundingClientRect?.();
+					const measuredLineHeight = firstLineRect?.height && firstLineRect.height > 0 ? firstLineRect.height : 20;
+					const hostRect = host.getBoundingClientRect();
+					const contentTop = firstLineRect?.top ?? hostRect.top;
+					const lineNumber = Math.max(1, Math.min(model.getLineCount(), Math.floor((${line.y} - contentTop) / measuredLineHeight) + 1));
+					let closestColumn = 1;
+					let closestDistance = Number.POSITIVE_INFINITY;
+					const targetLeft = ${line.x} - hostRect.left;
+					for (let column = 1; column <= model.getLineMaxColumn(lineNumber); column++) {
+						const visible = editor.getScrolledVisiblePosition?.({ lineNumber, column });
+						if (!visible) continue;
+						const distance = Math.abs(visible.left - targetLeft);
+						if (distance < closestDistance) {
+							closestDistance = distance;
+							closestColumn = column;
+						}
+					}
+					target = { lineNumber, column: closestColumn };
+				}
 				return {
-					hasBlock: Boolean(block),
 					hasEditor: Boolean(editor),
 					target,
-					beforePosition: editor?.getPosition?.() ?? null,
+					className: String(host?.className ?? ''),
 				};
 			})()`,
 		);
