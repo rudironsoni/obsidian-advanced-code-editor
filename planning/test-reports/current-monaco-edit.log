@@ -7,7 +7,7 @@
 [verify-edit] evaluate #7
 live preview diag: {"missing":true}
 [verify-edit] evaluate #8
-live preview debug: {"allMonacoBlocks":1,"allActiveMonacoBlocks":1,"allEditableLines":20,"allCmContent":"<div class=\"cm-active HyperMD-header HyperMD-header-1 cm-line\" dir=\"ltr\"><div class=\"cm-fold-indicator\" contenteditable=\"false\"><div class=\"collapse-indicator collapse-icon\"><svg xmlns=\"http://www.w3."}
+live preview debug: {"allMonacoBlocks":1,"allActiveMonacoBlocks":0,"allEditableLines":20,"allCmContent":"<div class=\"cm-active HyperMD-header HyperMD-header-1 cm-line\" dir=\"ltr\"><div class=\"cm-fold-indicator\" contenteditable=\"false\"><div class=\"collapse-indicator collapse-icon\"><svg xmlns=\"http://www.w3."}
 [verify-edit] evaluate #9
 [verify-edit] evaluate #10
 [verify-edit] evaluate #11

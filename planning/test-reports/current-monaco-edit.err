@@ -1,221 +1,221 @@
 $ node tests/runtime/obsidian-monaco-edit.mjs
-[verify-edit:cdp] 2026-06-24T04:45:17.459Z done #1
-[verify-edit:cdp] 2026-06-24T04:45:17.467Z done #2
-[verify-edit:cdp] 2026-06-24T04:45:17.467Z start #3 Runtime.evaluate Boolean(globalThis.app?.workspace && globalThis.app?.vault)
-[verify-edit:cdp] 2026-06-24T04:45:17.469Z done #3
-[verify-edit:cdp] 2026-06-24T04:45:17.469Z start #4 Runtime.evaluate Boolean(window.app?.workspace && app.plugins)
-[verify-edit:cdp] 2026-06-24T04:45:17.474Z done #4
-[verify-edit:cdp] 2026-06-24T04:45:17.474Z start #5 Runtime.evaluate (async () => { await app.plugins.loadManifests?.(); if (!app.plugins.getPlugin?.("shiki-high
-[verify-edit:cdp] 2026-06-24T04:45:17.534Z done #5
-[verify-edit:cdp] 2026-06-24T04:45:17.535Z start #6 Runtime.evaluate Boolean(app.plugins?.enabledPlugins?.has("shiki-highlighter"))
-[verify-edit:cdp] 2026-06-24T04:45:17.540Z done #6
-[verify-edit:cdp] 2026-06-24T04:45:17.540Z start #7 Runtime.evaluate (() => { const plugin = app.plugins.getPlugin?.("shiki-highlighter") ?? app.plugins.plugins?.["s
-[verify-edit:cdp] 2026-06-24T04:45:17.542Z done #7
-[verify-edit:cdp] 2026-06-24T04:45:17.542Z start #8 Runtime.evaluate Boolean(globalThis.app?.workspace && globalThis.app?.vault)
-[verify-edit:cdp] 2026-06-24T04:45:17.543Z done #8
-[verify-edit:cdp] 2026-06-24T04:45:17.544Z start #9 Runtime.evaluate globalThis.__shikiOpenNoteArgs_1782276317544_1qelcqrsm6m = {"content":"# PyCharm Django Console fixe
-[verify-edit:cdp] 2026-06-24T04:45:17.546Z done #9
-[verify-edit:cdp] 2026-06-24T04:45:17.546Z start #10 Runtime.evaluate (async () => { const args = globalThis.__shikiOpenNoteArgs_1782276317544_1qelcqrsm6m; try { 
-[verify-edit:cdp] 2026-06-24T04:45:17.619Z done #10
-[verify-edit:cdp] 2026-06-24T04:45:19.621Z start #11 Runtime.evaluate JSON.stringify(window.__shikiDiag ?? { missing: true })
-[verify-edit:cdp] 2026-06-24T04:45:19.623Z done #11
-[verify-edit:cdp] 2026-06-24T04:45:19.623Z start #12 Runtime.evaluate JSON.stringify({ allMonacoBlocks: (document.querySelector('.workspace-leaf.mod-active') ?? documen
-[verify-edit:cdp] 2026-06-24T04:45:19.625Z done #12
-[verify-edit:cdp] 2026-06-24T04:45:19.625Z start #13 Runtime.evaluate (async () => { const state = () => ({ reading: Boolean(document.querySelector('.markdown-read
-[verify-edit:cdp] 2026-06-24T04:45:19.627Z done #13
-[verify-edit:cdp] 2026-06-24T04:45:19.627Z start #14 Runtime.evaluate (() => { const container = (document.querySelector('.workspace-leaf.mod-active') ?? document).que
-[verify-edit:cdp] 2026-06-24T04:45:19.628Z done #14
-[verify-edit:cdp] 2026-06-24T04:45:19.628Z start #15 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.view
-[verify-edit:cdp] 2026-06-24T04:45:19.629Z done #15
-[verify-edit:cdp] 2026-06-24T04:45:19.730Z start #16 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.vie
-[verify-edit:cdp] 2026-06-24T04:45:19.731Z done #16
-[verify-edit:cdp] 2026-06-24T04:45:19.731Z start #17 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.vie
-[verify-edit:cdp] 2026-06-24T04:45:19.752Z done #17
-[verify-edit:cdp] 2026-06-24T04:45:19.854Z start #18 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.vie
-[verify-edit:cdp] 2026-06-24T04:45:19.856Z done #18
-[verify-edit:cdp] 2026-06-24T04:45:19.856Z start #19 Runtime.evaluate (() => { try { const container = (document.querySelector('.workspace-leaf.mod-active') ?? doc
-[verify-edit:cdp] 2026-06-24T04:45:19.945Z done #19
-[verify-edit:cdp] 2026-06-24T04:45:20.548Z start #20 Runtime.evaluate JSON.stringify(window.__shikiMonacoActivationLog ?? [])
-[verify-edit:cdp] 2026-06-24T04:45:20.549Z done #20
-[verify-edit:cdp] 2026-06-24T04:45:20.549Z start #21 Runtime.evaluate (() => { const activeLeaf = document.querySelector('.workspace-leaf.mod-active') ?? document; 
-[verify-edit:cdp] 2026-06-24T04:45:20.551Z done #21
-[verify-edit:cdp] 2026-06-24T04:45:20.552Z start #22 Runtime.evaluate (() => { const hosts = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).quer
-[verify-edit:cdp] 2026-06-24T04:45:20.560Z done #22
-[verify-edit:cdp] 2026-06-24T04:45:20.560Z start #23 Input.dispatchKeyEvent 
-[verify-edit:cdp] 2026-06-24T04:45:20.567Z done #23
-[verify-edit:cdp] 2026-06-24T04:45:20.567Z start #24 Input.dispatchKeyEvent 
-[verify-edit:cdp] 2026-06-24T04:45:20.568Z done #24
-[verify-edit:cdp] 2026-06-24T04:45:20.670Z start #25 Runtime.evaluate globalThis.__shikiCopyCapture ?? ''
-[verify-edit:cdp] 2026-06-24T04:45:20.671Z done #25
-[verify-edit:cdp] 2026-06-24T04:45:20.672Z start #26 Runtime.evaluate (() => { const block = (document.querySelector('.workspace-leaf.mod-active') ?? document).queryS
-[verify-edit:cdp] 2026-06-24T04:45:20.672Z done #26
-[verify-edit:cdp] 2026-06-24T04:45:20.673Z start #27 Runtime.evaluate (() => { const container = (document.querySelector('.workspace-leaf.mod-active') ?? document).que
-[verify-edit:cdp] 2026-06-24T04:45:20.673Z done #27
-[verify-edit:cdp] 2026-06-24T04:45:20.673Z start #28 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; const 
-[verify-edit:cdp] 2026-06-24T04:45:20.677Z done #28
-[verify-edit:cdp] 2026-06-24T04:45:20.677Z start #29 Input.dispatchMouseEvent 
-[verify-edit:cdp] 2026-06-24T04:45:20.935Z done #29
-[verify-edit:cdp] 2026-06-24T04:45:20.935Z start #30 Input.dispatchMouseEvent 
-[verify-edit:cdp] 2026-06-24T04:45:20.994Z done #30
-[verify-edit:cdp] 2026-06-24T04:45:21.114Z start #31 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; const 
-[verify-edit:cdp] 2026-06-24T04:45:21.115Z done #31
-[verify-edit:cdp] 2026-06-24T04:45:21.115Z start #32 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; const 
-[verify-edit:cdp] 2026-06-24T04:45:21.116Z done #32
-[verify-edit:cdp] 2026-06-24T04:45:21.116Z start #33 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
-[verify-edit:cdp] 2026-06-24T04:45:21.118Z done #33
-[verify-edit:cdp] 2026-06-24T04:45:21.118Z start #34 Input.dispatchMouseEvent 
-[verify-edit:cdp] 2026-06-24T04:45:21.127Z done #34
-[verify-edit:cdp] 2026-06-24T04:45:21.128Z start #35 Input.dispatchMouseEvent 
-[verify-edit:cdp] 2026-06-24T04:45:21.175Z done #35
-[verify-edit:cdp] 2026-06-24T04:45:21.175Z start #36 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
-[verify-edit:cdp] 2026-06-24T04:45:21.176Z done #36
-[verify-edit:cdp] 2026-06-24T04:45:21.176Z start #37 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
-[verify-edit:cdp] 2026-06-24T04:45:21.178Z done #37
-[verify-edit:cdp] 2026-06-24T04:45:21.178Z start #38 Input.dispatchMouseEvent 
-[verify-edit:cdp] 2026-06-24T04:45:21.184Z done #38
-[verify-edit:cdp] 2026-06-24T04:45:21.184Z start #39 Input.dispatchMouseEvent 
-[verify-edit:cdp] 2026-06-24T04:45:21.209Z done #39
-[verify-edit:cdp] 2026-06-24T04:45:21.210Z start #40 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
-[verify-edit:cdp] 2026-06-24T04:45:21.210Z done #40
-[verify-edit:cdp] 2026-06-24T04:45:21.211Z start #41 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
-[verify-edit:cdp] 2026-06-24T04:45:21.213Z done #41
-[verify-edit:cdp] 2026-06-24T04:45:21.213Z start #42 Input.dispatchMouseEvent 
-[verify-edit:cdp] 2026-06-24T04:45:21.248Z done #42
-[verify-edit:cdp] 2026-06-24T04:45:21.248Z start #43 Input.dispatchMouseEvent 
-[verify-edit:cdp] 2026-06-24T04:45:21.297Z done #43
-[verify-edit:cdp] 2026-06-24T04:45:21.297Z start #44 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
-[verify-edit:cdp] 2026-06-24T04:45:21.298Z done #44
-[verify-edit:cdp] 2026-06-24T04:45:21.298Z start #45 Input.insertText 
-[verify-edit:cdp] 2026-06-24T04:45:21.516Z done #45
-[verify-edit:cdp] 2026-06-24T04:45:21.638Z start #46 Runtime.evaluate (async () => { const file = app.vault.getAbstractFileByPath("Editable code block runtime.md"); 
-[verify-edit:cdp] 2026-06-24T04:45:21.642Z done #46
-[verify-edit:cdp] 2026-06-24T04:45:21.642Z start #47 Runtime.evaluate (() => { const activeRoot = document.querySelector('.workspace-leaf.mod-active') ?? document; 
-[verify-edit:cdp] 2026-06-24T04:45:21.644Z done #47
-[verify-edit:cdp] 2026-06-24T04:45:21.644Z start #48 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
-[verify-edit:cdp] 2026-06-24T04:45:21.645Z done #48
-[verify-edit:cdp] 2026-06-24T04:45:21.645Z start #49 Runtime.evaluate (() => { const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codebl
-[verify-edit:cdp] 2026-06-24T04:45:21.647Z done #49
-[verify-edit:cdp] 2026-06-24T04:45:21.748Z start #50 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
-[verify-edit:cdp] 2026-06-24T04:45:21.749Z done #50
-[verify-edit:cdp] 2026-06-24T04:45:21.749Z start #51 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
-[verify-edit:cdp] 2026-06-24T04:45:21.749Z done #51
-[verify-edit:cdp] 2026-06-24T04:45:21.750Z start #52 Runtime.evaluate (() => { const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codebl
-[verify-edit:cdp] 2026-06-24T04:45:21.751Z done #52
-[verify-edit:cdp] 2026-06-24T04:45:21.854Z start #53 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
-[verify-edit:cdp] 2026-06-24T04:45:21.856Z done #53
-[verify-edit:cdp] 2026-06-24T04:45:21.856Z start #54 Runtime.evaluate (() => { const activeLeaf = document.querySelector('.workspace-leaf.mod-active') ?? document; 
-[verify-edit:cdp] 2026-06-24T04:45:21.859Z done #54
-[verify-edit:cdp] 2026-06-24T04:45:21.859Z start #55 Runtime.evaluate (async () => { window.app?.emulateMobile?.(true); window.dispatchEvent(new Event('resize')
-[verify-edit:cdp] 2026-06-24T04:45:22.189Z done #55
-[verify-edit:cdp] 2026-06-24T04:45:22.189Z start #56 Runtime.evaluate Boolean(document.body.classList.contains('is-phone') || app.isMobile)
-[verify-edit:cdp] 2026-06-24T04:45:22.229Z done #56
-[verify-edit:cdp] 2026-06-24T04:45:22.229Z start #57 Runtime.evaluate Boolean(globalThis.app?.workspace && globalThis.app?.vault)
-[verify-edit:cdp] 2026-06-24T04:45:22.524Z done #57
-[verify-edit:cdp] 2026-06-24T04:45:22.625Z start #58 Runtime.evaluate Boolean(globalThis.app?.workspace && globalThis.app?.vault)
-[verify-edit:cdp] 2026-06-24T04:45:23.057Z done #58
-[verify-edit:cdp] 2026-06-24T04:45:23.159Z start #59 Runtime.evaluate Boolean(globalThis.app?.workspace && globalThis.app?.vault)
-[verify-edit:cdp] 2026-06-24T04:45:23.179Z done #59
-[verify-edit:cdp] 2026-06-24T04:45:23.179Z start #60 Runtime.evaluate globalThis.__shikiOpenNoteArgs_1782276323179_0ebfb7wk8hfs = {"content":"# PyCharm Django Console fix
-[verify-edit:cdp] 2026-06-24T04:45:23.182Z done #60
-[verify-edit:cdp] 2026-06-24T04:45:23.182Z start #61 Runtime.evaluate (async () => { const args = globalThis.__shikiOpenNoteArgs_1782276323179_0ebfb7wk8hfs; try { 
-[verify-edit:cdp] 2026-06-24T04:45:23.605Z done #61
-[verify-edit:cdp] 2026-06-24T04:45:25.608Z start #62 Runtime.evaluate JSON.stringify(window.__shikiDiag ?? { missing: true })
-[verify-edit:cdp] 2026-06-24T04:45:25.802Z done #62
-[verify-edit:cdp] 2026-06-24T04:45:25.802Z start #63 Runtime.evaluate JSON.stringify({ allMonacoBlocks: (document.querySelector('.workspace-leaf.mod-active') ?? documen
-[verify-edit:cdp] 2026-06-24T04:45:25.803Z done #63
-[verify-edit:cdp] 2026-06-24T04:45:25.803Z start #64 Runtime.evaluate (async () => { const state = () => ({ reading: Boolean(document.querySelector('.markdown-read
-[verify-edit:cdp] 2026-06-24T04:45:25.809Z done #64
-[verify-edit:cdp] 2026-06-24T04:45:25.809Z start #65 Runtime.evaluate (() => { const container = (document.querySelector('.workspace-leaf.mod-active') ?? document).que
-[verify-edit:cdp] 2026-06-24T04:45:25.812Z done #65
-[verify-edit:cdp] 2026-06-24T04:45:26.064Z start #66 Runtime.evaluate (() => { const container = (document.querySelector('.workspace-leaf.mod-active') ?? document).que
-[verify-edit:cdp] 2026-06-24T04:45:26.179Z done #66
-[verify-edit:cdp] 2026-06-24T04:45:26.179Z start #67 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.view
-[verify-edit:cdp] 2026-06-24T04:45:26.180Z done #67
-[verify-edit:cdp] 2026-06-24T04:45:26.279Z start #68 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.vie
-[verify-edit:cdp] 2026-06-24T04:45:26.280Z done #68
-[verify-edit:cdp] 2026-06-24T04:45:26.280Z start #69 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.vie
-[verify-edit:cdp] 2026-06-24T04:45:26.328Z done #69
-[verify-edit:cdp] 2026-06-24T04:45:26.431Z start #70 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.vie
-[verify-edit:cdp] 2026-06-24T04:45:26.432Z done #70
-[verify-edit:cdp] 2026-06-24T04:45:26.432Z start #71 Runtime.evaluate (() => { try { const container = (document.querySelector('.workspace-leaf.mod-active') ?? doc
-[verify-edit:cdp] 2026-06-24T04:45:26.441Z done #71
-[verify-edit:cdp] 2026-06-24T04:45:27.043Z start #72 Runtime.evaluate JSON.stringify(window.__shikiMonacoActivationLog ?? [])
-[verify-edit:cdp] 2026-06-24T04:45:27.044Z done #72
-[verify-edit:cdp] 2026-06-24T04:45:27.044Z start #73 Runtime.evaluate (() => { const activeLeaf = document.querySelector('.workspace-leaf.mod-active') ?? document; 
-[verify-edit:cdp] 2026-06-24T04:45:27.046Z done #73
-[verify-edit:cdp] 2026-06-24T04:45:27.046Z start #74 Runtime.evaluate (() => { const hosts = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).quer
-[verify-edit:cdp] 2026-06-24T04:45:27.069Z done #74
-[verify-edit:cdp] 2026-06-24T04:45:27.070Z start #75 Input.dispatchKeyEvent 
-[verify-edit:cdp] 2026-06-24T04:45:27.094Z done #75
-[verify-edit:cdp] 2026-06-24T04:45:27.094Z start #76 Input.dispatchKeyEvent 
-[verify-edit:cdp] 2026-06-24T04:45:27.096Z done #76
-[verify-edit:cdp] 2026-06-24T04:45:27.197Z start #77 Runtime.evaluate globalThis.__shikiCopyCapture ?? ''
-[verify-edit:cdp] 2026-06-24T04:45:27.198Z done #77
-[verify-edit:cdp] 2026-06-24T04:45:27.199Z start #78 Runtime.evaluate (() => { const host = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).query
-[verify-edit:cdp] 2026-06-24T04:45:27.201Z done #78
-[verify-edit:cdp] 2026-06-24T04:45:27.201Z start #79 Runtime.evaluate (() => { const toolbar = document.querySelector('.shiki-monaco-selection-toolbar'); const button
-[verify-edit:cdp] 2026-06-24T04:45:27.202Z done #79
-[verify-edit:cdp] 2026-06-24T04:45:27.203Z start #80 Runtime.evaluate (() => { const toolbar = document.querySelector('.shiki-monaco-selection-toolbar'); const button
-[verify-edit:cdp] 2026-06-24T04:45:27.203Z done #80
-[verify-edit:cdp] 2026-06-24T04:45:27.203Z start #81 Runtime.evaluate (() => { const wanted = ["all","select all","select all"]; const button = [...document.querySele
-[verify-edit:cdp] 2026-06-24T04:45:27.233Z done #81
-[verify-edit:cdp] 2026-06-24T04:45:27.385Z start #82 Runtime.evaluate (() => { const host = document.querySelector('.shiki-monaco-block.shiki-monaco-active, .shiki-mon
-[verify-edit:cdp] 2026-06-24T04:45:27.387Z done #82
-[verify-edit:cdp] 2026-06-24T04:45:27.387Z start #83 Runtime.evaluate (() => { const editor = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).que
-[verify-edit:cdp] 2026-06-24T04:45:27.388Z done #83
-[verify-edit:cdp] 2026-06-24T04:45:27.388Z start #84 Runtime.evaluate (() => { const toolbar = document.querySelector('.shiki-monaco-selection-toolbar'); const button
-[verify-edit:cdp] 2026-06-24T04:45:27.389Z done #84
-[verify-edit:cdp] 2026-06-24T04:45:27.390Z start #85 Runtime.evaluate (() => { const wanted = ["clear"]; const button = [...document.querySelectorAll('.shiki-monaco-s
-[verify-edit:cdp] 2026-06-24T04:45:27.411Z done #85
-[verify-edit:cdp] 2026-06-24T04:45:27.562Z start #86 Runtime.evaluate (() => { const editor = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).que
-[verify-edit:cdp] 2026-06-24T04:45:27.563Z done #86
-[verify-edit:cdp] 2026-06-24T04:45:27.564Z start #87 Runtime.evaluate (() => { const host = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).query
-[verify-edit:cdp] 2026-06-24T04:45:27.572Z done #87
-[verify-edit:cdp] 2026-06-24T04:45:27.724Z start #88 Runtime.evaluate (() => { const host = document.querySelector('.shiki-monaco-block.shiki-monaco-active, .shiki-mon
-[verify-edit:cdp] 2026-06-24T04:45:27.799Z done #88
-[verify-edit:cdp] 2026-06-24T04:45:27.800Z start #89 Runtime.evaluate (() => { const host = document.querySelector('.shiki-monaco-block.shiki-monaco-active, .shiki-mo
-[verify-edit:cdp] 2026-06-24T04:45:27.801Z done #89
-[verify-edit:cdp] 2026-06-24T04:45:27.801Z start #90 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
-[verify-edit:cdp] 2026-06-24T04:45:27.806Z done #90
-[verify-edit:cdp] 2026-06-24T04:45:27.806Z start #91 Runtime.evaluate (() => { const point = { x: 478, y: 495 }; const target = document.elementFromPoint(point.x, p
-[verify-edit:cdp] 2026-06-24T04:45:27.809Z done #91
-[verify-edit:cdp] 2026-06-24T04:45:28.231Z start #92 Runtime.evaluate (() => { const host = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySe
-[verify-edit:cdp] 2026-06-24T04:45:28.233Z done #92
-[verify-edit:cdp] 2026-06-24T04:45:28.233Z start #93 Runtime.evaluate (() => { const point = { x: 478, y: 485.6875 }; const host = (document.querySelector('.works
-[verify-edit:cdp] 2026-06-24T04:45:28.253Z done #93
-[verify-edit:cdp] 2026-06-24T04:45:28.498Z start #94 Runtime.evaluate (() => { const block = (document.querySelector('.workspace-leaf.mod-active') ?? document).queryS
-[verify-edit:cdp] 2026-06-24T04:45:28.500Z done #94
-[verify-edit:cdp] 2026-06-24T04:45:28.500Z start #95 Runtime.evaluate (() => { window.__shikiMonacoDeactivationTrace = []; return true; })()
-[verify-edit:cdp] 2026-06-24T04:45:28.500Z done #95
-[verify-edit:cdp] 2026-06-24T04:45:28.500Z start #96 Input.insertText 
-[verify-edit:cdp] 2026-06-24T04:45:28.579Z done #96
-[verify-edit:cdp] 2026-06-24T04:45:28.702Z start #97 Runtime.evaluate (() => { const editor = (document.querySelector('.workspace-leaf.mod-active') ?? document).query
-[verify-edit:cdp] 2026-06-24T04:45:28.703Z done #97
-[verify-edit:cdp] 2026-06-24T04:45:28.704Z start #98 Runtime.evaluate (async () => { const file = app.workspace.getActiveFile?.(); const content = file ? await ap
-[verify-edit:cdp] 2026-06-24T04:45:28.709Z done #98
-[verify-edit:cdp] 2026-06-24T04:45:28.709Z start #99 Runtime.evaluate (() => { const activeRoot = document.querySelector('.workspace-leaf.mod-active') ?? document; 
-[verify-edit:cdp] 2026-06-24T04:45:28.711Z done #99
-[verify-edit:cdp] 2026-06-24T04:45:28.711Z start #100 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
-[verify-edit:cdp] 2026-06-24T04:45:28.712Z done #100
-[verify-edit:cdp] 2026-06-24T04:45:28.712Z start #101 Runtime.evaluate (() => { const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codebl
-[verify-edit:cdp] 2026-06-24T04:45:28.713Z done #101
-[verify-edit:cdp] 2026-06-24T04:45:28.814Z start #102 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
-[verify-edit:cdp] 2026-06-24T04:45:28.815Z done #102
-[verify-edit:cdp] 2026-06-24T04:45:28.815Z start #103 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
-[verify-edit:cdp] 2026-06-24T04:45:28.816Z done #103
-[verify-edit:cdp] 2026-06-24T04:45:28.816Z start #104 Runtime.evaluate (() => { const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codebl
-[verify-edit:cdp] 2026-06-24T04:45:28.817Z done #104
-[verify-edit:cdp] 2026-06-24T04:45:28.919Z start #105 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
-[verify-edit:cdp] 2026-06-24T04:45:28.922Z done #105
-[verify-edit:cdp] 2026-06-24T04:45:28.922Z start #106 Runtime.evaluate (() => { const block = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelec
-[verify-edit:cdp] 2026-06-24T04:45:28.923Z done #106
-[verify-edit:cdp] 2026-06-24T04:45:28.923Z start #107 Runtime.evaluate (() => { const activeRoot = document.querySelector('.workspace-leaf.mod-active') ?? document; 
-[verify-edit:cdp] 2026-06-24T04:45:28.924Z done #107
-[verify-edit:cdp] 2026-06-24T04:45:28.924Z start #108 Runtime.evaluate (() => { const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codebl
-[verify-edit:cdp] 2026-06-24T04:45:28.926Z done #108
-[verify-edit:cdp] 2026-06-24T04:45:29.077Z start #109 Runtime.evaluate (() => { const activeRoot = document.querySelector('.workspace-leaf.mod-active') ?? document; 
-[verify-edit:cdp] 2026-06-24T04:45:29.179Z done #109
-[verify-edit:cdp] 2026-06-24T04:45:29.179Z start #110 Runtime.evaluate (() => { const activeLeaf = document.querySelector('.workspace-leaf.mod-active') ?? document; 
-[verify-edit:cdp] 2026-06-24T04:45:29.180Z done #110
-[verify-edit:cdp] 2026-06-24T04:45:29.180Z start #111 Runtime.evaluate (async () => { const view = app.workspace.activeLeaf?.view; view?.requestSave?.(); await
-[verify-edit:cdp] 2026-06-24T04:45:29.181Z done #111
+[verify-edit:cdp] 2026-06-24T05:20:56.083Z done #1
+[verify-edit:cdp] 2026-06-24T05:20:56.091Z done #2
+[verify-edit:cdp] 2026-06-24T05:20:56.091Z start #3 Runtime.evaluate Boolean(globalThis.app?.workspace && globalThis.app?.vault)
+[verify-edit:cdp] 2026-06-24T05:20:56.095Z done #3
+[verify-edit:cdp] 2026-06-24T05:20:56.095Z start #4 Runtime.evaluate Boolean(window.app?.workspace && app.plugins)
+[verify-edit:cdp] 2026-06-24T05:20:56.097Z done #4
+[verify-edit:cdp] 2026-06-24T05:20:56.097Z start #5 Runtime.evaluate (async () => { await app.plugins.loadManifests?.(); if (!app.plugins.getPlugin?.("shiki-high
+[verify-edit:cdp] 2026-06-24T05:20:56.250Z done #5
+[verify-edit:cdp] 2026-06-24T05:20:56.250Z start #6 Runtime.evaluate Boolean(app.plugins?.enabledPlugins?.has("shiki-highlighter"))
+[verify-edit:cdp] 2026-06-24T05:20:56.255Z done #6
+[verify-edit:cdp] 2026-06-24T05:20:56.255Z start #7 Runtime.evaluate (() => { const plugin = app.plugins.getPlugin?.("shiki-highlighter") ?? app.plugins.plugins?.["s
+[verify-edit:cdp] 2026-06-24T05:20:56.258Z done #7
+[verify-edit:cdp] 2026-06-24T05:20:56.259Z start #8 Runtime.evaluate Boolean(globalThis.app?.workspace && globalThis.app?.vault)
+[verify-edit:cdp] 2026-06-24T05:20:56.259Z done #8
+[verify-edit:cdp] 2026-06-24T05:20:56.260Z start #9 Runtime.evaluate globalThis.__shikiOpenNoteArgs_1782278456260_s4uu8q8nua = {"content":"# PyCharm Django Console fixes
+[verify-edit:cdp] 2026-06-24T05:20:56.263Z done #9
+[verify-edit:cdp] 2026-06-24T05:20:56.263Z start #10 Runtime.evaluate (async () => { const args = globalThis.__shikiOpenNoteArgs_1782278456260_s4uu8q8nua; try { 
+[verify-edit:cdp] 2026-06-24T05:20:56.719Z done #10
+[verify-edit:cdp] 2026-06-24T05:20:58.721Z start #11 Runtime.evaluate JSON.stringify(window.__shikiDiag ?? { missing: true })
+[verify-edit:cdp] 2026-06-24T05:20:58.725Z done #11
+[verify-edit:cdp] 2026-06-24T05:20:58.725Z start #12 Runtime.evaluate JSON.stringify({ allMonacoBlocks: (document.querySelector('.workspace-leaf.mod-active') ?? documen
+[verify-edit:cdp] 2026-06-24T05:20:58.730Z done #12
+[verify-edit:cdp] 2026-06-24T05:20:58.731Z start #13 Runtime.evaluate (async () => { const state = () => ({ reading: Boolean(document.querySelector('.markdown-read
+[verify-edit:cdp] 2026-06-24T05:20:58.733Z done #13
+[verify-edit:cdp] 2026-06-24T05:20:58.733Z start #14 Runtime.evaluate (() => { const container = (document.querySelector('.workspace-leaf.mod-active') ?? document).que
+[verify-edit:cdp] 2026-06-24T05:20:58.740Z done #14
+[verify-edit:cdp] 2026-06-24T05:20:58.740Z start #15 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.view
+[verify-edit:cdp] 2026-06-24T05:20:58.741Z done #15
+[verify-edit:cdp] 2026-06-24T05:20:58.843Z start #16 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.vie
+[verify-edit:cdp] 2026-06-24T05:20:58.844Z done #16
+[verify-edit:cdp] 2026-06-24T05:20:58.844Z start #17 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.vie
+[verify-edit:cdp] 2026-06-24T05:20:58.883Z done #17
+[verify-edit:cdp] 2026-06-24T05:20:58.984Z start #18 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.vie
+[verify-edit:cdp] 2026-06-24T05:20:58.986Z done #18
+[verify-edit:cdp] 2026-06-24T05:20:58.986Z start #19 Runtime.evaluate (() => { try { const container = (document.querySelector('.workspace-leaf.mod-active') ?? doc
+[verify-edit:cdp] 2026-06-24T05:20:58.998Z done #19
+[verify-edit:cdp] 2026-06-24T05:20:59.601Z start #20 Runtime.evaluate JSON.stringify(window.__shikiMonacoActivationLog ?? [])
+[verify-edit:cdp] 2026-06-24T05:20:59.602Z done #20
+[verify-edit:cdp] 2026-06-24T05:20:59.602Z start #21 Runtime.evaluate (() => { const activeLeaf = document.querySelector('.workspace-leaf.mod-active') ?? document; 
+[verify-edit:cdp] 2026-06-24T05:20:59.604Z done #21
+[verify-edit:cdp] 2026-06-24T05:20:59.604Z start #22 Runtime.evaluate (() => { const hosts = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).quer
+[verify-edit:cdp] 2026-06-24T05:20:59.642Z done #22
+[verify-edit:cdp] 2026-06-24T05:20:59.642Z start #23 Input.dispatchKeyEvent 
+[verify-edit:cdp] 2026-06-24T05:20:59.704Z done #23
+[verify-edit:cdp] 2026-06-24T05:20:59.704Z start #24 Input.dispatchKeyEvent 
+[verify-edit:cdp] 2026-06-24T05:20:59.706Z done #24
+[verify-edit:cdp] 2026-06-24T05:20:59.808Z start #25 Runtime.evaluate globalThis.__shikiCopyCapture ?? ''
+[verify-edit:cdp] 2026-06-24T05:20:59.809Z done #25
+[verify-edit:cdp] 2026-06-24T05:20:59.809Z start #26 Runtime.evaluate (() => { const block = (document.querySelector('.workspace-leaf.mod-active') ?? document).queryS
+[verify-edit:cdp] 2026-06-24T05:20:59.811Z done #26
+[verify-edit:cdp] 2026-06-24T05:20:59.811Z start #27 Runtime.evaluate (() => { const container = (document.querySelector('.workspace-leaf.mod-active') ?? document).que
+[verify-edit:cdp] 2026-06-24T05:20:59.811Z done #27
+[verify-edit:cdp] 2026-06-24T05:20:59.812Z start #28 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; const 
+[verify-edit:cdp] 2026-06-24T05:20:59.819Z done #28
+[verify-edit:cdp] 2026-06-24T05:20:59.819Z start #29 Input.dispatchMouseEvent 
+[verify-edit:cdp] 2026-06-24T05:20:59.859Z done #29
+[verify-edit:cdp] 2026-06-24T05:20:59.859Z start #30 Input.dispatchMouseEvent 
+[verify-edit:cdp] 2026-06-24T05:20:59.937Z done #30
+[verify-edit:cdp] 2026-06-24T05:21:00.059Z start #31 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; const 
+[verify-edit:cdp] 2026-06-24T05:21:00.065Z done #31
+[verify-edit:cdp] 2026-06-24T05:21:00.065Z start #32 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; const 
+[verify-edit:cdp] 2026-06-24T05:21:00.067Z done #32
+[verify-edit:cdp] 2026-06-24T05:21:00.067Z start #33 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
+[verify-edit:cdp] 2026-06-24T05:21:00.111Z done #33
+[verify-edit:cdp] 2026-06-24T05:21:00.111Z start #34 Input.dispatchMouseEvent 
+[verify-edit:cdp] 2026-06-24T05:21:00.224Z done #34
+[verify-edit:cdp] 2026-06-24T05:21:00.224Z start #35 Input.dispatchMouseEvent 
+[verify-edit:cdp] 2026-06-24T05:21:00.394Z done #35
+[verify-edit:cdp] 2026-06-24T05:21:00.394Z start #36 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
+[verify-edit:cdp] 2026-06-24T05:21:00.427Z done #36
+[verify-edit:cdp] 2026-06-24T05:21:00.427Z start #37 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
+[verify-edit:cdp] 2026-06-24T05:21:00.483Z done #37
+[verify-edit:cdp] 2026-06-24T05:21:00.483Z start #38 Input.dispatchMouseEvent 
+[verify-edit:cdp] 2026-06-24T05:21:00.536Z done #38
+[verify-edit:cdp] 2026-06-24T05:21:00.536Z start #39 Input.dispatchMouseEvent 
+[verify-edit:cdp] 2026-06-24T05:21:00.685Z done #39
+[verify-edit:cdp] 2026-06-24T05:21:00.685Z start #40 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
+[verify-edit:cdp] 2026-06-24T05:21:00.686Z done #40
+[verify-edit:cdp] 2026-06-24T05:21:00.686Z start #41 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
+[verify-edit:cdp] 2026-06-24T05:21:00.690Z done #41
+[verify-edit:cdp] 2026-06-24T05:21:00.690Z start #42 Input.dispatchMouseEvent 
+[verify-edit:cdp] 2026-06-24T05:21:00.694Z done #42
+[verify-edit:cdp] 2026-06-24T05:21:00.694Z start #43 Input.dispatchMouseEvent 
+[verify-edit:cdp] 2026-06-24T05:21:00.995Z done #43
+[verify-edit:cdp] 2026-06-24T05:21:00.995Z start #44 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
+[verify-edit:cdp] 2026-06-24T05:21:01.010Z done #44
+[verify-edit:cdp] 2026-06-24T05:21:01.010Z start #45 Input.insertText 
+[verify-edit:cdp] 2026-06-24T05:21:01.854Z done #45
+[verify-edit:cdp] 2026-06-24T05:21:01.976Z start #46 Runtime.evaluate (async () => { const file = app.vault.getAbstractFileByPath("Editable code block runtime.md"); 
+[verify-edit:cdp] 2026-06-24T05:21:02.096Z done #46
+[verify-edit:cdp] 2026-06-24T05:21:02.096Z start #47 Runtime.evaluate (() => { const activeRoot = document.querySelector('.workspace-leaf.mod-active') ?? document; 
+[verify-edit:cdp] 2026-06-24T05:21:02.209Z done #47
+[verify-edit:cdp] 2026-06-24T05:21:02.209Z start #48 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
+[verify-edit:cdp] 2026-06-24T05:21:02.280Z done #48
+[verify-edit:cdp] 2026-06-24T05:21:02.280Z start #49 Runtime.evaluate (() => { const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codebl
+[verify-edit:cdp] 2026-06-24T05:21:02.359Z done #49
+[verify-edit:cdp] 2026-06-24T05:21:02.462Z start #50 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
+[verify-edit:cdp] 2026-06-24T05:21:02.538Z done #50
+[verify-edit:cdp] 2026-06-24T05:21:02.539Z start #51 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
+[verify-edit:cdp] 2026-06-24T05:21:02.560Z done #51
+[verify-edit:cdp] 2026-06-24T05:21:02.560Z start #52 Runtime.evaluate (() => { const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codebl
+[verify-edit:cdp] 2026-06-24T05:21:02.563Z done #52
+[verify-edit:cdp] 2026-06-24T05:21:02.666Z start #53 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
+[verify-edit:cdp] 2026-06-24T05:21:02.667Z done #53
+[verify-edit:cdp] 2026-06-24T05:21:02.667Z start #54 Runtime.evaluate (() => { const activeLeaf = document.querySelector('.workspace-leaf.mod-active') ?? document; 
+[verify-edit:cdp] 2026-06-24T05:21:02.669Z done #54
+[verify-edit:cdp] 2026-06-24T05:21:02.669Z start #55 Runtime.evaluate (async () => { window.app?.emulateMobile?.(true); window.dispatchEvent(new Event('resize')
+[verify-edit:cdp] 2026-06-24T05:21:02.695Z done #55
+[verify-edit:cdp] 2026-06-24T05:21:02.695Z start #56 Runtime.evaluate Boolean(document.body.classList.contains('is-phone') || app.isMobile)
+[verify-edit:cdp] 2026-06-24T05:21:02.726Z done #56
+[verify-edit:cdp] 2026-06-24T05:21:02.726Z start #57 Runtime.evaluate Boolean(globalThis.app?.workspace && globalThis.app?.vault)
+[verify-edit:cdp] 2026-06-24T05:21:03.421Z done #57
+[verify-edit:cdp] 2026-06-24T05:21:03.523Z start #58 Runtime.evaluate Boolean(globalThis.app?.workspace && globalThis.app?.vault)
+[verify-edit:cdp] 2026-06-24T05:21:03.868Z done #58
+[verify-edit:cdp] 2026-06-24T05:21:03.969Z start #59 Runtime.evaluate Boolean(globalThis.app?.workspace && globalThis.app?.vault)
+[verify-edit:cdp] 2026-06-24T05:21:03.987Z done #59
+[verify-edit:cdp] 2026-06-24T05:21:03.987Z start #60 Runtime.evaluate globalThis.__shikiOpenNoteArgs_1782278463987_osi3zu6ax7a = {"content":"# PyCharm Django Console fixe
+[verify-edit:cdp] 2026-06-24T05:21:03.992Z done #60
+[verify-edit:cdp] 2026-06-24T05:21:03.992Z start #61 Runtime.evaluate (async () => { const args = globalThis.__shikiOpenNoteArgs_1782278463987_osi3zu6ax7a; try { 
+[verify-edit:cdp] 2026-06-24T05:21:04.512Z done #61
+[verify-edit:cdp] 2026-06-24T05:21:06.514Z start #62 Runtime.evaluate JSON.stringify(window.__shikiDiag ?? { missing: true })
+[verify-edit:cdp] 2026-06-24T05:21:06.713Z done #62
+[verify-edit:cdp] 2026-06-24T05:21:06.714Z start #63 Runtime.evaluate JSON.stringify({ allMonacoBlocks: (document.querySelector('.workspace-leaf.mod-active') ?? documen
+[verify-edit:cdp] 2026-06-24T05:21:06.718Z done #63
+[verify-edit:cdp] 2026-06-24T05:21:06.718Z start #64 Runtime.evaluate (async () => { const state = () => ({ reading: Boolean(document.querySelector('.markdown-read
+[verify-edit:cdp] 2026-06-24T05:21:06.820Z done #64
+[verify-edit:cdp] 2026-06-24T05:21:06.820Z start #65 Runtime.evaluate (() => { const container = (document.querySelector('.workspace-leaf.mod-active') ?? document).que
+[verify-edit:cdp] 2026-06-24T05:21:06.907Z done #65
+[verify-edit:cdp] 2026-06-24T05:21:07.159Z start #66 Runtime.evaluate (() => { const container = (document.querySelector('.workspace-leaf.mod-active') ?? document).que
+[verify-edit:cdp] 2026-06-24T05:21:07.160Z done #66
+[verify-edit:cdp] 2026-06-24T05:21:07.160Z start #67 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.view
+[verify-edit:cdp] 2026-06-24T05:21:07.161Z done #67
+[verify-edit:cdp] 2026-06-24T05:21:07.263Z start #68 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.vie
+[verify-edit:cdp] 2026-06-24T05:21:07.266Z done #68
+[verify-edit:cdp] 2026-06-24T05:21:07.266Z start #69 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.vie
+[verify-edit:cdp] 2026-06-24T05:21:07.315Z done #69
+[verify-edit:cdp] 2026-06-24T05:21:07.418Z start #70 Runtime.evaluate (() => { const activeEditor = app.workspace.activeEditor?.editor ?? app.workspace.activeLeaf?.vie
+[verify-edit:cdp] 2026-06-24T05:21:07.419Z done #70
+[verify-edit:cdp] 2026-06-24T05:21:07.419Z start #71 Runtime.evaluate (() => { try { const container = (document.querySelector('.workspace-leaf.mod-active') ?? doc
+[verify-edit:cdp] 2026-06-24T05:21:07.427Z done #71
+[verify-edit:cdp] 2026-06-24T05:21:08.027Z start #72 Runtime.evaluate JSON.stringify(window.__shikiMonacoActivationLog ?? [])
+[verify-edit:cdp] 2026-06-24T05:21:08.028Z done #72
+[verify-edit:cdp] 2026-06-24T05:21:08.028Z start #73 Runtime.evaluate (() => { const activeLeaf = document.querySelector('.workspace-leaf.mod-active') ?? document; 
+[verify-edit:cdp] 2026-06-24T05:21:08.030Z done #73
+[verify-edit:cdp] 2026-06-24T05:21:08.030Z start #74 Runtime.evaluate (() => { const hosts = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).quer
+[verify-edit:cdp] 2026-06-24T05:21:08.051Z done #74
+[verify-edit:cdp] 2026-06-24T05:21:08.051Z start #75 Input.dispatchKeyEvent 
+[verify-edit:cdp] 2026-06-24T05:21:08.071Z done #75
+[verify-edit:cdp] 2026-06-24T05:21:08.071Z start #76 Input.dispatchKeyEvent 
+[verify-edit:cdp] 2026-06-24T05:21:08.072Z done #76
+[verify-edit:cdp] 2026-06-24T05:21:08.175Z start #77 Runtime.evaluate globalThis.__shikiCopyCapture ?? ''
+[verify-edit:cdp] 2026-06-24T05:21:08.175Z done #77
+[verify-edit:cdp] 2026-06-24T05:21:08.176Z start #78 Runtime.evaluate (() => { const host = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).query
+[verify-edit:cdp] 2026-06-24T05:21:08.178Z done #78
+[verify-edit:cdp] 2026-06-24T05:21:08.178Z start #79 Runtime.evaluate (() => { const toolbar = document.querySelector('.shiki-monaco-selection-toolbar'); const button
+[verify-edit:cdp] 2026-06-24T05:21:08.179Z done #79
+[verify-edit:cdp] 2026-06-24T05:21:08.179Z start #80 Runtime.evaluate (() => { const toolbar = document.querySelector('.shiki-monaco-selection-toolbar'); const button
+[verify-edit:cdp] 2026-06-24T05:21:08.180Z done #80
+[verify-edit:cdp] 2026-06-24T05:21:08.180Z start #81 Runtime.evaluate (() => { const wanted = ["all","select all","select all"]; const button = [...document.querySele
+[verify-edit:cdp] 2026-06-24T05:21:08.209Z done #81
+[verify-edit:cdp] 2026-06-24T05:21:08.361Z start #82 Runtime.evaluate (() => { const host = document.querySelector('.shiki-monaco-block.shiki-monaco-active, .shiki-mon
+[verify-edit:cdp] 2026-06-24T05:21:08.363Z done #82
+[verify-edit:cdp] 2026-06-24T05:21:08.363Z start #83 Runtime.evaluate (() => { const editor = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).que
+[verify-edit:cdp] 2026-06-24T05:21:08.364Z done #83
+[verify-edit:cdp] 2026-06-24T05:21:08.364Z start #84 Runtime.evaluate (() => { const toolbar = document.querySelector('.shiki-monaco-selection-toolbar'); const button
+[verify-edit:cdp] 2026-06-24T05:21:08.366Z done #84
+[verify-edit:cdp] 2026-06-24T05:21:08.366Z start #85 Runtime.evaluate (() => { const wanted = ["clear"]; const button = [...document.querySelectorAll('.shiki-monaco-s
+[verify-edit:cdp] 2026-06-24T05:21:08.390Z done #85
+[verify-edit:cdp] 2026-06-24T05:21:08.542Z start #86 Runtime.evaluate (() => { const editor = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).que
+[verify-edit:cdp] 2026-06-24T05:21:08.544Z done #86
+[verify-edit:cdp] 2026-06-24T05:21:08.544Z start #87 Runtime.evaluate (() => { const host = [...(document.querySelector('.workspace-leaf.mod-active') ?? document).query
+[verify-edit:cdp] 2026-06-24T05:21:08.551Z done #87
+[verify-edit:cdp] 2026-06-24T05:21:08.703Z start #88 Runtime.evaluate (() => { const host = document.querySelector('.shiki-monaco-block.shiki-monaco-active, .shiki-mon
+[verify-edit:cdp] 2026-06-24T05:21:08.838Z done #88
+[verify-edit:cdp] 2026-06-24T05:21:08.839Z start #89 Runtime.evaluate (() => { const host = document.querySelector('.shiki-monaco-block.shiki-monaco-active, .shiki-mo
+[verify-edit:cdp] 2026-06-24T05:21:08.840Z done #89
+[verify-edit:cdp] 2026-06-24T05:21:08.840Z start #90 Runtime.evaluate (() => { const root = document.querySelector('.workspace-leaf.mod-active') ?? document; cons
+[verify-edit:cdp] 2026-06-24T05:21:08.851Z done #90
+[verify-edit:cdp] 2026-06-24T05:21:08.851Z start #91 Runtime.evaluate (() => { const point = { x: 478, y: 495 }; const target = document.elementFromPoint(point.x, p
+[verify-edit:cdp] 2026-06-24T05:21:08.861Z done #91
+[verify-edit:cdp] 2026-06-24T05:21:09.283Z start #92 Runtime.evaluate (() => { const host = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySe
+[verify-edit:cdp] 2026-06-24T05:21:09.286Z done #92
+[verify-edit:cdp] 2026-06-24T05:21:09.286Z start #93 Runtime.evaluate (() => { const point = { x: 478, y: 485.6875 }; const host = (document.querySelector('.works
+[verify-edit:cdp] 2026-06-24T05:21:09.303Z done #93
+[verify-edit:cdp] 2026-06-24T05:21:09.548Z start #94 Runtime.evaluate (() => { const block = (document.querySelector('.workspace-leaf.mod-active') ?? document).queryS
+[verify-edit:cdp] 2026-06-24T05:21:09.552Z done #94
+[verify-edit:cdp] 2026-06-24T05:21:09.552Z start #95 Runtime.evaluate (() => { window.__shikiMonacoDeactivationTrace = []; return true; })()
+[verify-edit:cdp] 2026-06-24T05:21:09.553Z done #95
+[verify-edit:cdp] 2026-06-24T05:21:09.553Z start #96 Input.insertText 
+[verify-edit:cdp] 2026-06-24T05:21:09.868Z done #96
+[verify-edit:cdp] 2026-06-24T05:21:09.990Z start #97 Runtime.evaluate (() => { const editor = (document.querySelector('.workspace-leaf.mod-active') ?? document).query
+[verify-edit:cdp] 2026-06-24T05:21:10.306Z done #97
+[verify-edit:cdp] 2026-06-24T05:21:10.306Z start #98 Runtime.evaluate (async () => { const file = app.workspace.getActiveFile?.(); const content = file ? await ap
+[verify-edit:cdp] 2026-06-24T05:21:10.307Z done #98
+[verify-edit:cdp] 2026-06-24T05:21:10.308Z start #99 Runtime.evaluate (() => { const activeRoot = document.querySelector('.workspace-leaf.mod-active') ?? document; 
+[verify-edit:cdp] 2026-06-24T05:21:10.315Z done #99
+[verify-edit:cdp] 2026-06-24T05:21:10.315Z start #100 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
+[verify-edit:cdp] 2026-06-24T05:21:10.316Z done #100
+[verify-edit:cdp] 2026-06-24T05:21:10.316Z start #101 Runtime.evaluate (() => { const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codebl
+[verify-edit:cdp] 2026-06-24T05:21:10.317Z done #101
+[verify-edit:cdp] 2026-06-24T05:21:10.419Z start #102 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
+[verify-edit:cdp] 2026-06-24T05:21:10.420Z done #102
+[verify-edit:cdp] 2026-06-24T05:21:10.420Z start #103 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
+[verify-edit:cdp] 2026-06-24T05:21:10.421Z done #103
+[verify-edit:cdp] 2026-06-24T05:21:10.421Z start #104 Runtime.evaluate (() => { const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codebl
+[verify-edit:cdp] 2026-06-24T05:21:10.422Z done #104
+[verify-edit:cdp] 2026-06-24T05:21:10.523Z start #105 Runtime.evaluate (() => { const root = document.querySelector('.markdown-source-view.mod-cm6') ?? document; con
+[verify-edit:cdp] 2026-06-24T05:21:10.524Z done #105
+[verify-edit:cdp] 2026-06-24T05:21:10.524Z start #106 Runtime.evaluate (() => { const block = (document.querySelector('.workspace-leaf.mod-active') ?? document).querySelec
+[verify-edit:cdp] 2026-06-24T05:21:10.525Z done #106
+[verify-edit:cdp] 2026-06-24T05:21:10.525Z start #107 Runtime.evaluate (() => { const activeRoot = document.querySelector('.workspace-leaf.mod-active') ?? document; 
+[verify-edit:cdp] 2026-06-24T05:21:10.527Z done #107
+[verify-edit:cdp] 2026-06-24T05:21:10.527Z start #108 Runtime.evaluate (() => { const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codebl
+[verify-edit:cdp] 2026-06-24T05:21:10.532Z done #108
+[verify-edit:cdp] 2026-06-24T05:21:10.684Z start #109 Runtime.evaluate (() => { const activeRoot = document.querySelector('.workspace-leaf.mod-active') ?? document; 
+[verify-edit:cdp] 2026-06-24T05:21:10.687Z done #109
+[verify-edit:cdp] 2026-06-24T05:21:10.687Z start #110 Runtime.evaluate (() => { const activeLeaf = document.querySelector('.workspace-leaf.mod-active') ?? document; 
+[verify-edit:cdp] 2026-06-24T05:21:10.688Z done #110
+[verify-edit:cdp] 2026-06-24T05:21:10.688Z start #111 Runtime.evaluate (async () => { const view = app.workspace.activeLeaf?.view; view?.requestSave?.(); await
+[verify-edit:cdp] 2026-06-24T05:21:10.694Z done #111

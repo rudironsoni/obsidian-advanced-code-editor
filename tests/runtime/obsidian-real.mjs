@@ -7,6 +7,8 @@ const OBSIDIAN_APP = process.env.OBSIDIAN_APP ?? '/Applications/Obsidian.app/Con
 const OBSIDIAN_APP_BUNDLE =
 	process.env.OBSIDIAN_APP_BUNDLE ?? (OBSIDIAN_APP.endsWith('/Contents/MacOS/Obsidian') ? path.resolve(path.dirname(OBSIDIAN_APP), '../..') : OBSIDIAN_APP);
 const OBSIDIAN_LAUNCH_MODE = process.env.OBSIDIAN_LAUNCH_MODE ?? 'reuse';
+const TRACE_CDP = process.env.OBSIDIAN_TRACE_CDP === '1';
+
 const PORT = Number(process.env.OBSIDIAN_REMOTE_DEBUGGING_PORT ?? 9230);
 const VAULT = process.env.OBSIDIAN_VERIFY_VAULT ?? '/private/tmp/obsidian-shiki-real-verify-vault';
 const USER_DATA = process.env.OBSIDIAN_VERIFY_USER_DATA ?? '/private/tmp/obsidian-shiki-real-verify-user-data';
@@ -16,6 +18,24 @@ const BRAT_INSTALL = process.env.OBSIDIAN_VERIFY_BRAT_INSTALL === 'true';
 const ENFORCE_PLUGIN_LOAD_MS = OBSIDIAN_LAUNCH_MODE === 'fresh' || process.env.OBSIDIAN_VERIFY_ENFORCE_STARTUP === 'true';
 const VERIFY_READING_MODE = OBSIDIAN_LAUNCH_MODE === 'fresh' || process.env.OBSIDIAN_VERIFY_READING === 'true';
 const VERIFY_TARGET = process.env.OBSIDIAN_VERIFY_TARGET ?? 'both';
+
+function traceCdp(message) {
+	if (!TRACE_CDP) return;
+	console.error(`[obsidian-real ${new Date().toISOString()}] ${message}`);
+}
+
+async function tracedPhase(name, task) {
+	traceCdp(`${name}: start`);
+	const started = Date.now();
+	try {
+		const result = await task();
+		traceCdp(`${name}: done ${Date.now() - started}ms`);
+		return result;
+	} catch (error) {
+		traceCdp(`${name}: failed ${Date.now() - started}ms ${error?.message ?? error}`);
+		throw error;
+	}
+}
 const CDP_EVALUATE_TIMEOUT_MS = Number(process.env.OBSIDIAN_VERIFY_CDP_EVALUATE_TIMEOUT_MS ?? 120000);
 let evaluateCallCounter = 0;
 const SOURCE_MODE_EDIT_MARKER = '__shiki_source_mode_persistence_marker__';
@@ -127,7 +147,7 @@ function prepareVault({ resetUserData }) {
 async function waitForTarget() {
 	const started = Date.now();
 	while (Date.now() - started < 30000) {
-		const page = await findTarget();
+		const page = await tracedPhase('find existing target', () => findTarget());
 		if (page) return page;
 		await new Promise(resolve => setTimeout(resolve, 250));
 	}
@@ -326,6 +346,8 @@ async function evaluate(wsUrl, expression) {
 	const socket = new WebSocket(wsUrl);
 	const callId = ++evaluateCallCounter;
 	const expressionLabel = String(expression).replace(/\s+/g, ' ').slice(0, 160);
+	const evaluateStarted = Date.now();
+	traceCdp(`Runtime.evaluate#${callId}: start ${expressionLabel}`);
 	let timeout;
 
 	try {
@@ -352,7 +374,8 @@ async function evaluate(wsUrl, expression) {
 			}, CDP_EVALUATE_TIMEOUT_MS);
 			const cleanup = () => {
 				if (timeout !== undefined) {
-					clearTimeout(timeout);
+						clearTimeout(timeout);
+					traceCdp(`Runtime.evaluate#${callId}: done ${Date.now() - evaluateStarted}ms ${expressionLabel}`);
 					timeout = undefined;
 				}
 			};
@@ -1789,6 +1812,7 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 }
 
 async function main() {
+	traceCdp(`main: start mode=${OBSIDIAN_LAUNCH_MODE} target=${VERIFY_TARGET}`);
 	assert(
 		existsSync(path.join(PLUGIN_SOURCE_DIR, 'main.js')) && (BRAT_INSTALL || existsSync(path.join(PLUGIN_SOURCE_DIR, 'modern-monaco.js'))),
 		'plugin artifacts are missing. Run bun run build first or set OBSIDIAN_VERIFY_PLUGIN_DIR.',
@@ -1804,8 +1828,8 @@ async function main() {
 		await assertOwnedTarget(existingTarget);
 	}
 	const reuseTarget = OBSIDIAN_LAUNCH_MODE === 'reuse' && existingTarget ? existingTarget : null;
-	prepareVault({ resetUserData: !reuseTarget && OBSIDIAN_LAUNCH_MODE !== 'existing' });
-	const obsidian = reuseTarget ? null : launchObsidian();
+	await tracedPhase('prepare vault', () => prepareVault({ resetUserData: !reuseTarget && OBSIDIAN_LAUNCH_MODE !== 'existing' }));
+	const obsidian = reuseTarget ? null : await tracedPhase('launch obsidian', () => launchObsidian());
 	const output = [];
 	obsidian?.stdout.on('data', data => output.push(data.toString()));
 	obsidian?.stderr.on('data', data => output.push(data.toString()));
@@ -1837,26 +1861,26 @@ async function main() {
 
 	try {
 		if (OBSIDIAN_LAUNCH_MODE === 'existing') {
-			await relaunchExistingTarget();
+			await tracedPhase('relaunch existing target', () => relaunchExistingTarget());
 		}
-		target = await waitForAppTarget().catch(error => {
+		target = await tracedPhase('wait for app target', () => waitForAppTarget()).catch(error => {
 			error.message = `${error.message}\nLaunch mode: ${OBSIDIAN_LAUNCH_MODE}\nLaunch output:\n${output.join('')}`;
 			throw error;
 		});
 		const wsUrl = target.webSocketDebuggerUrl;
-		const trust = await trustVault(wsUrl);
-		const desktopWsUrl = await setMobileEmulation(wsUrl, false);
+		const trust = await tracedPhase('trust vault', () => trustVault(wsUrl));
+		const desktopWsUrl = await tracedPhase('set desktop emulation', () => setMobileEmulation(wsUrl, false));
 		let desktop = null;
 		let mobile = null;
 		if (VERIFY_TARGET !== 'mobile') {
-			desktop = await verifyFeatureSet(desktopWsUrl, false);
+			desktop = await tracedPhase('verify desktop feature set', () => verifyFeatureSet(desktopWsUrl, false));
 			validateResult('desktop', desktop);
 		}
 		if (VERIFY_TARGET !== 'desktop') {
-			mobile = await verifyFeatureSet(desktopWsUrl, true);
+			mobile = await tracedPhase('verify mobile feature set', () => verifyFeatureSet(desktopWsUrl, true));
 			validateResult('mobile-emulation', mobile, { enforcePluginLoadMs: VERIFY_TARGET === 'mobile' ? ENFORCE_PLUGIN_LOAD_MS : false });
 		}
-		await setMobileEmulation(desktopWsUrl, false);
+		await tracedPhase('restore desktop emulation', () => setMobileEmulation(desktopWsUrl, false));
 		console.log(JSON.stringify({ trust, desktop, mobile }, null, 2));
 	} finally {
 		await stop();

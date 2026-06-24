@@ -226,6 +226,7 @@ export class LivePreviewAdapter {
 			const firstRect = first.getBoundingClientRect();
 			const lastRect = last.getBoundingClientRect();
 			this.prepareSurfaceHost(block, surface.hostEl);
+			this.dedupeSurfaceHost(surface.hostEl, block.id);
 			surface.attach(this.overlayRoot);
 			this.removeDuplicateSurfaceHosts(block, surface.hostEl);
 			this.removeDuplicateBlockSurfaces(block.id, surface.hostEl);
@@ -329,6 +330,16 @@ export class LivePreviewAdapter {
 		this.scheduleVisibilityRefresh();
 	}
 
+	private dedupeSurfaceHost(hostEl: HTMLElement, blockId: string): void {
+		hostEl.dataset.shikiBlockId = blockId;
+		for (const duplicate of Array.from(this.overlayRoot.querySelectorAll<HTMLElement>('.shiki-monaco-block, .shiki-monaco-codeblock'))) {
+			if (duplicate === hostEl || duplicate.dataset.shikiBlockId !== blockId) continue;
+			duplicate.remove();
+		}
+		if (hostEl.parentElement && hostEl.parentElement !== this.overlayRoot) {
+			hostEl.remove();
+		}
+	}
 	private prepareSurfaceHost(block: CodeBlockModel, host: HTMLElement): void {
 		host.setAttribute('data-shiki-live-anchor', this.getLiveBlockAnchor(block));
 	}
