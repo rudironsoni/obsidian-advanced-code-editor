@@ -33,7 +33,7 @@ describe('startup bundle', () => {
 
 		expect(styles).toContain('.shiki-monaco-block');
 		expect(styles).toContain('.shiki-monaco-editor');
-		expect(styles).toContain('touch-action:pan-y pinch-zoom');
+		expect(styles).toContain('touch-action:none');
 		expect(styles).toContain('overscroll-behavior-x:contain');
 		expect(styles).toContain('.markdown-preview-sizer');
 		expect(styles).toContain('.markdown-preview-section');

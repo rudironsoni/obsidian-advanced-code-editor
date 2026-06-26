@@ -4,6 +4,7 @@ import type { MonacoSelectionController } from 'packages/obsidian/src/monaco/Mon
 interface MonacoEditorLike {
 	getScrollLeft(): number;
 	setScrollLeft(value: number): void;
+	setScrollPosition?(position: { scrollLeft?: number; scrollTop?: number }): void;
 	blur?(): void;
 	getTargetAtClientPoint?(clientX: number, clientY: number): { position?: { lineNumber: number; column: number } } | null;
 	setPosition(position: { lineNumber: number; column: number }): void;
@@ -19,6 +20,7 @@ type GestureAxis = 'pending' | 'horizontal' | 'vertical' | 'handle';
 interface TouchGestureState {
 	startX: number;
 	startY: number;
+	lastY: number;
 	startedAt: number;
 	scrollLeft: number;
 	axis: GestureAxis;
@@ -54,7 +56,7 @@ export class MonacoGestureRouter {
 	private lastTouchTime = 0;
 	private longPressTimer: ReturnType<typeof setTimeout> | null = null;
 	private longPressActivated = false;
-	private pointerTouchStart: { pointerId: number; clientX: number; clientY: number } | null = null;
+	private pointerTouchStart: { pointerId: number; clientX: number; clientY: number; lastY: number; scrollLeft: number; axis: GestureAxis } | null = null;
 
 	constructor(options: MonacoGestureRouterOptions) {
 		this.host = options.host;
@@ -72,6 +74,7 @@ export class MonacoGestureRouter {
 		this.host.addEventListener('touchend', this.onTouchEnd, { passive: false, capture: true });
 		this.host.addEventListener('touchcancel', this.onTouchCancel, { passive: false, capture: true });
 		this.host.addEventListener('pointerdown', this.onPointerDown, { passive: true, capture: true });
+		this.host.addEventListener('pointermove', this.onPointerMove, { passive: false, capture: true });
 		this.host.addEventListener('pointerup', this.onPointerUp, { passive: false, capture: true });
 		this.host.addEventListener('pointercancel', this.onPointerCancel, { passive: true, capture: true });
 		this.host.addEventListener('focusin', this.onFocusIn, true);
@@ -80,6 +83,10 @@ export class MonacoGestureRouter {
 		this.host.addEventListener('mouseup', this.onMouseUpBubble);
 		this.host.addEventListener('click', this.onClick, true);
 		this.host.addEventListener('click', this.onClickBubble);
+		document.addEventListener('touchstart', this.onTouchStart, { passive: false, capture: true });
+		document.addEventListener('touchmove', this.onTouchMove, { passive: false, capture: true });
+		document.addEventListener('touchend', this.onTouchEnd, { passive: false, capture: true });
+		document.addEventListener('touchcancel', this.onTouchCancel, { passive: false, capture: true });
 		document.addEventListener('mousedown', this.onDocumentMouseDown, true);
 		document.addEventListener('mouseup', this.onDocumentMouseUp, true);
 		document.addEventListener('click', this.onDocumentClick, true);
@@ -101,6 +108,7 @@ export class MonacoGestureRouter {
 		this.host.removeEventListener('touchend', this.onTouchEnd, true);
 		this.host.removeEventListener('touchcancel', this.onTouchCancel, true);
 		this.host.removeEventListener('pointerdown', this.onPointerDown, true);
+		this.host.removeEventListener('pointermove', this.onPointerMove, true);
 		this.host.removeEventListener('pointerup', this.onPointerUp, true);
 		this.host.removeEventListener('pointercancel', this.onPointerCancel, true);
 		this.host.removeEventListener('focusin', this.onFocusIn, true);
@@ -109,6 +117,10 @@ export class MonacoGestureRouter {
 		this.host.removeEventListener('mouseup', this.onMouseUpBubble);
 		this.host.removeEventListener('click', this.onClick, true);
 		this.host.removeEventListener('click', this.onClickBubble);
+		document.removeEventListener('touchstart', this.onTouchStart, true);
+		document.removeEventListener('touchmove', this.onTouchMove, true);
+		document.removeEventListener('touchend', this.onTouchEnd, true);
+		document.removeEventListener('touchcancel', this.onTouchCancel, true);
 		document.removeEventListener('mousedown', this.onDocumentMouseDown, true);
 		document.removeEventListener('mouseup', this.onDocumentMouseUp, true);
 		document.removeEventListener('click', this.onDocumentClick, true);
@@ -126,7 +138,7 @@ export class MonacoGestureRouter {
 		}
 
 		event.preventDefault();
-		event.stopPropagation();
+		event.stopImmediatePropagation();
 		this.setScrollLeft(this.editor.getScrollLeft() + horizontalDelta);
 	};
 
@@ -162,12 +174,47 @@ export class MonacoGestureRouter {
 			return;
 		}
 		this.longPressActivated = false;
-		this.pointerTouchStart = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY };
+		this.pointerTouchStart = {
+			pointerId: event.pointerId,
+			clientX: event.clientX,
+			clientY: event.clientY,
+			lastY: event.clientY,
+			scrollLeft: this.editor.getScrollLeft(),
+			axis: 'pending',
+		};
 		this.clearLongPressTimer();
 		this.longPressTimer = setTimeout(() => {
 			this.longPressActivated = true;
 			this.selectionController.selectWordAt(event.clientX, event.clientY);
 		}, 700);
+	};
+
+	readonly onPointerMove = (event: PointerEvent): void => {
+		const state = this.pointerTouchStart;
+		if (event.pointerId !== state?.pointerId || (event.pointerType !== 'touch' && event.pointerType !== 'pen')) {
+			return;
+		}
+		const dx = event.clientX - state.clientX;
+		const dy = event.clientY - state.clientY;
+		if (state.axis === 'pending' && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+			state.axis = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+			this.clearLongPressTimer();
+		}
+		if (state.axis === 'horizontal') {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			this.setScrollLeft(state.scrollLeft - dx);
+			return;
+		}
+		if (state.axis === 'vertical') {
+			const noteScroller = this.getNoteScroller();
+			if (noteScroller) {
+				event.preventDefault();
+				event.stopImmediatePropagation();
+				noteScroller.scrollTop += state.lastY - event.clientY;
+			}
+			state.lastY = event.clientY;
+		}
 	};
 
 	readonly onPointerUp = (event: PointerEvent): void => {
@@ -229,11 +276,18 @@ export class MonacoGestureRouter {
 		this.lastTouchTime = Date.now();
 		const touch = event.touches[0];
 		if (!touch) return;
+		const targetNode = event.target instanceof Node ? event.target : null;
+		if (targetNode && !this.host.contains(targetNode) && !this.isPointInsideHost(touch.clientX, touch.clientY)) {
+			this.touchState = null;
+			delete (this.host as TouchGestureHost).__shikiMonacoTouchState;
+			return;
+		}
 		const handle = this.selectionController.startHandleDrag(document.elementFromPoint(touch.clientX, touch.clientY) ?? event.target);
 		this.longPressActivated = false;
 		this.touchState = {
 			startX: touch.clientX,
 			startY: touch.clientY,
+			lastY: touch.clientY,
 			startedAt: Date.now(),
 			scrollLeft: this.editor.getScrollLeft(),
 			longPressed: false,
@@ -277,12 +331,19 @@ export class MonacoGestureRouter {
 
 		if (this.touchState.axis === 'horizontal') {
 			event.preventDefault();
-			event.stopPropagation();
+			event.stopImmediatePropagation();
 			this.setScrollLeft(this.touchState.scrollLeft - dx);
 			return;
 		}
 		if (this.touchState.axis === 'vertical') {
 			this.clearLongPressTimer();
+			const noteScroller = this.getNoteScroller();
+			if (noteScroller) {
+				event.preventDefault();
+				event.stopImmediatePropagation();
+				noteScroller.scrollTop += this.touchState.lastY - touch.clientY;
+			}
+			this.touchState.lastY = touch.clientY;
 		}
 	};
 
@@ -475,8 +536,29 @@ export class MonacoGestureRouter {
 	}
 
 	private setScrollLeft(scrollLeft: number): void {
-		this.editor.setScrollLeft(Math.max(0, scrollLeft));
+		const nextScrollLeft = Math.max(0, scrollLeft);
+		this.editor.setScrollPosition?.({ scrollLeft: nextScrollLeft });
+		this.editor.setScrollLeft(nextScrollLeft);
+		if (this.editor.getScrollLeft() !== nextScrollLeft) {
+			window.requestAnimationFrame(() => {
+				this.editor.setScrollPosition?.({ scrollLeft: nextScrollLeft });
+				this.editor.setScrollLeft(nextScrollLeft);
+				this.scrollState.setScrollLeft(this.editor.getScrollLeft());
+				this.resetAncestorHorizontalScroll();
+			});
+		}
 		this.scrollState.setScrollLeft(this.editor.getScrollLeft());
+		this.resetAncestorHorizontalScroll();
+	}
+
+	private resetAncestorHorizontalScroll(): void {
+		let current: HTMLElement | null = this.host.parentElement;
+		while (current && current !== document.body) {
+			if (!current.classList.contains('monaco-scrollable-element') && current.scrollLeft !== 0) {
+				current.scrollLeft = 0;
+			}
+			current = current.parentElement;
+		}
 	}
 
 	private clearLongPressTimer(): void {

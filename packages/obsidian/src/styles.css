@@ -113,6 +113,15 @@ span.shiki-ul {
 	background-color: var(--code-background);
 }
 
+.shiki-monaco-readonly .shiki-monaco-editor .monaco-editor,
+.shiki-monaco-readonly .shiki-monaco-editor .monaco-editor .overflow-guard {
+	overflow: hidden !important;
+}
+
+.shiki-monaco-readonly .shiki-monaco-editor .monaco-editor .view-line {
+	white-space: pre !important;
+}
+
 /* Live preview: keep the native Obsidian note lines and gutter alive, then mount
    Monaco over the code content column only. */
 .markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-line,
@@ -134,6 +143,7 @@ span.shiki-ul {
 	background: transparent !important;
 	border-color: transparent !important;
 	opacity: 1 !important;
+	pointer-events: none !important;
 }
 
 .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock {
@@ -147,12 +157,12 @@ span.shiki-ul {
 	pointer-events: auto;
 	/* Let Obsidian own vertical scrolling. Horizontal code movement is handled
 	   by the wrapper so the note still scrolls vertically like normal. */
-	touch-action: pan-y pinch-zoom;
+	touch-action: none;
 	overscroll-behavior-x: contain;
 	overscroll-behavior-y: auto;
 	-webkit-tap-highlight-color: transparent;
 	isolation: isolate;
-	touch-action: pan-y;
+	touch-action: none;
 }
 
 .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-overlay-root {
@@ -169,14 +179,13 @@ span.shiki-ul {
 .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock .monaco-editor,
 .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock .overflow-guard,
 .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock .view-lines {
-	max-width: 100% !important;
 	background-color: var(--code-background) !important;
 }
 
 .markdown-rendered .shiki-monaco-block .monaco-editor,
 .markdown-rendered .shiki-monaco-block .overflow-guard,
 .markdown-rendered .shiki-monaco-block .view-lines {
-	max-width: 100% !important;
+	background-color: var(--code-background) !important;
 }
 
 .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock .monaco-scrollable-element {
@@ -302,7 +311,7 @@ span.shiki-ul {
 
 /* Mobile: allow vertical page scroll to pass through Monaco (prevent scroll trapping). */
 .shiki-monaco-editor {
-	touch-action: pan-y pinch-zoom;
+	touch-action: none;
 	overscroll-behavior-x: contain;
 	overscroll-behavior-y: auto;
 }
@@ -371,7 +380,7 @@ span.shiki-ul {
 body.is-mobile .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock {
 	max-width: calc(100vw - 24px);
 	overscroll-behavior-x: contain;
-	touch-action: pan-y;
+	touch-action: none;
 }
 
 /* Keep Live Preview raw fenced Markdown hidden without hiding Monaco internals. */
@@ -384,6 +393,7 @@ body.is-mobile .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeb
 	text-shadow: none !important;
 	caret-color: transparent !important;
 	border-color: transparent !important;
+	pointer-events: none !important;
 }
 
 .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock,
@@ -396,30 +406,4 @@ body.is-mobile .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeb
 .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock .view-line span,
 .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-editor .view-line span {
 	-webkit-text-fill-color: currentColor;
-}
-
-.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-fence[data-shiki-editing-block-id],
-.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-fence[data-shiki-editing-block-id] * {
-	color: transparent !important;
-	-webkit-text-fill-color: transparent !important;
-	text-shadow: none !important;
-	caret-color: transparent !important;
-	border-color: transparent !important;
-}
-
-/* Live Preview owns rendered code through Monaco; keep the raw CM fenced block invisible. */
-.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-line[data-shiki-editing-block-id],
-.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-line[data-shiki-editing-block-id] *,
-.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-fence[data-shiki-editing-block-id],
-.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-fence[data-shiki-editing-block-id] * {
-	color: transparent !important;
-	-webkit-text-fill-color: transparent !important;
-	text-shadow: none !important;
-	caret-color: transparent !important;
-	border-color: transparent !important;
-}
-
-.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-line[data-shiki-editing-block-id] ::selection,
-.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-fence[data-shiki-editing-block-id] ::selection {
-	background: transparent !important;
 }

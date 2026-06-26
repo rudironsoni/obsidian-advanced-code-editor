@@ -19,7 +19,7 @@ export class ReadingViewAdapter {
 		this.plugin.codeBlockRegistry.upsert(block);
 		const surface = this.plugin.surfaceRegistry.getOrCreate(block);
 		container.empty();
-		surface.setNoteScrollerProvider(() => container.closest('.markdown-preview-view')?.querySelector('.markdown-preview-sizer') as HTMLElement | null);
+		surface.setNoteScrollerProvider(() => container.closest<HTMLElement>('.markdown-preview-view, .view-content'));
 		surface.attach(container);
 		this.plugin.hydrationQueue.enqueue(surface);
 		this.blockIdsByContainer.set(container, block.id);

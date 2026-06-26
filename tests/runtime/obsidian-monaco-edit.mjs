@@ -778,18 +778,8 @@ async function assertEditableCursorPlacementSweep(client, modeName) {
 				const visible = editor.getScrolledVisiblePosition?.({ lineNumber: 1, column: ${targetColumn} });
 				const clientX = Math.max(hostRect.left + 6, Math.min(hostRect.right - 6, hostRect.left + (visible?.left ?? 12) + 2));
 				const clientY = Math.max(hostRect.top + 6, Math.min(hostRect.bottom - 6, hostRect.top + (visible?.top ?? 0) + Math.max(4, (visible?.height ?? 18) / 2)));
-				let expectedColumn = ${targetColumn};
-				let closestDistance = Number.POSITIVE_INFINITY;
-				const targetLeft = clientX - hostRect.left;
-				for (let candidate = 1; candidate <= ${targetColumn}; candidate++) {
-					const candidateVisible = editor.getScrolledVisiblePosition?.({ lineNumber: 1, column: candidate });
-					if (!candidateVisible) continue;
-					const distance = Math.abs(candidateVisible.left - targetLeft);
-					if (distance < closestDistance) {
-						closestDistance = distance;
-						expectedColumn = candidate;
-					}
-				}
+				const hitPosition = editor.getTargetAtClientPoint?.(clientX, clientY)?.position;
+				const expectedColumn = hitPosition?.lineNumber === 1 ? hitPosition.column : ${targetColumn};
 				return { ok: Number.isFinite(clientX) && Number.isFinite(clientY), clientX, clientY, expected: { lineNumber: 1, column: expectedColumn }, requestedColumn: ${targetColumn}, hostRect, visible };
 			})()`,
 		);

@@ -265,7 +265,8 @@ test('Monaco gesture routing uses explicit horizontal intent and Obsidian note s
 	expect(router).toContain('if (!isHorizontalIntent)');
 	expect(surface).toContain('setNoteScrollerProvider(noteScrollerProvider: (() => HTMLElement | null) | undefined): void');
 	expect(surface).toContain('this.noteScrollerProvider?.() ??');
-	expect(livePreview).toContain('surface.setNoteScrollerProvider(() => this.view.scrollDOM);');
+	expect(livePreview).toContain('surface.setNoteScrollerProvider(() => this.getNoteScroller());');
+	expect(livePreview).toContain('private getNoteScroller(): HTMLElement | null');
 	expect(livePreview).toContain('surface.hostEl.onclick = (event): void => {');
 	expect(livePreview).toContain('void this.activateBlock(block.id, { clientX: event.clientX, clientY: event.clientY });');
 	expect(livePreview).toContain('surface.hostEl.ontouchend = (event): void => {');
@@ -279,11 +280,11 @@ test('Monaco gesture routing uses explicit horizontal intent and Obsidian note s
 	expect(livePreview).toContain("window.addEventListener('resize', this.handleScroll, { passive: true });");
 	expect(livePreview).toContain("window.removeEventListener('resize', this.handleScroll);");
 	expect(readingView).toContain('surface.setNoteScrollerProvider(');
-	expect(readingView).toContain("container.closest('.markdown-preview-view')?.querySelector('.markdown-preview-sizer')");
+	expect(readingView).toContain("container.closest<HTMLElement>('.markdown-preview-view, .view-content')");
 
 	const styles = read('packages/obsidian/src/styles.css');
 	expect(styles).toContain('-webkit-text-fill-color: transparent !important;');
-	expect(styles).toContain('touch-action: pan-y;');
+	expect(styles).toContain('touch-action: none;');
 	expect(styles).toContain('body.is-mobile .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock');
 	expect(styles).toContain('overscroll-behavior-x: contain;');
 });

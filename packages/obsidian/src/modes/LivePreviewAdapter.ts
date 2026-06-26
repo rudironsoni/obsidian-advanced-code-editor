@@ -211,6 +211,7 @@ export class LivePreviewAdapter {
 			this.clearLivePreviewState();
 			return;
 		}
+		this.resetNoteHorizontalScroll();
 		this.ensureSingleOverlayRoot();
 		const visibleIds = new Set<string>();
 		let missingVisibleLines = false;
@@ -230,7 +231,7 @@ export class LivePreviewAdapter {
 			}
 			this.missingLineRetryCount = 0;
 			const surface = this.plugin.surfaceRegistry.getOrCreate(block);
-			surface.setNoteScrollerProvider(() => this.view.scrollDOM);
+			surface.setNoteScrollerProvider(() => this.getNoteScroller());
 			if (this.destroyed || !this.plugin.isCurrentInstance()) {
 				return;
 			}
@@ -266,7 +267,7 @@ export class LivePreviewAdapter {
 			};
 			surface.setActivationHandler(point => void this.activateBlock(block.id, point));
 			surface.hostEl.style.position = 'absolute';
-			surface.hostEl.style.left = `${firstRect.left - rootRect.left}px`;
+			surface.hostEl.style.left = `${Math.max(0, firstRect.left - rootRect.left)}px`;
 			surface.hostEl.style.top = `${firstRect.top - rootRect.top}px`;
 			const contentRect = (
 				this.view.dom.closest('.workspace-leaf-content, .view-content, .markdown-source-view') ?? this.view.dom
@@ -281,15 +282,32 @@ export class LivePreviewAdapter {
 			}
 			surface.hostEl.style.width = `${overlayWidth}px`;
 			surface.hostEl.style.height = `${Math.max(lastRect.bottom - firstRect.top, first.offsetHeight)}px`;
-			if (surface.isHydrated()) {
+			if (surface.isVisiblyReady() && this.surfaceMatchesCodeLines(surface.hostEl, lineElements)) {
 				this.setBlockHidden(block.id, true);
 			} else {
 				this.setBlockHidden(block.id, false);
-				void surface.hydrateReadonly().then(() => {
-					if (this.blocks.some(candidate => candidate.id === block.id)) {
-						this.setBlockHidden(block.id, true);
-					}
-				});
+				void surface
+					.hydrateReadonly()
+					.then(() => {
+						window.requestAnimationFrame(() => {
+							window.requestAnimationFrame(() => {
+								if (!this.blocks.some(candidate => candidate.id === block.id)) {
+									return;
+								}
+								if (surface.isVisiblyReady() && this.surfaceMatchesCodeLines(surface.hostEl, lineElements)) {
+									this.setBlockHidden(block.id, true);
+									return;
+								}
+								this.setBlockHidden(block.id, false);
+								this.scheduleSync(50);
+							});
+						});
+					})
+					.catch(() => {
+						if (this.blocks.some(candidate => candidate.id === block.id)) {
+							this.setBlockHidden(block.id, false);
+						}
+					});
 			}
 		}
 
@@ -355,6 +373,23 @@ export class LivePreviewAdapter {
 		}
 		this.rebuildBlocks();
 		this.scheduleVisibilityRefresh();
+	}
+
+	private surfaceMatchesCodeLines(surfaceHost: HTMLElement, lineElements: HTMLElement[]): boolean {
+		if (lineElements.length === 0) {
+			return false;
+		}
+		const surfaceRect = surfaceHost.getBoundingClientRect();
+		if (surfaceRect.width < 1 || surfaceRect.height < 1) {
+			return false;
+		}
+		const firstRect = lineElements[0].getBoundingClientRect();
+		const lastRect = lineElements[lineElements.length - 1].getBoundingClientRect();
+		const topAligned = Math.abs(surfaceRect.top - firstRect.top) <= 4;
+		const leftAligned = Math.abs(surfaceRect.left - firstRect.left) <= 4;
+		const coversHeight = surfaceRect.bottom + 4 >= lastRect.bottom;
+		const coversWidth = surfaceRect.right + 4 >= Math.min(lastRect.right, firstRect.right);
+		return topAligned && leftAligned && coversHeight && coversWidth;
 	}
 
 	private dedupeSurfaceHost(hostEl: HTMLElement, blockId: string): void {
@@ -609,6 +644,32 @@ export class LivePreviewAdapter {
 	}
 	private getSourceViewRoot(): HTMLElement {
 		return this.view.dom.closest<HTMLElement>('.markdown-source-view.mod-cm6') ?? this.view.dom;
+	}
+
+	private getNoteScroller(): HTMLElement | null {
+		if (this.view.scrollDOM.scrollHeight > this.view.scrollDOM.clientHeight + 1) {
+			return this.view.scrollDOM;
+		}
+		let current: HTMLElement | null = this.view.dom;
+		while (current && current !== document.body) {
+			if (current.scrollHeight > current.clientHeight + 1 && !current.classList.contains('monaco-scrollable-element')) {
+				return current;
+			}
+			current = current.parentElement;
+		}
+		const viewContent = this.view.dom.closest<HTMLElement>('.view-content');
+		if (viewContent) {
+			return viewContent;
+		}
+		return this.view.scrollDOM;
+	}
+
+	private resetNoteHorizontalScroll(): void {
+		for (const element of [this.view.scrollDOM, this.view.dom, this.view.dom.closest<HTMLElement>('.view-content')]) {
+			if (element && element.scrollLeft !== 0) {
+				element.scrollLeft = 0;
+			}
+		}
 	}
 
 	private isMobile(): boolean {

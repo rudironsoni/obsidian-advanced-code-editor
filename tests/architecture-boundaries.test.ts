@@ -143,6 +143,7 @@ describe('architecture boundaries', () => {
 		expect(styles).not.toContain('body.is-mobile .shiki-monaco-selection-toolbar');
 		expect(styles).not.toContain('body.is-mobile .shiki-monaco-selection-handle');
 		expect(styles).not.toContain('pointer-events:none!important;resize:none');
-		expect(styles).not.toContain('pointer-events: none !important');
+		expect(styles).toContain('.shiki-editing-codeblock-line-hidden');
+		expect(styles).toContain('pointer-events: none !important');
 	});
 });

@@ -54,6 +54,25 @@ export class MonacoCodeBlockSurface {
 		return this.hydrated;
 	}
 
+	isVisiblyReady(): boolean {
+		if (!this.hydrated || !this.editor || !this.editorEl || this.disposed) {
+			return false;
+		}
+		const modelText = this.editor.getModel()?.getValue() ?? '';
+		if (modelText.trim().length === 0) {
+			return false;
+		}
+		const hostRect = this.hostEl.getBoundingClientRect();
+		const editorRect = this.editorEl.getBoundingClientRect();
+		if (hostRect.width < 1 || hostRect.height < 1 || editorRect.width < 1 || editorRect.height < 1) {
+			return false;
+		}
+		return Array.from(this.hostEl.querySelectorAll<HTMLElement>('.view-line')).some(line => {
+			const rect = line.getBoundingClientRect();
+			return rect.width > 0 && rect.height > 0 && (line.textContent ?? '').trim().length > 0;
+		});
+	}
+
 	isDisposed(): boolean {
 		return this.disposed;
 	}
@@ -178,12 +197,17 @@ export class MonacoCodeBlockSurface {
 			return;
 		}
 		const metrics = this.blockSizer.measure(this.modeController.isEditable() ? { ...this.block, code: this.editor.getValue() } : this.block, this.hostEl);
+		const showLineNumbers = this.plugin.loadedSettings.ecDefaultShowLineNumbers;
 		this.hostEl.style.height = `${metrics.height}px`;
 		this.editorEl!.style.height = `${metrics.height}px`;
 		this.editor.updateOptions({
 			fontSize: metrics.fontSize,
 			fontFamily: metrics.fontFamily,
 			lineHeight: metrics.lineHeight,
+			lineNumbers: showLineNumbers ? 'on' : 'off',
+			lineNumbersMinChars: showLineNumbers ? 4 : 0,
+			lineDecorationsWidth: showLineNumbers ? 8 : 0,
+			wordWrap: this.plugin.loadedSettings.ecDefaultWrap ? 'on' : 'off',
 			padding: { top: metrics.paddingTop, bottom: metrics.paddingBottom },
 		});
 		this.editor.layout({ width: metrics.width, height: metrics.height });
