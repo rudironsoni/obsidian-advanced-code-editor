@@ -117,8 +117,7 @@ export class SourceModeAdapter {
 	}
 
 	private removeStaleMonacoOverlays(): void {
-		const sourceViewRoot = this.view.dom.closest('.markdown-source-view.mod-cm6') ?? this.view.dom;
-		for (const root of Array.from(sourceViewRoot.querySelectorAll<HTMLElement>('.shiki-monaco-overlay-root'))) {
+		for (const root of Array.from(document.querySelectorAll<HTMLElement>('.shiki-monaco-overlay-root'))) {
 			root.remove();
 		}
 	}

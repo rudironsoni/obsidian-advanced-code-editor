@@ -1459,7 +1459,7 @@ async function main() {
 			client.close();
 			client = await waitForAppClient();
 		}
-		await waitFor(client, `Boolean(document.body.classList.contains('is-phone') || app.isMobile)`, 'Mobile emulation did not activate');
+		await waitFor(client, `Boolean(document.body?.classList.contains('is-phone') || globalThis.app?.isMobile)`, 'Mobile emulation did not activate');
 		await verifyMode(client, 'mobile live preview', true, 'MOBILE_LIVE_PREVIEW_EDIT_');
 
 		const finalContent = await waitFor(

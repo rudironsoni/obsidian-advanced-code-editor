@@ -345,7 +345,7 @@ async function closeTarget(target) {
 async function evaluate(wsUrl, expression) {
 	const socket = new WebSocket(wsUrl);
 	const callId = ++evaluateCallCounter;
-	const expressionLabel = String(expression).replace(/\s+/g, ' ').slice(0, 160);
+	const expressionLabel = String(expression).replace(/\s+/g, ' ').slice(0, 600);
 	const evaluateStarted = Date.now();
 	traceCdp(`Runtime.evaluate#${callId}: start ${expressionLabel}`);
 	let timeout;
@@ -458,6 +458,7 @@ async function waitForVaultPath(wsUrl) {
 }
 
 async function dispatchMouseClick(wsUrl, x, y) {
+	traceCdp(`dispatchMouseClick start ${Math.round(x)},${Math.round(y)}`);
 	const socket = new WebSocket(wsUrl);
 	let nextId = 0;
 	const pending = new Map();
@@ -488,11 +489,13 @@ async function dispatchMouseClick(wsUrl, x, y) {
 		await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
 		await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
 	} finally {
+		traceCdp('dispatchMouseClick done');
 		socket.close();
 	}
 }
 
 async function dispatchMouseDrag(wsUrl, fromX, fromY, toX, toY, steps = 8) {
+	traceCdp(`dispatchMouseDrag start ${Math.round(fromX)},${Math.round(fromY)} -> ${Math.round(toX)},${Math.round(toY)} steps=${steps}`);
 	const socket = new WebSocket(wsUrl);
 	let nextId = 0;
 	const pending = new Map();
@@ -534,11 +537,13 @@ async function dispatchMouseDrag(wsUrl, fromX, fromY, toX, toY, steps = 8) {
 		}
 		await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: toX, y: toY, button: 'left', buttons: 0, clickCount: 1 });
 	} finally {
+		traceCdp('dispatchMouseDrag done');
 		socket.close();
 	}
 }
 
 async function dispatchTouchTap(wsUrl, x, y) {
+	traceCdp(`dispatchTouchTap start ${Math.round(x)},${Math.round(y)}`);
 	const socket = new WebSocket(wsUrl);
 	let nextId = 0;
 	const pending = new Map();
@@ -558,27 +563,60 @@ async function dispatchTouchTap(wsUrl, x, y) {
 		}
 	});
 
-	function send(method, params = {}) {
+	function send(method, params) {
 		const id = ++nextId;
+		traceCdp('dispatchTouchTap send ' + method + '#' + id + ' ' + (params?.type ?? ''));
 		socket.send(JSON.stringify({ id, method, params }));
-		return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+		return new Promise((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				pending.delete(id);
+				reject(new Error('Timed out waiting for ' + method + '#' + id + ' in dispatchTouchTap'));
+			}, 10000);
+			pending.set(id, {
+				resolve: value => {
+					clearTimeout(timeout);
+					traceCdp('dispatchTouchTap done ' + method + '#' + id);
+					resolve(value);
+				},
+				reject: error => {
+					clearTimeout(timeout);
+					reject(error);
+				},
+			});
+		});
 	}
 
 	try {
-		await send('Input.dispatchTouchEvent', {
-			type: 'touchStart',
-			touchPoints: [{ x, y, radiusX: 2, radiusY: 2, force: 1 }],
-		});
-		await send('Input.dispatchTouchEvent', {
-			type: 'touchEnd',
-			touchPoints: [],
-		});
+		const touchStartId = ++nextId;
+		traceCdp('dispatchTouchTap fire Input.dispatchTouchEvent#' + touchStartId + ' touchStart');
+		socket.send(JSON.stringify({
+			id: touchStartId,
+			method: 'Input.dispatchTouchEvent',
+			params: {
+				type: 'touchStart',
+				touchPoints: [{ x, y, radiusX: 2, radiusY: 2, force: 1 }],
+			},
+		}));
+		await new Promise(resolve => setTimeout(resolve, 50));
+		const touchEndId = ++nextId;
+		traceCdp('dispatchTouchTap fire Input.dispatchTouchEvent#' + touchEndId + ' touchEnd');
+		socket.send(JSON.stringify({
+			id: touchEndId,
+			method: 'Input.dispatchTouchEvent',
+			params: {
+				type: 'touchEnd',
+				touchPoints: [],
+			},
+		}));
+		await new Promise(resolve => setTimeout(resolve, 250));
 	} finally {
+		traceCdp('dispatchTouchTap done');
 		socket.close();
 	}
 }
 
 async function dispatchTouchDrag(wsUrl, fromX, fromY, toX, toY, steps = 8) {
+	traceCdp(`dispatchTouchDrag start ${Math.round(fromX)},${Math.round(fromY)} -> ${Math.round(toX)},${Math.round(toY)} steps=${steps}`);
 	const socket = new WebSocket(wsUrl);
 	let nextId = 0;
 	const pending = new Map();
@@ -630,6 +668,7 @@ async function dispatchTouchDrag(wsUrl, fromX, fromY, toX, toY, steps = 8) {
 			touchPoints: [],
 		});
 	} finally {
+		traceCdp('dispatchTouchDrag done');
 		socket.close();
 	}
 }
@@ -1164,7 +1203,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 				const app = window.app;
 			if (!app?.vault) throw new Error('Obsidian app vault was not ready');
 				const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-				const renderedCodeBlock = [...editorRoot.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(el => {
+		const renderedCodeBlock = [...editorRoot.querySelectorAll('.shiki-monaco-codeblock[data-shiki-block-id], .shiki-monaco-block[data-shiki-block-id]')].find(el => {
 					const modelText = el._monacoEditor?.getModel?.()?.getValue?.() ?? '';
 					const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
 					return !!el._monacoEditor && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
@@ -1181,11 +1220,14 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			await dispatchTouchTap(activeWsUrl, livePreviewEditTarget.x, livePreviewEditTarget.y);
 			await evaluate(
 				activeWsUrl,
-				`(() => {
-					const app = window.app;
-			if (!app?.vault) throw new Error('Obsidian app vault was not ready');
-					const activeView = app.workspace.activeLeaf?.view;
-					const editor = activeView?.editor;
+			`(async () => {
+				const app = window.app;
+				if (!app?.vault) throw new Error('Obsidian app vault was not ready');
+				for (let i = 0; i < 20 && document.activeElement?.closest?.('.monaco-editor'); i++) {
+					await new Promise(resolve => setTimeout(resolve, 50));
+				}
+				const activeView = app.workspace.activeLeaf?.view;
+				const editor = activeView?.editor;
 					const cursor = editor?.getCursor?.() ?? null;
 					const lines = editor?.getValue?.().split('\\n') ?? [];
 					const csharpLine = lines.findIndex(line => line.includes('List<int[]> intervals'));
@@ -1599,9 +1641,13 @@ async function verifyFeatureSet(wsUrl, mobile) {
 				};
 			}
 			const editableLineNumbers = [...editorRoot.querySelectorAll('.cm-content .shiki-editing-line-number')].map(el => el.textContent);
-			const sourceModeMonacoBlocks = editorRoot.querySelectorAll('.cm-content .shiki-monaco-codeblock, .cm-content .shiki-monaco-block').length;
-			const globalMonacoBlocks = document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block').length;
-			const globalMonacoEditors = document.querySelectorAll('.monaco-editor').length;
+			const allMonacoBlocks = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')];
+			const sourceRoot = editorRoot.querySelector('.markdown-source-view.mod-cm6') ?? editorRoot.closest?.('.markdown-source-view.mod-cm6') ?? editorRoot;
+			const sourceModeMonacoBlocks = sourceRoot.querySelectorAll('.cm-content .shiki-monaco-codeblock, .cm-content .shiki-monaco-block').length;
+			const sourceViewMonacoBlocks = sourceRoot.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block').length;
+			const readingViewMonacoBlocks = allMonacoBlocks.filter(el => el.closest('.markdown-preview-view')).length;
+			const nonReadingMonacoBlocks = allMonacoBlocks.filter(el => !el.closest('.markdown-preview-view')).length;
+			const nonReadingMonacoEditors = [...document.querySelectorAll('.monaco-editor')].filter(el => !el.closest('.markdown-preview-view')).length;
 			const globalOverlayRoots = document.querySelectorAll('.shiki-monaco-overlay-root').length;
 			return {
 				...state,
@@ -1618,8 +1664,10 @@ async function verifyFeatureSet(wsUrl, mobile) {
 				mobileNativeTap,
 				editableLineNumbers,
 				sourceModeMonacoBlocks,
-				globalMonacoBlocks,
-				globalMonacoEditors,
+				sourceViewMonacoBlocks,
+				readingViewMonacoBlocks,
+				nonReadingMonacoBlocks,
+				nonReadingMonacoEditors,
 				globalOverlayRoots,
 			};
 		})()`,
@@ -1756,8 +1804,9 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 	assert(result.editorTokens.length > 0, `${label}: editor Shiki highlighting missing`, result);
 	assert(result.fencedEditorTokens.length >= 4, `${label}: editable fenced code block Shiki tokens missing`, result);
 	assert(result.sourceModeMonacoBlocks === 0, `${label}: Source mode mounted Monaco surfaces inside CM content`, result);
-	assert(result.globalMonacoBlocks === 0, `${label}: Source mode left Monaco block hosts mounted`, result);
-	assert(result.globalMonacoEditors === 0, `${label}: Source mode left Monaco editors mounted`, result);
+	assert(result.sourceViewMonacoBlocks === 0, `${label}: Source mode left Monaco block hosts in active source view`, result);
+	assert(result.nonReadingMonacoBlocks === 0, `${label}: Source mode left non-Reading Monaco block hosts mounted`, result);
+	assert(result.nonReadingMonacoEditors === 0, `${label}: Source mode left non-Reading Monaco editors mounted`, result);
 	assert(result.globalOverlayRoots === 0, `${label}: Source mode left Live Preview overlay roots mounted`, result);
 	assert(result.sourceModeState, `${label}: Source mode persistence state was not captured`, result);
 	assert(!result.sourceModeState.editorMissing, `${label}: Source mode editor was not available`, result.sourceModeState);

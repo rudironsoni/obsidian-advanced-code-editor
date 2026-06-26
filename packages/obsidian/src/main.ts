@@ -116,7 +116,7 @@ export default class ShikiPlugin extends Plugin {
 		});
 		livePreviewModeObserver.observe(this.app.workspace.containerEl.ownerDocument.body, { attributes: true, attributeFilter: ['class'], subtree: true });
 		this.register(() => livePreviewModeObserver.disconnect());
-		const startEditorIntegrationSettle = () => {
+		const startEditorIntegrationSettle = (): void => {
 			let attempts = 0;
 			const interval = window.setInterval(() => {
 				attempts += 1;

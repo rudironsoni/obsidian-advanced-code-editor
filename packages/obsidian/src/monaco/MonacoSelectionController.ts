@@ -2,6 +2,7 @@ interface MonacoEditorLike {
 	getSelection(): { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number; isEmpty(): boolean } | null;
 	getModel(): {
 		getWordAtPosition(position: { lineNumber: number; column: number }): { startColumn: number; endColumn: number } | null;
+		getLineContent(lineNumber: number): string;
 		getValueInRange(range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }): string;
 		getLineCount(): number;
 		getLineMaxColumn(lineNumber: number): number;
@@ -109,30 +110,42 @@ export class MonacoSelectionController {
 
 	selectWordAt(clientX: number, clientY: number): void {
 		const editor = this.editor;
-		const position = editor?.getTargetAtClientPoint?.(clientX, clientY)?.position;
+		const position =
+			(editor ? this.positionFromClientPoint(clientX, clientY, editor) : undefined) ??
+			editor?.getTargetAtClientPoint?.(clientX, clientY)?.position;
 		const model = editor?.getModel();
 		if (!editor || !position || !model) {
 			return;
 		}
 		const word = model.getWordAtPosition(position);
-		if (!word) {
+		const fallbackWord =
+			word && word.endColumn > word.startColumn
+				? word
+				: this.getWordRangeFromLine(model.getLineContent(position.lineNumber), position.column);
+		if (!fallbackWord) {
 			editor.setPosition(position);
+			this.clearVisualSelection();
 			return;
 		}
 		editor.setSelection({
 			startLineNumber: position.lineNumber,
-			startColumn: word.startColumn,
+			startColumn: fallbackWord.startColumn,
 			endLineNumber: position.lineNumber,
-			endColumn: word.endColumn,
+			endColumn: fallbackWord.endColumn,
 		});
+		this.renderSelectionUi();
 	}
 
 	placeCursor(clientX: number, clientY: number, focus = false): { lineNumber: number; column: number } | null {
 		const editor = this.editor;
 		if (!editor) return null;
-		const fallbackPosition = this.positionFromClientPoint(clientX, clientY);
+		const fallbackPosition = this.positionFromClientPoint(clientX, clientY, editor);
 		const hitPosition = editor.getTargetAtClientPoint?.(clientX, clientY)?.position ?? null;
-		const position = hitPosition ?? fallbackPosition;
+		const hitVisiblePosition = hitPosition ? editor.getScrolledVisiblePosition(hitPosition) : null;
+		const editorRect = this.host.querySelector<HTMLElement>('.monaco-editor')?.getBoundingClientRect() ?? this.host.getBoundingClientRect();
+		const hitClientLeft = hitVisiblePosition ? editorRect.left + hitVisiblePosition.left : undefined;
+		const hitLooksMisaligned = hitClientLeft !== undefined && Math.abs(clientX - hitClientLeft) > 32;
+		const position = fallbackPosition ?? (hitPosition && !hitLooksMisaligned ? hitPosition : null);
 		if (!position) return null;
 		editor.setPosition(position);
 		if (focus) {
@@ -229,7 +242,7 @@ export class MonacoSelectionController {
 		});
 	}
 
-	private positionFromClientPoint(clientX: number, clientY: number): { lineNumber: number; column: number } | undefined {
+	private positionFromClientPoint(clientX: number, clientY: number, editor = this.editor): { lineNumber: number; column: number } | undefined {
 		const lines = [...this.host.querySelectorAll<HTMLElement>('.view-line')];
 		if (lines.length === 0) {
 			return undefined;
@@ -250,12 +263,64 @@ export class MonacoSelectionController {
 			return undefined;
 		}
 		const rect = line.getBoundingClientRect();
-		const textLength = line.textContent?.length ?? 0;
-		const progress = rect.width > 0 ? Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) : 0;
-		return {
-			lineNumber: bestIndex + 1,
-			column: Math.max(1, Math.min(textLength + 1, Math.round(progress * textLength) + 1)),
-		};
+		const lineHeight = Math.max(1, rect.height || Number.parseFloat(getComputedStyle(line).lineHeight) || 20);
+		const topMatchedLine = Number.parseFloat(line.style.top || '');
+		const lineNumber = Math.max(
+			1,
+			Math.min(
+				editor?.getModel()?.getLineCount() ?? lines.length,
+				Number.isFinite(topMatchedLine) ? Math.round(topMatchedLine / lineHeight) + 1 : bestIndex + 1,
+			),
+		);
+		const maxColumn = editor?.getModel()?.getLineMaxColumn(lineNumber) ?? (line.textContent?.length ?? 0) + 1;
+		if (!editor || maxColumn <= 1) {
+			return { lineNumber, column: 1 };
+		}
+
+		const editorRect = this.host.querySelector<HTMLElement>('.monaco-editor')?.getBoundingClientRect() ?? this.host.getBoundingClientRect();
+		let low = 1;
+		let high = maxColumn;
+		let bestColumn = 1;
+		while (low <= high) {
+			const mid = Math.floor((low + high) / 2);
+			const visiblePosition = editor.getScrolledVisiblePosition({ lineNumber, column: mid });
+			const left = visiblePosition
+				? editorRect.left + visiblePosition.left
+				: rect.left + ((mid - 1) / Math.max(1, maxColumn - 1)) * Math.max(1, rect.width);
+			if (left <= clientX) {
+				bestColumn = mid;
+				low = mid + 1;
+			} else {
+				high = mid - 1;
+			}
+		}
+
+		const nextColumn = Math.min(maxColumn, bestColumn + 1);
+		const bestVisible = editor.getScrolledVisiblePosition({ lineNumber, column: bestColumn });
+		const nextVisible = editor.getScrolledVisiblePosition({ lineNumber, column: nextColumn });
+		const bestLeft = bestVisible ? editorRect.left + bestVisible.left : rect.left;
+		const nextLeft = nextVisible ? editorRect.left + nextVisible.left : rect.right;
+		const column = Math.abs(clientX - nextLeft) < Math.abs(clientX - bestLeft) ? nextColumn : bestColumn;
+		return { lineNumber, column: Math.max(1, Math.min(maxColumn, column)) };
+	}
+
+	private getWordRangeFromLine(line: string, column: number): { startColumn: number; endColumn: number } | null {
+		const index = Math.max(0, Math.min(line.length - 1, column - 1));
+		if (!/[A-Za-z0-9_]/.test(line[index] ?? '')) {
+			return null;
+		}
+
+		let startIndex = index;
+		while (startIndex > 0 && /[A-Za-z0-9_]/.test(line[startIndex - 1] ?? '')) {
+			startIndex--;
+		}
+
+		let endIndex = index + 1;
+		while (endIndex < line.length && /[A-Za-z0-9_]/.test(line[endIndex] ?? '')) {
+			endIndex++;
+		}
+
+		return { startColumn: startIndex + 1, endColumn: endIndex + 1 };
 	}
 
 	private clearVisualSelection(): void {

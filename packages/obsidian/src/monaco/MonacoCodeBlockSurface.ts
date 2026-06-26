@@ -274,7 +274,11 @@ export class MonacoCodeBlockSurface {
 		const firstViewLineRect = this.hostEl.querySelector<HTMLElement>('.view-line')?.getBoundingClientRect();
 		const pointInsideFirstViewLine = firstViewLineRect ? clientY >= firstViewLineRect.top && clientY <= firstViewLineRect.bottom : false;
 		const targetLooksStaleNativeMobile = document.activeElement?.classList?.contains('native-edit-context') === true && targetPosition?.lineNumber === 1 && targetPosition.column === 1 && this.hostEl.querySelectorAll('.view-line').length > 0 && !pointInsideFirstViewLine;
-		if (targetPosition && !targetLooksStaleNativeMobile) {
+		const targetVisiblePosition = targetPosition ? geometryEditor.getScrolledVisiblePosition?.(targetPosition) : null;
+		const editorRect = this.editorEl?.getBoundingClientRect() ?? this.hostEl.getBoundingClientRect();
+		const targetClientLeft = targetVisiblePosition ? editorRect.left + targetVisiblePosition.left : undefined;
+		const targetLooksMisaligned = targetClientLeft !== undefined && Math.abs(clientX - targetClientLeft) > 32;
+		if (targetPosition && !targetLooksStaleNativeMobile && !targetLooksMisaligned) {
 			const lineNumber = Math.max(1, Math.min(getLineCount(), targetPosition.lineNumber));
 			this.editor.setPosition({
 				lineNumber,
@@ -334,7 +338,7 @@ export class MonacoCodeBlockSurface {
 		while (low <= high) {
 			const mid = Math.floor((low + high) / 2);
 			const visiblePosition = geometryEditor.getScrolledVisiblePosition?.({ lineNumber, column: mid });
-			const left = visiblePosition ? visiblePosition.left : contentLeft + ((mid - 1) / Math.max(1, maxColumn - 1)) * Math.max(1, lineRect.width);
+			const left = visiblePosition ? editorRect.left + visiblePosition.left : contentLeft + ((mid - 1) / Math.max(1, maxColumn - 1)) * Math.max(1, lineRect.width);
 			if (left <= clientX) {
 				bestColumn = mid;
 				low = mid + 1;
@@ -344,8 +348,10 @@ export class MonacoCodeBlockSurface {
 		}
 
 		const nextColumn = Math.min(maxColumn, bestColumn + 1);
-		const bestLeft = geometryEditor.getScrolledVisiblePosition?.({ lineNumber, column: bestColumn })?.left ?? contentLeft;
-		const nextLeft = geometryEditor.getScrolledVisiblePosition?.({ lineNumber, column: nextColumn })?.left ?? lineRect.right;
+		const bestVisible = geometryEditor.getScrolledVisiblePosition?.({ lineNumber, column: bestColumn });
+		const nextVisible = geometryEditor.getScrolledVisiblePosition?.({ lineNumber, column: nextColumn });
+		const bestLeft = bestVisible ? editorRect.left + bestVisible.left : contentLeft;
+		const nextLeft = nextVisible ? editorRect.left + nextVisible.left : lineRect.right;
 		const column = Math.abs(clientX - nextLeft) < Math.abs(clientX - bestLeft) ? nextColumn : bestColumn;
 		this.editor.setPosition({ lineNumber, column: Math.max(1, Math.min(maxColumn, column)) });
 		this.editor.focus();
@@ -378,8 +384,15 @@ export class MonacoCodeBlockSurface {
 		const hostRect = this.hostEl.getBoundingClientRect();
 		const lineIndex = Math.max(0, Math.min(lines.length - 1, Math.floor((clientY - hostRect.top - metrics.paddingTop) / metrics.lineHeight)));
 		const line = lines[lineIndex] ?? '';
-		const progress = hostRect.width > 0 ? Math.max(0, Math.min(1, (clientX - hostRect.left) / hostRect.width)) : 0;
-		return { lineNumber: lineIndex + 1, column: Math.max(1, Math.min(line.length + 1, Math.round(progress * line.length) + 1)) };
+		const editorScrollLeft = this.editor?.getScrollLeft() ?? 0;
+		const viewLine = this.hostEl.querySelector<HTMLElement>('.view-line');
+		const viewLineRect = viewLine?.getBoundingClientRect();
+		const contentLeft = viewLineRect?.left ?? hostRect.left + 34;
+		const measuredWidth = viewLineRect?.width ?? 0;
+		const measuredCharWidth = line.length > 0 && measuredWidth > 0 ? measuredWidth / line.length : 0;
+		const charWidth = Number.isFinite(measuredCharWidth) && measuredCharWidth > 2 ? measuredCharWidth : 8;
+		const column = Math.round((clientX - contentLeft + editorScrollLeft) / charWidth) + 1;
+		return { lineNumber: lineIndex + 1, column: Math.max(1, Math.min(line.length + 1, column)) };
 	}
 
 	private async waitForEditorFrame(): Promise<void> {
@@ -413,7 +426,7 @@ export class MonacoCodeBlockSurface {
 				this.hostEl,
 			nativeInteraction: this.nativeMobileInteraction,
 			onActivate: this.activationHandler,
-			isEditable: () => this.modeController.isEditable(),
+			isEditable: (): boolean => this.modeController.isEditable(),
 		});
 	}
 }

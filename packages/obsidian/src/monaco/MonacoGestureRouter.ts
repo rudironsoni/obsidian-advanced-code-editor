@@ -16,6 +16,18 @@ interface NativeMobileInteraction {
 
 type GestureAxis = 'pending' | 'horizontal' | 'vertical' | 'handle';
 
+interface TouchGestureState {
+	startX: number;
+	startY: number;
+	startedAt: number;
+	scrollLeft: number;
+	axis: GestureAxis;
+	longPressed: boolean;
+	handle: boolean;
+}
+
+type TouchGestureHost = HTMLElement & { __shikiMonacoTouchState?: TouchGestureState };
+
 interface MonacoGestureRouterOptions {
 	host: HTMLElement;
 	editor: MonacoEditorLike;
@@ -37,7 +49,8 @@ export class MonacoGestureRouter {
 	private nativeInteraction: NativeMobileInteraction | undefined;
 	private onActivate: ((point: { clientX: number; clientY: number }) => void) | undefined;
 	private mouseDown: { clientX: number; clientY: number; button: number } | null = null;
-	private touchState: { startX: number; startY: number; scrollLeft: number; axis: GestureAxis; longPressed: boolean; handle: boolean } | null = null;
+	private touchState: TouchGestureState | null = null;
+	private lastReadonlyNativePosition: { lineNumber: number; column: number } | undefined;
 	private lastTouchTime = 0;
 	private longPressTimer: ReturnType<typeof setTimeout> | null = null;
 	private longPressActivated = false;
@@ -50,7 +63,7 @@ export class MonacoGestureRouter {
 		this.scrollState = options.scrollState;
 		this.getNoteScroller = options.getNoteScroller;
 		this.nativeInteraction = options.nativeInteraction;
-		this.isEditable = options.isEditable ?? (() => false);
+		this.isEditable = options.isEditable ?? ((): boolean => false);
 		this.onActivate = options.onActivate;
 
 		this.host.addEventListener('wheel', this.onWheel, { passive: false, capture: true });
@@ -59,8 +72,9 @@ export class MonacoGestureRouter {
 		this.host.addEventListener('touchend', this.onTouchEnd, { passive: false, capture: true });
 		this.host.addEventListener('touchcancel', this.onTouchCancel, { passive: false, capture: true });
 		this.host.addEventListener('pointerdown', this.onPointerDown, { passive: true, capture: true });
-		this.host.addEventListener('pointerup', this.onPointerUp, { passive: true, capture: true });
+		this.host.addEventListener('pointerup', this.onPointerUp, { passive: false, capture: true });
 		this.host.addEventListener('pointercancel', this.onPointerCancel, { passive: true, capture: true });
+		this.host.addEventListener('focusin', this.onFocusIn, true);
 		this.host.addEventListener('mousedown', this.onMouseDown, true);
 		this.host.addEventListener('mouseup', this.onMouseUp, true);
 		this.host.addEventListener('mouseup', this.onMouseUpBubble);
@@ -89,6 +103,7 @@ export class MonacoGestureRouter {
 		this.host.removeEventListener('pointerdown', this.onPointerDown, true);
 		this.host.removeEventListener('pointerup', this.onPointerUp, true);
 		this.host.removeEventListener('pointercancel', this.onPointerCancel, true);
+		this.host.removeEventListener('focusin', this.onFocusIn, true);
 		this.host.removeEventListener('mousedown', this.onMouseDown, true);
 		this.host.removeEventListener('mouseup', this.onMouseUp, true);
 		this.host.removeEventListener('mouseup', this.onMouseUpBubble);
@@ -116,7 +131,7 @@ export class MonacoGestureRouter {
 	};
 
 	private readonly onMouseDown = (event: MouseEvent): void => {
-		if (Date.now() - this.lastTouchTime < 700 || event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey) {
+		if (this.isSelectionUiEvent(event) || Date.now() - this.lastTouchTime < 700 || event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey) {
 			this.mouseDown = null;
 			return;
 		}
@@ -148,7 +163,6 @@ export class MonacoGestureRouter {
 		}
 		this.longPressActivated = false;
 		this.pointerTouchStart = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY };
-		this.onActivate?.({ clientX: event.clientX, clientY: event.clientY });
 		this.clearLongPressTimer();
 		this.longPressTimer = setTimeout(() => {
 			this.longPressActivated = true;
@@ -158,7 +172,7 @@ export class MonacoGestureRouter {
 
 	readonly onPointerUp = (event: PointerEvent): void => {
 		this.traceGesture('pointerup:start', { pointerType: event.pointerType, isPrimary: event.isPrimary, pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, hasStart: Boolean(this.pointerTouchStart), startPointerId: this.pointerTouchStart?.pointerId });
-		if (!this.pointerTouchStart || event.pointerId !== this.pointerTouchStart.pointerId) {
+		if (event.pointerId !== this.pointerTouchStart?.pointerId) {
 			this.traceGesture('pointerup:ignored-no-start', { pointerId: event.pointerId });
 			return;
 		}
@@ -173,13 +187,28 @@ export class MonacoGestureRouter {
 			this.traceGesture('pointerup:ignored-moved', { dx: event.clientX - start.clientX, dy: event.clientY - start.clientY });
 			return;
 		}
+		if (!this.isEditable()) {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			const nativePosition = this.positionFromClientPoint(event.clientX, event.clientY);
+			this.lastReadonlyNativePosition = nativePosition;
+			this.blurMonacoFocusTarget();
+			if (nativePosition) {
+				this.nativeInteraction?.placeCursor(nativePosition);
+				for (const delayMs of [25, 75, 150, 225]) window.setTimeout(() => {
+					this.blurMonacoFocusTarget();
+					this.nativeInteraction?.placeCursor(nativePosition);
+				}, delayMs);
+			}
+			return;
+		}
 		this.traceGesture('pointerup:focus', { clientX: event.clientX, clientY: event.clientY });
 		this.focusEditorAtPoint(event.clientX, event.clientY);
 		this.deferFocusEditorAtPoint(event.clientX, event.clientY);
 	};
 
 	readonly onPointerCancel = (event: PointerEvent): void => {
-		if (!this.pointerTouchStart || event.pointerId !== this.pointerTouchStart.pointerId) {
+		if (event.pointerId !== this.pointerTouchStart?.pointerId) {
 			return;
 		}
 		this.clearLongPressTimer();
@@ -196,11 +225,13 @@ export class MonacoGestureRouter {
 		this.touchState = {
 			startX: touch.clientX,
 			startY: touch.clientY,
+			startedAt: Date.now(),
 			scrollLeft: this.editor.getScrollLeft(),
 			longPressed: false,
 			axis: handle ? 'handle' : 'pending',
 			handle,
 		};
+		(this.host as TouchGestureHost).__shikiMonacoTouchState = this.touchState;
 		if (handle) {
 			event.preventDefault();
 			event.stopPropagation();
@@ -249,8 +280,9 @@ export class MonacoGestureRouter {
 	private readonly onTouchEnd = (event: TouchEvent): void => {
 		this.lastTouchTime = Date.now();
 		const touch = event.changedTouches[0];
-		const state = this.touchState;
+		const state = this.touchState ?? (this.host as TouchGestureHost).__shikiMonacoTouchState ?? null;
 		this.touchState = null;
+		delete (this.host as TouchGestureHost).__shikiMonacoTouchState;
 		this.selectionController.endHandleDrag();
 		this.clearLongPressTimer();
 		if (this.longPressActivated) {
@@ -262,6 +294,14 @@ export class MonacoGestureRouter {
 		if (state?.longPressed) {
 			event.preventDefault();
 			event.stopPropagation();
+			this.touchState = null;
+			this.lastTouchTime = Date.now();
+			return;
+		}
+		if (state?.axis === 'pending' && Date.now() - state.startedAt >= 450) {
+			event.preventDefault();
+			event.stopPropagation();
+			this.selectionController.selectWordAt(state.startX, state.startY);
 			this.touchState = null;
 			this.lastTouchTime = Date.now();
 			return;
@@ -288,13 +328,14 @@ export class MonacoGestureRouter {
 
 		if (nativePosition && this.nativeInteraction && !this.isEditable()) {
 			event.preventDefault();
-			event.stopPropagation();
+			event.stopImmediatePropagation();
+			this.lastReadonlyNativePosition = nativePosition;
 			this.blurMonacoFocusTarget();
 			this.nativeInteraction.placeCursor(nativePosition);
-			window.setTimeout(() => {
+			for (const delayMs of [25, 75, 150, 225]) window.setTimeout(() => {
 				this.blurMonacoFocusTarget();
 				this.nativeInteraction?.placeCursor(nativePosition);
-			}, 50);
+			}, delayMs);
 			return;
 		}
 		this.selectionController.placeCursor(touch.clientX, touch.clientY);
@@ -302,7 +343,7 @@ export class MonacoGestureRouter {
 	private readonly onMouseUp = (event: MouseEvent): void => {
 		const mouseDown = this.mouseDown;
 		this.mouseDown = null;
-		if (!mouseDown || !this.isEditable() || event.button !== 0 || event.detail > 1 || event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) {
+		if (this.isSelectionUiEvent(event) || !mouseDown || !this.isEditable() || event.button !== 0 || event.detail > 1 || event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) {
 			return;
 		}
 		if (Math.abs(event.clientX - mouseDown.clientX) > 3 || Math.abs(event.clientY - mouseDown.clientY) > 3) {
@@ -316,7 +357,7 @@ export class MonacoGestureRouter {
 		this.onMouseUp(event);
 	};
 	private readonly onClick = (event: MouseEvent): void => {
-		if (!this.isEditable() || event.button !== 0 || event.detail > 1 || event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) {
+		if (this.isSelectionUiEvent(event) || !this.isEditable() || event.button !== 0 || event.detail > 1 || event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) {
 			return;
 		}
 		this.focusEditorAtPoint(event.clientX, event.clientY);
@@ -325,6 +366,26 @@ export class MonacoGestureRouter {
 
 	private readonly onClickBubble = (event: MouseEvent): void => {
 		this.onClick(event);
+	};
+
+	private readonly onFocusIn = (event: FocusEvent): void => {
+		if (this.isEditable()) {
+			return;
+		}
+		const target = event.target;
+		if (!(target instanceof HTMLElement) || !this.host.contains(target)) {
+			return;
+		}
+		this.blurMonacoFocusTarget();
+		const nativePosition = this.lastReadonlyNativePosition;
+		if (!nativePosition) {
+			return;
+		}
+		this.nativeInteraction?.placeCursor(nativePosition);
+		window.setTimeout(() => {
+			this.blurMonacoFocusTarget();
+			this.nativeInteraction?.placeCursor(nativePosition);
+		}, 0);
 	};
 
 	private isPointInsideHost(clientX: number, clientY: number): boolean {
@@ -337,7 +398,7 @@ export class MonacoGestureRouter {
 	}
 
 	private readonly onDocumentMouseDown = (event: MouseEvent): void => {
-		if (!this.isEditable() || !this.isPlainPrimaryMouse(event) || !this.isPointInsideHost(event.clientX, event.clientY)) {
+		if (!this.isEditable() || this.isSelectionUiEvent(event) || !this.isPlainPrimaryMouse(event) || !this.isPointInsideHost(event.clientX, event.clientY)) {
 			return;
 		}
 		this.mouseDown = { clientX: event.clientX, clientY: event.clientY, button: event.button };
@@ -345,7 +406,7 @@ export class MonacoGestureRouter {
 
 	private readonly onDocumentMouseUp = (event: MouseEvent): void => {
 		const mouseDown = this.mouseDown;
-		if (!this.isEditable() || !this.isPlainPrimaryMouse(event) || !this.isPointInsideHost(event.clientX, event.clientY)) {
+		if (!this.isEditable() || this.isSelectionUiEvent(event) || !this.isPlainPrimaryMouse(event) || !this.isPointInsideHost(event.clientX, event.clientY)) {
 			return;
 		}
 		if (mouseDown && (Math.abs(event.clientX - mouseDown.clientX) > 3 || Math.abs(event.clientY - mouseDown.clientY) > 3)) {
@@ -356,17 +417,23 @@ export class MonacoGestureRouter {
 	};
 
 	private readonly onDocumentClick = (event: MouseEvent): void => {
-		if (!this.isEditable() || !this.isPlainPrimaryMouse(event) || !this.isPointInsideHost(event.clientX, event.clientY)) {
+		if (!this.isEditable() || this.isSelectionUiEvent(event) || !this.isPlainPrimaryMouse(event) || !this.isPointInsideHost(event.clientX, event.clientY)) {
 			return;
 		}
 		this.focusEditorAtPoint(event.clientX, event.clientY);
 		this.deferFocusEditorAtPoint(event.clientX, event.clientY);
 	};
 
+	private isSelectionUiEvent(event: Event): boolean {
+		const target = event.target instanceof HTMLElement ? event.target : null;
+		return target?.closest('.shiki-monaco-selection-toolbar, .shiki-monaco-selection-handle') !== null;
+	}
+
 
 	private readonly onTouchCancel = (): void => {
 		this.lastTouchTime = Date.now();
 		this.touchState = null;
+		delete (this.host as TouchGestureHost).__shikiMonacoTouchState;
 		this.selectionController.endHandleDrag();
 		this.clearLongPressTimer();
 	};
@@ -426,13 +493,17 @@ export class MonacoGestureRouter {
 		const getLineCount = (): number => model?.getLineCount?.() ?? Math.max(1, modelLines.length);
 		const getLineMaxColumn = (lineNumber: number): number => model?.getLineMaxColumn?.(lineNumber) ?? ((modelLines[lineNumber - 1] ?? '').length + 1);
 
-		const targetPosition = editorWithModel.getTargetAtClientPoint?.(clientX, clientY)?.position;
-		const firstViewLineRect = this.host.querySelector<HTMLElement>('.view-line')?.getBoundingClientRect();
-		const pointInsideFirstViewLine = firstViewLineRect ? clientY >= firstViewLineRect.top && clientY <= firstViewLineRect.bottom : false;
-		const targetLooksStaleNativeMobile = document.activeElement?.classList?.contains('native-edit-context') === true && targetPosition?.lineNumber === 1 && targetPosition.column === 1 && this.host.querySelectorAll('.view-line').length > 0 && !pointInsideFirstViewLine;
-		if (targetPosition && !targetLooksStaleNativeMobile) {
-			const lineNumber = Math.max(1, Math.min(getLineCount(), targetPosition.lineNumber));
-			return {
+			const targetPosition = editorWithModel.getTargetAtClientPoint?.(clientX, clientY)?.position;
+			const firstViewLineRect = this.host.querySelector<HTMLElement>('.view-line')?.getBoundingClientRect();
+			const pointInsideFirstViewLine = firstViewLineRect ? clientY >= firstViewLineRect.top && clientY <= firstViewLineRect.bottom : false;
+			const targetLooksStaleNativeMobile = document.activeElement?.classList?.contains('native-edit-context') === true && targetPosition?.lineNumber === 1 && targetPosition.column === 1 && this.host.querySelectorAll('.view-line').length > 0 && !pointInsideFirstViewLine;
+			const targetVisiblePosition = targetPosition ? editorWithModel.getScrolledVisiblePosition?.(targetPosition) : null;
+			const editorRect = (this.host.querySelector<HTMLElement>('.monaco-editor') ?? this.host).getBoundingClientRect();
+			const targetClientLeft = targetVisiblePosition ? editorRect.left + targetVisiblePosition.left : undefined;
+			const targetLooksMisaligned = targetClientLeft !== undefined && Math.abs(clientX - targetClientLeft) > 32;
+			if (targetPosition && !targetLooksStaleNativeMobile && !targetLooksMisaligned) {
+				const lineNumber = Math.max(1, Math.min(getLineCount(), targetPosition.lineNumber));
+				return {
 				lineNumber,
 				column: Math.max(1, Math.min(getLineMaxColumn(lineNumber), targetPosition.column)),
 			};
@@ -481,21 +552,23 @@ export class MonacoGestureRouter {
 		let low = 1;
 		let high = maxColumn;
 		let bestColumn = 1;
-		while (low <= high) {
-			const mid = Math.floor((low + high) / 2);
-			const visiblePosition = editorWithModel.getScrolledVisiblePosition?.({ lineNumber, column: mid });
-			const left = visiblePosition ? visiblePosition.left : contentLeft + ((mid - 1) / Math.max(1, maxColumn - 1)) * Math.max(1, lineRect.width);
-			if (left <= clientX) {
-				bestColumn = mid;
-				low = mid + 1;
+			while (low <= high) {
+				const mid = Math.floor((low + high) / 2);
+				const visiblePosition = editorWithModel.getScrolledVisiblePosition?.({ lineNumber, column: mid });
+				const left = visiblePosition ? editorRect.left + visiblePosition.left : contentLeft + ((mid - 1) / Math.max(1, maxColumn - 1)) * Math.max(1, lineRect.width);
+				if (left <= clientX) {
+					bestColumn = mid;
+					low = mid + 1;
 			} else {
 				high = mid - 1;
 			}
 		}
 
-		const nextColumn = Math.min(maxColumn, bestColumn + 1);
-		const bestLeft = editorWithModel.getScrolledVisiblePosition?.({ lineNumber, column: bestColumn })?.left ?? contentLeft;
-		const nextLeft = editorWithModel.getScrolledVisiblePosition?.({ lineNumber, column: nextColumn })?.left ?? lineRect.right;
+			const nextColumn = Math.min(maxColumn, bestColumn + 1);
+			const bestVisible = editorWithModel.getScrolledVisiblePosition?.({ lineNumber, column: bestColumn });
+			const nextVisible = editorWithModel.getScrolledVisiblePosition?.({ lineNumber, column: nextColumn });
+			const bestLeft = bestVisible ? editorRect.left + bestVisible.left : contentLeft;
+			const nextLeft = nextVisible ? editorRect.left + nextVisible.left : lineRect.right;
 		const column = Math.abs(clientX - nextLeft) < Math.abs(clientX - bestLeft) ? nextColumn : bestColumn;
 		return { lineNumber, column: Math.max(1, Math.min(maxColumn, column)) };
 	}

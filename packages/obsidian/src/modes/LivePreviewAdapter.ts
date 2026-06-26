@@ -29,6 +29,7 @@ export class LivePreviewAdapter {
 	private ownerRoot: LivePreviewOwnerElement | undefined;
 	private destroyed = false;
 	private missingLineRetryCount = 0;
+	private livePreviewActive = false;
 	private readonly hiddenBlockIds = new Set<string>();
 
 	constructor(plugin: ShikiPlugin, view: EditorView, requestDecorationRefresh: () => void) {
@@ -63,14 +64,13 @@ export class LivePreviewAdapter {
 			return;
 		}
 
-		this.updateViewportMode();
-
-		if (!isLivePreview) {
-			this.decorations = Decoration.none;
-			this.lastViewportKey = '';
-			this.detachAll();
+		if (!this.isActuallyLivePreview(isLivePreview)) {
+			this.clearLivePreviewState();
 			return;
 		}
+
+		this.livePreviewActive = true;
+		this.updateViewportMode();
 
 		const viewportKey = this.getViewportKey();
 		const viewportActuallyChanged = update.viewportChanged && viewportKey !== this.lastViewportKey;
@@ -83,6 +83,10 @@ export class LivePreviewAdapter {
 		this.scheduleSync();
 	}
 
+	private isActuallyLivePreview(isLivePreview: boolean): boolean {
+		if (isLivePreview) return true;
+		return this.getSourceViewRoot()?.classList.contains('is-live-preview') ?? false;
+	}
 	private getViewportKey(): string {
 		return this.view.visibleRanges.map(range => range.from + ':' + range.to).join('|');
 	}
@@ -91,12 +95,18 @@ export class LivePreviewAdapter {
 		if (this.destroyed || !this.plugin.isCurrentInstance()) {
 			return;
 		}
+		this.livePreviewActive = true;
 		this.rebuildBlocks();
 		this.requestDecorationRefresh();
 		this.scheduleSync(50);
 	}
 
 	refreshForModeChange(): void {
+		if (!this.getSourceViewRoot().classList.contains('is-live-preview')) {
+			this.clearLivePreviewState();
+			return;
+		}
+		this.livePreviewActive = true;
 		this.rebuildBlocks();
 		this.scheduleSync(0);
 	}
@@ -196,6 +206,10 @@ export class LivePreviewAdapter {
 			this.detachAll();
 			return;
 		}
+		if (!this.livePreviewActive && !this.getSourceViewRoot().classList.contains('is-live-preview')) {
+			this.clearLivePreviewState();
+			return;
+		}
 		this.ensureSingleOverlayRoot();
 		const visibleIds = new Set<string>();
 		let missingVisibleLines = false;
@@ -242,12 +256,12 @@ export class LivePreviewAdapter {
 			surface.setNativeMobileInteraction(mobileMode ? this.createNativeMobileInteraction(block) : undefined);
 			surface.hostEl.classList.add('shiki-monaco-codeblock');
 			surface.hostEl.dataset.shikiBlockId = block.id;
-			surface.hostEl.onclick = event => {
-				this.activateBlock(block.id, { clientX: event.clientX, clientY: event.clientY });
+			surface.hostEl.onclick = (event): void => {
+				void this.activateBlock(block.id, { clientX: event.clientX, clientY: event.clientY });
 			};
-			surface.hostEl.ontouchend = event => {
+			surface.hostEl.ontouchend = (event): void => {
 				const touch = event.changedTouches[0];
-				this.activateBlock(block.id, { clientX: touch?.clientX ?? 0, clientY: touch?.clientY ?? 0 });
+				void this.activateBlock(block.id, { clientX: touch?.clientX ?? 0, clientY: touch?.clientY ?? 0 });
 			};
 			surface.setActivationHandler(point => void this.activateBlock(block.id, point));
 			surface.hostEl.style.position = 'absolute';
@@ -299,6 +313,16 @@ export class LivePreviewAdapter {
 			this.plugin.surfaceRegistry.release(block.id);
 			this.plugin.codeBlockRegistry.delete(block.id);
 		}
+		this.blocks = [];
+	}
+
+	private clearLivePreviewState(): void {
+		this.livePreviewActive = false;
+		this.decorations = Decoration.none;
+		this.lastViewportKey = '';
+		this.detachAll();
+		this.overlayRoot.remove();
+		this.hiddenBlockIds.clear();
 		this.blocks = [];
 	}
 
@@ -447,7 +471,7 @@ export class LivePreviewAdapter {
 					&& candidate.language === block.language);
 		};
 		return {
-			getCurrentRange: () => {
+			getCurrentRange: (): { from: number; to: number } | undefined => {
 				const current = resolveCurrent();
 				return current?.codeFrom !== undefined && current.codeTo !== undefined ? { from: current.codeFrom, to: current.codeTo } : undefined;
 			},
@@ -573,7 +597,7 @@ export class LivePreviewAdapter {
 		this.lastMobileMode = mobileMode;
 	}
 	private getSourceViewRoot(): HTMLElement {
-		return this.view.dom.closest('.markdown-source-view.mod-cm6') as HTMLElement | null ?? this.view.dom;
+		return this.view.dom.closest<HTMLElement>('.markdown-source-view.mod-cm6') ?? this.view.dom;
 	}
 
 	private isMobile(): boolean {

@@ -266,9 +266,9 @@ test('Monaco gesture routing uses explicit horizontal intent and Obsidian note s
 	expect(surface).toContain('setNoteScrollerProvider(noteScrollerProvider: (() => HTMLElement | null) | undefined): void');
 	expect(surface).toContain('this.noteScrollerProvider?.() ??');
 	expect(livePreview).toContain('surface.setNoteScrollerProvider(() => this.view.scrollDOM);');
-	expect(livePreview).toContain('surface.hostEl.onclick = event => {');
-	expect(livePreview).toContain('this.activateBlock(block.id, { clientX: event.clientX, clientY: event.clientY });');
-	expect(livePreview).toContain('surface.hostEl.ontouchend = event => {');
+	expect(livePreview).toContain('surface.hostEl.onclick = (event): void => {');
+	expect(livePreview).toContain('void this.activateBlock(block.id, { clientX: event.clientX, clientY: event.clientY });');
+	expect(livePreview).toContain('surface.hostEl.ontouchend = (event): void => {');
 	expect(livePreview).toContain('const availableViewportWidth = Math.max(0, viewportWidth - firstRect.left - 24);');
 	expect(livePreview).toContain('const overlayWidth = Math.max(firstRect.width, this.view.scrollDOM.clientWidth, rootRect.width, availableContentWidth, availableViewportWidth, 320);');
 	expect(livePreview).toContain("overlayRoot.style.width = `${Math.max(rootRect.width, contentRect.width, this.view.scrollDOM.clientWidth, viewportWidth)}px`;");
@@ -311,7 +311,7 @@ test('plugin refreshes editor integration after workspace mode/layout changes', 
 	expect(main).toContain('const livePreviewModeObserver = new MutationObserver(mutations => {');
 	expect(main).toContain("livePreviewModeObserver.observe(this.app.workspace.containerEl.ownerDocument.body, { attributes: true, attributeFilter: ['class'], subtree: true });");
 	expect(main).toContain('this.register(() => livePreviewModeObserver.disconnect());');
-	expect(main).toContain('const startEditorIntegrationSettle = () => {');
+	expect(main).toContain('const startEditorIntegrationSettle = (): void => {');
 	expect(main).toContain('attempts >= 12');
 	expect(main).toContain('this.registerInterval(interval);');
 });

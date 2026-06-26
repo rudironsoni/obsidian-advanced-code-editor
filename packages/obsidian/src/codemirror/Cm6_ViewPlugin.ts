@@ -43,7 +43,7 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 				const isLivePreview = this.isLivePreview(update.view.state);
 				const modeChanged = isLivePreview !== this.lastIsLivePreview;
 				this.lastIsLivePreview = isLivePreview;
-				if (modeChanged) {
+				if (modeChanged && isLivePreview) {
 					this.livePreviewAdapter.refreshForModeChange();
 				}
 				if (update.docChanged || update.viewportChanged || update.selectionSet) {
