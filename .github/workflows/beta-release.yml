@@ -110,7 +110,7 @@ jobs:
                   node -e '
                   const fs = require("node:fs");
                   const version = process.env.BETA_VERSION;
-                  if (!version) throw new Error("Missing beta version from github-tag-action");
+                      if (!version) throw new Error("Missing beta version from Compute beta SemVer step");
                   for (const file of ["package.json", "manifest.json", "manifest-beta.json"]) {
                     const data = JSON.parse(fs.readFileSync(file, "utf8"));
                     data.version = version;
