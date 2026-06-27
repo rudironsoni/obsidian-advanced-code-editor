@@ -332,11 +332,17 @@ export class LivePreviewAdapter {
 				const touch = event.changedTouches[0];
 				void this.activateBlock(block.id, { clientX: touch?.clientX ?? 0, clientY: touch?.clientY ?? 0 });
 			};
-			surface.setActivationHandler(point => void this.activateBlock(block.id, point));
-			surface.hostEl.style.position = 'relative';
-			surface.hostEl.style.left = '';
-			surface.hostEl.style.top = '';
-			surface.hostEl.style.width = '100%';
+		surface.setActivationHandler(point => void this.activateBlock(block.id, point));
+		const fallbackHostWidth = Math.max(this.view.contentDOM.clientWidth || 0, 1);
+		const widgetWidth = first.getBoundingClientRect().width;
+		const lineWidth = Math.max(...lineElements.map(line => line.getBoundingClientRect().width), 0);
+		const measuredHostWidth = Math.max(firstRect.width, lastRect.width, widgetWidth, lineWidth, fallbackHostWidth);
+		surface.hostEl.style.width = `${measuredHostWidth}px`;
+		surface.hostEl.style.maxWidth = `${measuredHostWidth}px`;
+		surface.hostEl.style.minWidth = `${fallbackHostWidth}px`;
+		surface.hostEl.style.position = 'relative';
+		surface.hostEl.style.left = '';
+		surface.hostEl.style.top = '';
 			const isReady = surface.isVisiblyReady() && this.surfaceMatchesCodeLines(surface.hostEl, lineElements);
 			if (!isReady) {
 				const estimatedHeight = Math.max(120, Math.min(420, block.code.split('\n').length * 20 + 24));
