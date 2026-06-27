@@ -276,7 +276,6 @@ export class LivePreviewAdapter {
 			this.clearLivePreviewState();
 			return;
 		}
-		this.resetNoteHorizontalScroll();
 		const visibleIds = new Set<string>();
 		const missingVisibleLines = false;
 		for (const block of this.blocks) {
@@ -768,14 +767,6 @@ export class LivePreviewAdapter {
 			return viewContent;
 		}
 		return this.view.scrollDOM;
-	}
-
-	private resetNoteHorizontalScroll(): void {
-		for (const element of [this.view.scrollDOM, this.view.dom, this.view.dom.closest<HTMLElement>('.view-content')]) {
-			if (element && element.scrollLeft !== 0) {
-				element.scrollLeft = 0;
-			}
-		}
 	}
 
 	private isMobile(): boolean {
