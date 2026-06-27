@@ -51,3 +51,65 @@ rtk pip list            rtk pnpm install        rtk npm run <script>
 - Reuse same test vault same Obsidian instance across setup, debugging, verification. Do not spin up extra instances.
 - Always use model's vision capabilities screenshots from real Obsidian to verify actually rendered before concluding UI bug fixed or understood.
 <!-- /headroom:rtk-instructions -->
+
+## Project-Specific Rules
+This is an Obsidian plugin. Do not claim UI or runtime bugs are fixed from unit tests alone.
+
+### Architecture
+- `packages/obsidian/src/main.ts` owns plugin lifecycle, registration, settings, and reload orchestration.
+- `packages/obsidian/src/codemirror/Cm6_ViewPlugin.ts` owns CodeMirror extension wiring and decoration refresh.
+- `packages/obsidian/src/modes/LivePreviewAdapter.ts` owns Live Preview code block discovery, Monaco widget mounting, raw-row hiding, surface syncing, and cleanup.
+- `packages/obsidian/src/modes/SourceModeAdapter.ts` owns source-mode token decorations only. It must not create Monaco editors.
+- `packages/obsidian/src/modes/ReadingViewAdapter.ts` owns reading-mode rendering.
+- `packages/obsidian/src/monaco/MonacoCodeBlockSurface.ts` is the only place that may create Monaco editors.
+- `packages/obsidian/src/codeblocks/*` owns parsing, block identity, and block models.
+
+### Required Verification Ladder
+For normal code changes:
+
+```bash
+rtk bun run typecheck
+rtk bun test
+```
+
+For architecture, source/live-preview, Monaco, or startup changes:
+
+```bash
+rtk bun test tests/architecture-boundaries.test.ts
+rtk bun run build
+rtk bun run lint
+```
+
+For Live Preview redraw, Monaco mounting, scrolling, mobile, or mode-switch bugs:
+
+```bash
+rtk bun run verify:obsidian-live-preview-redraw-loop
+rtk bun run verify:obsidian-monaco-mobile-rendering
+```
+
+For release-level confidence:
+
+```bash
+rtk bun run check
+rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-real
+```
+
+### Live Preview Redraw-Loop Success Criteria
+A fix is not complete unless the runtime verifier proves:
+
+- exactly one `.shiki-monaco-live-widget`
+- exactly one Monaco host inside that widget
+- exactly one `.monaco-editor`
+- raw CodeMirror code rows are hidden after Monaco is ready
+- Monaco host is not recreated during stability sampling
+- Monaco host height and top do not jitter
+- note horizontal scroll remains zero
+- desktop and mobile emulation both pass
+
+### Change Discipline
+- Touch only files required for the bug.
+- Do not refactor unrelated code.
+- Do not add debug globals, console spam, or broad DOM polling.
+- Do not spawn a second Obsidian instance.
+- Reuse the existing CDP port and test vault.
+- If a runtime check is skipped, report it explicitly.

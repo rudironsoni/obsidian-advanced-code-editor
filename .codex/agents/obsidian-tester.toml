@@ -45,6 +45,16 @@ You are an Obsidian plugin testing specialist. Your job is to verify that the Ob
 3. **Disable Mobile Mode**
    - Always run `app.emulateMobile(false)` through runtime/CDP evaluation.
 
+### Bug Class Routes
+
+- Live Preview redraw loop: `rtk bun run verify:obsidian-live-preview-redraw-loop`.
+- Live Preview interactions: `rtk bun run verify:obsidian-live-preview-interactions`.
+- Monaco editing: `rtk bun run verify:obsidian-monaco-edit`.
+- Mobile rendering: `rtk bun run verify:obsidian-monaco-mobile-rendering`.
+- General runtime: `rtk bun run verify:obsidian-real`.
+
+Run the focused verifier for the active bug class even when `rtk bun run check` passes.
+
 ### Phase 3: Report
 
 Write findings to `planning/test-reports/<YYYY-MM-DD-HH-MM>/TEST.md` with:
@@ -55,3 +65,10 @@ Write findings to `planning/test-reports/<YYYY-MM-DD-HH-MM>/TEST.md` with:
 - Startup times.
 - Recommendation: ship / hold.
 '''
+
+[bug_class_routes]
+live_preview_redraw_loop = "rtk bun run verify:obsidian-live-preview-redraw-loop"
+live_preview_interactions = "rtk bun run verify:obsidian-live-preview-interactions"
+monaco_editing = "rtk bun run verify:obsidian-monaco-edit"
+mobile_rendering = "rtk bun run verify:obsidian-monaco-mobile-rendering"
+general_runtime = "rtk bun run verify:obsidian-real"

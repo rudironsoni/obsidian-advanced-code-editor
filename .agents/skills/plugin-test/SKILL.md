@@ -56,6 +56,15 @@ checks both desktop and `app.emulateMobile(true)` paths:
 rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-real
 ```
 
+For Live Preview redraw, remount, jitter, duplicate Monaco host, horizontal-scroll bugs, mobile Monaco rendering, or mode-switch bugs, run the focused runtime verifiers:
+
+```bash
+rtk bun run verify:obsidian-live-preview-redraw-loop
+rtk bun run verify:obsidian-monaco-mobile-rendering
+```
+
+These checks are required even when `rtk bun run check` passes, because `check` does not include the focused runtime verifiers.
+
 When verifying a downloaded release payload, set `OBSIDIAN_VERIFY_PLUGIN_DIR` to
 a directory containing `main.js`, `manifest.json`, and `styles.css`:
 
