@@ -85,15 +85,55 @@ async function connectToExistingObsidian(port) {
 }
 
 async function evaluate(client, expression) {
-	const result = await client.send('Runtime.evaluate', {
-		expression,
-		awaitPromise: true,
-		returnByValue: true,
-	});
-	if (result.exceptionDetails) {
-		throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text ?? JSON.stringify(result.exceptionDetails));
+	let lastError;
+	for (let attempt = 0; attempt < 20; attempt++) {
+		try {
+			const result = await withTimeout(
+				client.send('Runtime.evaluate', {
+					expression,
+					awaitPromise: true,
+					returnByValue: true,
+				}),
+				5_000,
+				`Timed out evaluating ${expression.slice(0, 120)}`,
+			);
+			if (result.exceptionDetails) {
+				throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text ?? JSON.stringify(result.exceptionDetails));
+			}
+			return result.result.value;
+		} catch (error) {
+			lastError = error;
+			if (!isRetryableRuntimeReset(error)) {
+				throw error;
+			}
+			await delay(250);
+		}
 	}
-	return result.result.value;
+	throw lastError;
+}
+
+function isRetryableRuntimeReset(error) {
+	const message = String(error?.message ?? error);
+	return (
+		message.includes('Execution context was destroyed') ||
+		message.includes('Cannot find context with specified id') ||
+		message.includes('Inspected target navigated or closed') ||
+		message.includes('Cannot access a disposed object')
+	);
+}
+
+async function withTimeout(promise, timeoutMs, message) {
+	let timer;
+	try {
+		return await Promise.race([
+			promise,
+			new Promise((_, reject) => {
+				timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+			}),
+		]);
+	} finally {
+		clearTimeout(timer);
+	}
 }
 
 async function waitFor(client, expression, message, timeoutMs = 20_000) {
@@ -371,7 +411,11 @@ async function verifyScroll(client, settings, context) {
 }
 
 async function captureScreenshot(client, filename) {
-	const result = await client.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+	const result = await withTimeout(
+		client.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }),
+		10_000,
+		`Timed out capturing screenshot ${filename}`,
+	);
 	const target = path.join(REPORT_DIR, filename);
 	await writeFile(target, Buffer.from(result.data, 'base64'));
 	return target;
@@ -381,6 +425,7 @@ async function run() {
 	await mkdir(REPORT_DIR, { recursive: true });
 	const client = await connectToExistingObsidian(PORT);
 	const checks = [];
+	const screenshots = [];
 	let originalSettings;
 	try {
 		await waitForPlugin(client);
@@ -403,11 +448,13 @@ async function run() {
 					checks.push({ viewport: viewport.name, settings, iteration: iteration + 1, sourceState, readingState, stableState });
 				}
 				await verifyScroll(client, settings, `${viewport.name} wrap:${settings.wrap ? 'on' : 'off'} lines:${settings.lineNumbers ? 'on' : 'off'}`);
-				await captureScreenshot(client, `${viewport.name}-wrap-${settings.wrap ? 'on' : 'off'}-lines-${settings.lineNumbers ? 'on' : 'off'}.png`);
+				screenshots.push(
+					await captureScreenshot(client, `${viewport.name}-wrap-${settings.wrap ? 'on' : 'off'}-lines-${settings.lineNumbers ? 'on' : 'off'}.png`),
+				);
 			}
 		}
-		await writeFile(path.join(REPORT_DIR, 'report.json'), JSON.stringify({ checks }, null, 2));
-		console.log(JSON.stringify({ reportDir: REPORT_DIR, checks: checks.length }, null, 2));
+		await writeFile(path.join(REPORT_DIR, 'report.json'), JSON.stringify({ checks, screenshots }, null, 2));
+		console.log(JSON.stringify({ reportDir: REPORT_DIR, checks: checks.length, screenshots }, null, 2));
 	} finally {
 		if (originalSettings) {
 			await restoreSettings(client, originalSettings).catch(error => console.error(`Failed to restore plugin settings: ${error.message}`));

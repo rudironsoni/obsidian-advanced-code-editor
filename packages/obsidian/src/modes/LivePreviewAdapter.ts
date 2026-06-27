@@ -582,9 +582,11 @@ export class LivePreviewAdapter {
 	private removeStaleSurfaceChildren(visibleIds: Set<string>): void {
 		for (const element of Array.from(this.getCleanupRoot().querySelectorAll<HTMLElement>('.shiki-monaco-block, .shiki-monaco-codeblock'))) {
 			const id = element.getAttribute('data-shiki-block-id');
-			if (id !== null && !visibleIds.has(id)) {
+			if (element.closest('.shiki-monaco-live-widget') === null || (id !== null && !visibleIds.has(id))) {
 				element.remove();
-				this.plugin.surfaceRegistry.release(id);
+				if (id !== null) {
+					this.plugin.surfaceRegistry.release(id);
+				}
 			}
 		}
 	}
