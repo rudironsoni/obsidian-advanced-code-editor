@@ -76,10 +76,9 @@ export class SourceModeAdapter {
 			if (requestId !== this.tokenizationRequest || !highlight || block.codeFrom === undefined || block.codeTo === undefined) {
 				continue;
 			}
-			let lineOffset = 0;
 			for (const lineTokens of highlight.tokens) {
 				for (const token of lineTokens) {
-					const from = block.codeFrom + lineOffset + token.offset;
+					const from = block.codeFrom + token.offset;
 					const to = Math.min(from + token.content.length, block.codeTo);
 					if (to <= from) {
 						continue;
@@ -96,7 +95,6 @@ export class SourceModeAdapter {
 						}),
 					);
 				}
-				lineOffset += this.lineLength(block.code, lineOffset) + 1;
 			}
 		}
 
@@ -119,11 +117,6 @@ export class SourceModeAdapter {
 			lines.push({ lineNumber, text: line.text, from: line.from, to: line.to });
 		}
 		return lines;
-	}
-
-	private lineLength(code: string, offset: number): number {
-		const nextNewline = code.indexOf('\n', offset);
-		return nextNewline === -1 ? code.length - offset : nextNewline - offset;
 	}
 
 	private toSourceBlock(parsed: ReturnType<CodeBlockParser['parseLivePreviewBlocks']>[number]): CodeBlockModel {
