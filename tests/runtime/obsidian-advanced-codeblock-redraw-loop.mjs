@@ -152,8 +152,8 @@ async function waitFor(client, expression, message, timeoutMs = 20_000) {
 async function waitForPlugin(client) {
 	return waitFor(
 		client,
-		`Boolean(globalThis.app?.workspace && globalThis.app?.vault && globalThis.app?.plugins?.plugins?.['shiki-highlighter'])`,
-		'Timed out waiting for shiki-highlighter plugin',
+		`Boolean(globalThis.app?.workspace && globalThis.app?.vault && globalThis.app?.plugins?.plugins?.['advanced-code-block'])`,
+		'Timed out waiting for advanced-code-block plugin',
 	);
 }
 
@@ -188,8 +188,8 @@ async function setupFixture(client) {
 		client,
 		`(async () => {
 			if (!globalThis.app?.vault || !globalThis.app?.workspace) throw new Error('Obsidian app is not ready');
-			const plugin = globalThis.app.plugins.plugins['shiki-highlighter'];
-			if (!plugin) throw new Error('shiki-highlighter is not loaded');
+			const plugin = globalThis.app.plugins.plugins['advanced-code-block'];
+			if (!plugin) throw new Error('advanced-code-block is not loaded');
 			const content = ${JSON.stringify(fixtureContent())};
 			let file = globalThis.app.vault.getAbstractFileByPath(${JSON.stringify(NOTE_PATH)});
 			if (!file) {
@@ -208,7 +208,7 @@ async function restoreSettings(client, originalSettings) {
 	await evaluate(
 		client,
 		`(async () => {
-			const plugin = globalThis.app.plugins.plugins['shiki-highlighter'];
+			const plugin = globalThis.app.plugins.plugins['advanced-code-block'];
 			if (!plugin) return false;
 			plugin.settings = ${JSON.stringify(originalSettings)};
 			plugin.loadedSettings = structuredClone(plugin.settings);
@@ -223,15 +223,15 @@ async function applySettings(client, settings) {
 	await evaluate(
 		client,
 		`(async () => {
-			const plugin = globalThis.app.plugins.plugins['shiki-highlighter'];
-			if (!plugin) throw new Error('shiki-highlighter is not loaded');
-			plugin.settings.ecDefaultWrap = ${JSON.stringify(settings.wrap)};
-			plugin.settings.ecDefaultShowLineNumbers = ${JSON.stringify(settings.lineNumbers)};
+			const plugin = globalThis.app.plugins.plugins['advanced-code-block'];
+			if (!plugin) throw new Error('advanced-code-block is not loaded');
+			plugin.settings.wrapLines = ${JSON.stringify(settings.wrap)};
+			plugin.settings.showLineNumbers = ${JSON.stringify(settings.lineNumbers)};
 			plugin.loadedSettings = structuredClone(plugin.settings);
 			await plugin.saveData(plugin.settings);
 			return {
-				wrap: plugin.loadedSettings.ecDefaultWrap,
-				lineNumbers: plugin.loadedSettings.ecDefaultShowLineNumbers,
+				wrap: plugin.loadedSettings.wrapLines,
+				lineNumbers: plugin.loadedSettings.showLineNumbers,
 			};
 		})()`,
 	);
@@ -282,18 +282,16 @@ async function collectState(client) {
 			window.__shikiRedrawVerifierHostIds ??= new WeakMap();
 			window.__shikiRedrawVerifierNextHostId ??= 1;
 			const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
-			const widgets = [...root.querySelectorAll('.shiki-monaco-live-widget')];
-			const hosts = [...root.querySelectorAll('.shiki-monaco-block, .shiki-monaco-codeblock')]
-				.filter(host => host.closest('.shiki-monaco-live-widget'));
-			const host = hosts[0] ?? null;
-			const editors = host ? [...host.querySelectorAll('.monaco-editor')] : [];
-			const globalEditors = [...root.querySelectorAll('.monaco-editor')];
-			if (host && !window.__shikiRedrawVerifierHostIds.has(host)) {
-				window.__shikiRedrawVerifierHostIds.set(host, window.__shikiRedrawVerifierNextHostId++);
+			const blocks = [...root.querySelectorAll('.shiki-live-preview-block')];
+			const block = blocks[0] ?? null;
+			const tokenSpans = block ? [...block.querySelectorAll('[style*="color:"]')] : [];
+			const hasLineNumbers = block ? !!block.querySelector('.shiki-line-numbers') : false;
+			const hasHeader = block ? !!block.querySelector('.shiki-block-header') : false;
+			const hasScrollContainer = block ? !!block.querySelector('.shiki-code-scroll') : false;
+			if (block && !window.__shikiRedrawVerifierHostIds.has(block)) {
+				window.__shikiRedrawVerifierHostIds.set(block, window.__shikiRedrawVerifierNextHostId++);
 			}
-			const editor = host?._monacoEditor ?? null;
-			const hostRect = host?.getBoundingClientRect?.() ?? null;
-			const viewLines = host ? [...host.querySelectorAll('.view-line')] : [];
+			const blockRect = block?.getBoundingClientRect?.() ?? null;
 			const rawRows = [...root.querySelectorAll('.shiki-editing-codeblock-line[data-shiki-editing-block-id]')];
 			const visibleRawRows = rawRows.filter(row => {
 				const rect = row.getBoundingClientRect();
@@ -309,24 +307,19 @@ async function collectState(client) {
 			return {
 				activeFile: globalThis.app?.workspace?.getActiveFile?.()?.path ?? null,
 				isMobile: globalThis.app?.isMobile ?? false,
-				widgets: widgets.length,
-				hosts: hosts.length,
-				editors: editors.length,
-				globalEditors: globalEditors.length,
-				hostId: host ? window.__shikiRedrawVerifierHostIds.get(host) : null,
-				hostRect: hostRect ? {
-					left: hostRect.left,
-					top: hostRect.top,
-					width: hostRect.width,
-					height: hostRect.height,
-					bottom: hostRect.bottom,
+				blocks: blocks.length,
+				blockId: block ? window.__shikiRedrawVerifierHostIds.get(block) : null,
+				blockRect: blockRect ? {
+					left: blockRect.left,
+					top: blockRect.top,
+					width: blockRect.width,
+					height: blockRect.height,
+					bottom: blockRect.bottom,
 				} : null,
-				modelText: editor?.getValue?.() ?? '',
-				modelScrollLeft: editor?.getScrollLeft?.() ?? 0,
-				visibleViewLineCount: viewLines.filter(line => {
-					const rect = line.getBoundingClientRect();
-					return rect.width > 0 && rect.height > 0 && (line.textContent ?? '').trim().length > 0;
-				}).length,
+				tokenSpans: tokenSpans.length,
+				hasLineNumbers,
+				hasHeader,
+				hasScrollContainer,
 				visibleRawRows: visibleRawRows.length,
 				noteScrollLeft: Math.max(0, ...noteScrollers.map(scroller => scroller.scrollLeft ?? 0)),
 				noteScrollTop: Math.max(0, ...noteScrollers.map(scroller => scroller.scrollTop ?? 0)),
@@ -336,31 +329,31 @@ async function collectState(client) {
 	);
 }
 
-function assertMonacoReady(state, context) {
+function assertShikiReady(state, context) {
 	assert(state.activeFile === NOTE_PATH, `${context}: fixture note is not active`, state);
-	assert(state.widgets === 1, `${context}: expected exactly one Live Preview Monaco widget`, state);
-	assert(state.hosts === 1, `${context}: expected exactly one Monaco host mounted inside the widget`, state);
-	assert(state.editors === 1, `${context}: expected exactly one Monaco editor`, state);
-	assert(state.hostRect?.width > 20 && state.hostRect?.height > 20, `${context}: Monaco host has invalid geometry`, state);
-	assert(state.modelText.includes(CODE_MARKER), `${context}: Monaco model does not contain fixture code`, state);
-	assert(state.visibleViewLineCount > 0, `${context}: Monaco editor rendered no visible lines`, state);
-	assert(state.visibleRawRows === 0, `${context}: raw CodeMirror code rows are visible after Monaco is ready`, state);
+	assert(state.blocks === 1, `${context}: expected exactly one Shiki live preview block`, state);
+	assert(state.blockRect?.width > 20 && state.blockRect?.height > 20, `${context}: Shiki block has invalid geometry`, state);
+	assert(state.tokenSpans > 0, `${context}: Shiki block rendered no token spans`, state);
+	assert(state.hasLineNumbers, `${context}: Shiki block missing line numbers`, state);
+	assert(state.hasHeader, `${context}: Shiki block missing header`, state);
+	assert(state.hasScrollContainer, `${context}: Shiki block missing scroll container`, state);
+	assert(state.visibleRawRows === 0, `${context}: raw CodeMirror code rows are visible after Shiki is ready`, state);
 	assert(state.noteScrollLeft === 0, `${context}: note scroller moved horizontally`, state);
 }
 
-async function waitForMonacoReady(client, context) {
+async function waitForShikiReady(client, context) {
 	const deadline = Date.now() + 12_000;
 	let lastState;
 	while (Date.now() < deadline) {
 		lastState = await collectState(client);
 		try {
-			assertMonacoReady(lastState, context);
+			assertShikiReady(lastState, context);
 			return lastState;
 		} catch {
 			await delay(150);
 		}
 	}
-	assertMonacoReady(lastState, context);
+	assertShikiReady(lastState, context);
 	return lastState;
 }
 
@@ -371,26 +364,26 @@ async function assertStable(client, context) {
 		await delay(100);
 	}
 	for (const sample of samples) {
-		assertMonacoReady(sample, context);
+		assertShikiReady(sample, context);
 	}
-	const hostIds = new Set(samples.map(sample => sample.hostId));
-	assert(hostIds.size === 1, `${context}: Monaco host was recreated during stability sampling`, samples);
-	const heights = samples.map(sample => sample.hostRect.height);
-	const tops = samples.map(sample => sample.hostRect.top);
-	assert(Math.max(...heights) - Math.min(...heights) <= 2, `${context}: Monaco host height is jittering`, samples);
-	assert(Math.max(...tops) - Math.min(...tops) <= 2, `${context}: Monaco host top is jittering`, samples);
+	const blockIds = new Set(samples.map(sample => sample.blockId));
+	assert(blockIds.size === 1, `${context}: Shiki block was recreated during stability sampling`, samples);
+	const heights = samples.map(sample => sample.blockRect.height);
+	const tops = samples.map(sample => sample.blockRect.top);
+	assert(Math.max(...heights) - Math.min(...heights) <= 2, `${context}: Shiki block height is jittering`, samples);
+	assert(Math.max(...tops) - Math.min(...tops) <= 2, `${context}: Shiki block top is jittering`, samples);
 	return samples.at(-1);
 }
 
 async function verifyScroll(client, settings, context) {
-	const before = await waitForMonacoReady(client, `${context} before scroll`);
+	const before = await waitForShikiReady(client, `${context} before scroll`);
 	await evaluate(
 		client,
 		`(() => {
 			const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
-			const host = root.querySelector('.shiki-monaco-codeblock, .shiki-monaco-block');
-			host?._monacoEditor?.setScrollLeft?.(280);
-			host?._monacoEditor?.setScrollPosition?.({ scrollLeft: 280 });
+			const block = root.querySelector('.shiki-live-preview-block');
+			const scrollContainer = block?.querySelector('.shiki-code-scroll');
+			if (scrollContainer) scrollContainer.scrollLeft = 280;
 			const scroller = [...root.querySelectorAll('.cm-scroller, .view-content, .markdown-source-view')]
 				.find(candidate => candidate.scrollHeight > candidate.clientHeight + 20);
 			if (scroller) scroller.scrollTop = Math.min(scroller.scrollTop + 260, scroller.scrollHeight - scroller.clientHeight);
@@ -402,10 +395,11 @@ async function verifyScroll(client, settings, context) {
 	);
 	await delay(300);
 	const after = await collectState(client);
-	assertMonacoReady(after, `${context} after scroll`);
+	assertShikiReady(after, `${context} after scroll`);
 	assert(after.noteScrollLeft === 0, `${context}: note moved horizontally during code scroll`, { before, after, settings });
 	if (!settings.wrap) {
-		assert(after.modelScrollLeft > 0, `${context}: Monaco did not scroll horizontally with wrap off`, { before, after, settings });
+		const scrollLeft = await evaluate(client, `(() => document.querySelector('.shiki-live-preview-block .shiki-code-scroll')?.scrollLeft ?? 0)()`);
+		assert(scrollLeft > 0, `${context}: Shiki scroll container did not scroll horizontally with wrap off`, { before, after, settings });
 	}
 	assert(after.noteScrollTop > 0 || before.noteScrollTop > 0, `${context}: note did not move vertically during vertical scroll`, { before, after });
 }
@@ -439,11 +433,11 @@ async function run() {
 					const prefix = `${viewport.name} wrap:${settings.wrap ? 'on' : 'off'} lines:${settings.lineNumbers ? 'on' : 'off'} iteration:${iteration + 1}`;
 					await openMode(client, 'source');
 					await openMode(client, 'live-preview');
-					const sourceState = await waitForMonacoReady(client, `${prefix} source-to-live-preview`);
+					const sourceState = await waitForShikiReady(client, `${prefix} source-to-live-preview`);
 					await assertStable(client, `${prefix} source-to-live-preview stable`);
 					await openMode(client, 'reading');
 					await openMode(client, 'live-preview');
-					const readingState = await waitForMonacoReady(client, `${prefix} reading-to-live-preview`);
+					const readingState = await waitForShikiReady(client, `${prefix} reading-to-live-preview`);
 					const stableState = await assertStable(client, `${prefix} reading-to-live-preview stable`);
 					checks.push({ viewport: viewport.name, settings, iteration: iteration + 1, sourceState, readingState, stableState });
 				}
@@ -466,6 +460,6 @@ async function run() {
 }
 
 run().catch(error => {
-	console.error(`verify:obsidian-live-preview-redraw-loop failed: ${error?.message ?? error}`);
+	console.error(`verify:obsidian-advanced-codeblock-redraw-loop failed: ${error?.message ?? error}`);
 	process.exitCode = 1;
 });

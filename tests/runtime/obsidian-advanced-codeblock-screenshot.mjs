@@ -2,11 +2,11 @@ import { spawn } from 'node:child_process';
 import { mkdir, rm, writeFile, cp } from 'node:fs/promises';
 import path from 'node:path';
 
-const PLUGIN_ID = 'shiki-highlighter';
+const PLUGIN_ID = 'advanced-code-block';
 const PORT = Number(process.env.OBSIDIAN_REMOTE_DEBUGGING_PORT ?? 9310);
 const OBSIDIAN_BIN = process.env.OBSIDIAN_BIN ?? '/Applications/Obsidian.app/Contents/MacOS/Obsidian';
-const VAULT = process.env.OBSIDIAN_SCREENSHOT_VAULT ?? '/private/tmp/obsidian-shiki-monaco-screenshot-vault';
-const USER_DATA = process.env.OBSIDIAN_SCREENSHOT_USER_DATA ?? '/private/tmp/obsidian-shiki-monaco-screenshot-user-data';
+const VAULT = process.env.OBSIDIAN_SCREENSHOT_VAULT ?? '/private/tmp/obsidian-shiki-screenshot-vault';
+const USER_DATA = process.env.OBSIDIAN_SCREENSHOT_USER_DATA ?? '/private/tmp/obsidian-shiki-screenshot-user-data';
 const PLUGIN_SOURCE_DIR = process.env.OBSIDIAN_VERIFY_PLUGIN_DIR ?? 'dist';
 const OUT_DIR = process.env.OBSIDIAN_SCREENSHOT_DIR ?? 'planning/test-reports';
 const NOTE_PATH = 'PyCharm Django Console fixes.md';
@@ -45,7 +45,7 @@ async function prepareVault() {
 	await mkdir(USER_DATA, { recursive: true });
 	await mkdir(OUT_DIR, { recursive: true });
 
-	for (const file of ['main.js', 'manifest.json', 'styles.css', 'modern-monaco.js']) {
+	for (const file of ['main.js', 'manifest.json', 'styles.css']) {
 		await cp(path.join(PLUGIN_SOURCE_DIR, file), path.join(VAULT, '.obsidian', 'plugins', PLUGIN_ID, file));
 	}
 
@@ -83,7 +83,7 @@ async function prepareVault() {
 		JSON.stringify(
 			{
 				vaults: {
-					'shiki-monaco-screenshot': {
+					'shiki-screenshot': {
 						path: VAULT,
 						ts: Date.now(),
 						open: true,
@@ -156,7 +156,7 @@ async function evaluate(client, expression) {
 		returnByValue: true,
 	});
 	if (result.exceptionDetails) {
-		await writeFile('/private/tmp/monaco-screenshot-exception.json', JSON.stringify(result.exceptionDetails, null, 2));
+		await writeFile('/private/tmp/shiki-screenshot-exception.json', JSON.stringify(result.exceptionDetails, null, 2));
 		throw new Error(JSON.stringify(result.exceptionDetails, null, 2));
 	}
 	return result.result.value;
@@ -195,13 +195,32 @@ async function openMode(client, sourceMode) {
 	await delay(1200);
 }
 
-async function waitForMonaco(client, label) {
+async function openReadingMode(client) {
+	await evaluate(
+		client,
+		`(async () => {
+			let file = app.vault.getAbstractFileByPath(${JSON.stringify(NOTE_PATH)});
+			for (let attempt = 0; !file && attempt < 50; attempt++) {
+				await new Promise(resolve => setTimeout(resolve, 100));
+				file = app.vault.getAbstractFileByPath(${JSON.stringify(NOTE_PATH)});
+			}
+			if (!file) throw new Error('note not found');
+			const leaf = app.workspace.getLeaf(false);
+			await leaf.openFile(file, { state: { mode: 'preview' } });
+			app.workspace.setActiveLeaf(leaf, { focus: true });
+			return true;
+		})()`,
+	);
+	await delay(1200);
+}
+
+async function waitForShikiBlock(client, label, containerSelector = '.markdown-source-view.mod-cm6') {
 	return waitFor(
 		client,
 		`(() => {
-			const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
+			const block = document.querySelector('${containerSelector} .shiki-live-preview-block');
 			const backtickFence = String.fromCharCode(96).repeat(3);
-			const visibleFenceLines = [...document.querySelectorAll('.markdown-source-view.mod-cm6 .cm-line')].flatMap(line => {
+			const visibleFenceLines = [...document.querySelectorAll('${containerSelector} .cm-line')].flatMap(line => {
 				const rect = line.getBoundingClientRect();
 				const style = getComputedStyle(line);
 				if (rect.width <= 0 || rect.height <= 0 || style.display === 'none' || style.visibility === 'hidden') return [];
@@ -209,50 +228,20 @@ async function waitForMonaco(client, label) {
 				if (!text.includes(backtickFence) && !text.includes('~~~')) return [];
 				return [{ text, className: line.className, width: rect.width, height: rect.height, top: rect.top, left: rect.left }];
 			});
-			if (!block) return { ok: false, reason: 'missing-monaco', visibleFenceLines };
+			if (!block) return { ok: false, reason: 'missing-shiki-block', visibleFenceLines };
 			const rect = block.getBoundingClientRect();
-			const fallback = block.querySelector('.shiki-monaco-codeblock-fallback, .shiki-monaco-block-fallback');
-			const fallbackRect = fallback?.getBoundingClientRect();
-			const fallbackStyle = fallback ? getComputedStyle(fallback) : null;
+			const tokenSpans = block.querySelectorAll('[style*="color:"]');
 			return {
-				ok: rect.width > 0 && rect.height > 0 && block.querySelectorAll('.view-line').length > 0 && visibleFenceLines.length === 0,
-				monacoBlocks: document.querySelectorAll('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block').length,
+				ok: rect.width > 0 && rect.height > 0 && tokenSpans.length > 0 && visibleFenceLines.length === 0,
+				shikiBlocks: document.querySelectorAll('${containerSelector} .shiki-live-preview-block').length,
 				width: rect.width,
 				height: rect.height,
-				viewLines: block.querySelectorAll('.view-line').length,
+				tokenSpans: tokenSpans.length,
 				visibleFenceLines,
-				fallbackVisible: Boolean(fallback && fallbackStyle?.display !== 'none' && fallbackStyle?.visibility !== 'hidden'),
-				fallbackBoxHeight: fallbackRect?.height ?? 0,
-				fallbackBoxWidth: fallbackRect?.width ?? 0,
 			};
 		})()`,
 		label,
 	);
-}
-
-async function clickMonacoAndType(client, marker) {
-	const box = await evaluate(
-		client,
-		`(() => {
-			const block = document.querySelector('.markdown-source-view.mod-cm6 .shiki-monaco-codeblock, .markdown-source-view.mod-cm6 .shiki-monaco-block');
-			const rect = block.getBoundingClientRect();
-			return { x: rect.left + Math.min(80, rect.width / 2), y: rect.top + Math.min(60, rect.height / 2) };
-		})()`,
-	);
-	await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1 });
-	await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1 });
-	await delay(300);
-	await evaluate(client, `window.__shikiLastMonacoEditor?.focus?.()`);
-	await client.send('Input.insertText', { text: marker });
-	await delay(800);
-	const content = await evaluate(
-		client,
-		`(async () => {
-			const file = app.vault.getAbstractFileByPath(${JSON.stringify(NOTE_PATH)});
-			return app.vault.read(file);
-		})()`,
-	);
-	if (!content.includes(marker)) throw new Error(`Inserted marker ${marker} did not persist`);
 }
 
 async function captureScreenshot(client, filename) {
@@ -283,33 +272,26 @@ async function main() {
 		await waitFor(client, `(() => ({ ok: Boolean(app?.plugins?.enabledPlugins?.has('${PLUGIN_ID}')) }))()`, 'plugin enabled');
 
 		await openMode(client, true);
-		const sourceState = await waitForMonaco(client, 'source mode Monaco');
-		await clickMonacoAndType(client, 'SCREENSHOT_SOURCE_MODE_EDIT_');
-		const sourceScreenshot = await captureScreenshot(client, 'monaco-source-mode.png');
+		const sourceState = await waitForShikiBlock(client, 'source mode Shiki');
+		const sourceScreenshot = await captureScreenshot(client, 'shiki-source-mode.png');
 
 		await openMode(client, false);
-		const livePreviewState = await waitForMonaco(client, 'live preview Monaco');
-		await clickMonacoAndType(client, 'SCREENSHOT_LIVE_PREVIEW_EDIT_');
-		const livePreviewScreenshot = await captureScreenshot(client, 'monaco-live-preview-edit.png');
+		const livePreviewState = await waitForShikiBlock(client, 'live preview Shiki');
+		const livePreviewScreenshot = await captureScreenshot(client, 'shiki-live-preview.png');
 
-		const content = await evaluate(
-			client,
-			`(async () => {
-				const file = app.vault.getAbstractFileByPath(${JSON.stringify(NOTE_PATH)});
-				return app.vault.read(file);
-			})()`,
-		);
-		if (!content.includes('SCREENSHOT_SOURCE_MODE_EDIT_') || !content.includes('SCREENSHOT_LIVE_PREVIEW_EDIT_')) {
-			throw new Error('Screenshot verifier edits did not persist in both modes');
-		}
+		await openReadingMode(client);
+		const readingState = await waitForShikiBlock(client, 'reading mode Shiki', '.markdown-preview-view');
+		const readingScreenshot = await captureScreenshot(client, 'shiki-reading-mode.png');
 
 		console.log(
 			JSON.stringify(
 				{
 					sourceState,
 					livePreviewState,
+					readingState,
 					sourceScreenshot,
 					livePreviewScreenshot,
+					readingScreenshot,
 				},
 				null,
 				2,
@@ -322,6 +304,6 @@ async function main() {
 }
 
 main().catch(error => {
-	console.error(error);
+	console.error('Shiki screenshot verification failed:', error);
 	process.exit(1);
 });

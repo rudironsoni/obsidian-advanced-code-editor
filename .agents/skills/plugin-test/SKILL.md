@@ -53,7 +53,7 @@ Prefer the repo verifier when available because it creates an isolated vault and
 checks both desktop and `app.emulateMobile(true)` paths:
 
 ```bash
-rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-real
+rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-advanced-codeblock-integration
 ```
 
 For Live Preview redraw, remount, jitter, duplicate Monaco host, horizontal-scroll bugs, mobile Monaco rendering, or mode-switch bugs, run the focused runtime verifiers:
@@ -69,7 +69,7 @@ When verifying a downloaded release payload, set `OBSIDIAN_VERIFY_PLUGIN_DIR` to
 a directory containing `main.js`, `manifest.json`, and `styles.css`:
 
 ```bash
-rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true OBSIDIAN_VERIFY_PLUGIN_DIR=/tmp/shiki-release-assets bun run verify:obsidian-real
+rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true OBSIDIAN_VERIFY_PLUGIN_DIR=/tmp/shiki-release-assets bun run verify:obsidian-advanced-codeblock-integration
 ```
 
 The runtime gate must verify:
@@ -89,7 +89,7 @@ verifier or CDP harness against the existing Obsidian instance. Confirm the
 focused vault before any destructive command.
 
 ```bash
-rtk bun run verify:obsidian-real
+rtk bun run verify:obsidian-advanced-codeblock-integration
 ```
 
 Mobile emulation must use explicit runtime API calls through the verifier or CDP:

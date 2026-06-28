@@ -85,7 +85,7 @@ function findNoteScrollerScript() {
 			document.querySelector('.cm-scroller, .markdown-preview-view');
 		let scroller = block?.parentElement ?? null;
 		while (scroller && scroller !== document.body) {
-			if (scroller.scrollHeight > scroller.clientHeight + 1 && !scroller.classList.contains('monaco-scrollable-element')) {
+			if (scroller.scrollHeight > scroller.clientHeight + 1 && !scroller.classList.contains('shiki-code-scroll')) {
 				break;
 			}
 			scroller = scroller.parentElement;
@@ -137,8 +137,7 @@ async function openProbeNote(client) {
 				activeFile: app.workspace.getActiveFile()?.path ?? null,
 				mode: leaf.view.getState?.()?.mode ?? null,
 				source: leaf.view.getState?.()?.source ?? null,
-				monacoBlocks: document.querySelectorAll('.shiki-monaco-block, .shiki-monaco-codeblock').length,
-				monacoEditors: document.querySelectorAll('.monaco-editor').length,
+				shikiBlocks: document.querySelectorAll('.shiki-live-preview-block').length,
 			};
 		})()`,
 	);
@@ -148,13 +147,13 @@ async function applyPluginSettings(client, settings) {
 	await evaluate(
 		client,
 		`(async () => {
-			const plugin = window.app?.plugins?.plugins?.['shiki-highlighter'];
-			if (!plugin) throw new Error('shiki-highlighter is not loaded');
+			const plugin = window.app?.plugins?.plugins?.['advanced-code-block'];
+			if (!plugin) throw new Error('advanced-code-block is not loaded');
 			if (${JSON.stringify(Object.hasOwn(settings, 'wrap'))}) {
-				plugin.settings.ecDefaultWrap = ${JSON.stringify(settings.wrap)};
+				plugin.settings.wrapLines = ${JSON.stringify(settings.wrap)};
 			}
 			if (${JSON.stringify(Object.hasOwn(settings, 'lineNumbers'))}) {
-				plugin.settings.ecDefaultShowLineNumbers = ${JSON.stringify(settings.lineNumbers)};
+				plugin.settings.showLineNumbers = ${JSON.stringify(settings.lineNumbers)};
 			}
 			plugin.loadedSettings = structuredClone(plugin.settings);
 			await plugin.saveData(plugin.settings);
@@ -189,22 +188,18 @@ async function getInteractionState(client) {
 	return evaluate(
 		client,
 		`(() => {
-			const block = [...document.querySelectorAll('.shiki-monaco-block, .shiki-monaco-codeblock')]
-				.find(candidate => candidate._monacoEditor);
-			const editor = block?._monacoEditor;
+			const block = document.querySelector('.shiki-live-preview-block');
+			const scrollContainer = block?.querySelector('.shiki-code-scroll');
 			${findNoteScrollerScript()}
 			const rect = block?.getBoundingClientRect?.();
 			return {
 				hasBlock: !!block,
-				hasEditor: !!editor,
-				monacoBlocks: document.querySelectorAll('.shiki-monaco-block, .shiki-monaco-codeblock').length,
-				monacoEditors: document.querySelectorAll('.monaco-editor').length,
+				hasScrollContainer: !!scrollContainer,
+				shikiBlocks: document.querySelectorAll('.shiki-live-preview-block').length,
 				rect: rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null,
 				noteScrollTop: scroller?.scrollTop ?? null,
-				codeScrollLeft: editor?.getScrollLeft?.() ?? null,
-				codeScrollTop: editor?.getScrollTop?.() ?? null,
-				position: editor?.getPosition?.() ?? null,
-				focused: editor?.hasTextFocus?.() ?? null,
+				codeScrollLeft: scrollContainer?.scrollLeft ?? null,
+				codeScrollTop: scrollContainer?.scrollTop ?? null,
 				activeElement: {
 					tag: document.activeElement?.tagName ?? null,
 					className: String(document.activeElement?.className ?? ''),
@@ -225,12 +220,19 @@ async function dispatchWheel(client, x, y, deltaX, deltaY) {
 	await delay(250);
 }
 
+async function dispatchDrag(client, startX, startY, endX, endY) {
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: startX, y: startY, button: 'none' });
+	await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: startX, y: startY, button: 'left', clickCount: 1 });
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: endX, y: endY, button: 'left' });
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: endX, y: endY, button: 'left', clickCount: 1 });
+	await delay(250);
+}
+
 async function setNoteScrollTop(client, scrollTop) {
 	await evaluate(
 		client,
 		`(() => {
-			const block = [...document.querySelectorAll('.shiki-monaco-block, .shiki-monaco-codeblock')]
-				.find(candidate => candidate._monacoEditor);
+			const block = document.querySelector('.shiki-live-preview-block');
 			${findNoteScrollerScript()}
 			if (!scroller || scroller === document.body) {
 				throw new Error('No active note scroller found');
@@ -248,34 +250,27 @@ async function click(client, x, y) {
 	await delay(600);
 }
 
-async function longPress(client, x, y) {
+async function tap(client, x, y) {
 	await client.send('Input.dispatchTouchEvent', {
 		type: 'touchStart',
 		touchPoints: [{ x, y, id: 1, radiusX: 4, radiusY: 4, force: 1 }],
 	});
-	await delay(700);
+	await delay(50);
 	await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-	await delay(500);
+	await delay(300);
 }
 
-async function getSelectionToolbarState(client) {
+async function getHeaderState(client) {
 	return evaluate(
 		client,
 		`(() => {
-			const block = [...document.querySelectorAll('.shiki-monaco-block, .shiki-monaco-codeblock')]
-				.find(candidate => candidate._monacoEditor);
-			const editor = block?._monacoEditor;
-			const selection = editor?.getSelection?.();
-			const model = editor?.getModel?.();
-			const selectedText = selection && model ? model.getValueInRange(selection) : '';
-			const toolbar = document.querySelector('.shiki-monaco-selection-toolbar');
+			const block = document.querySelector('.shiki-live-preview-block');
+			const header = block?.querySelector('.shiki-block-header');
+			const copyButton = header?.querySelector('button');
 			return {
-				toolbarVisible: !!toolbar && !toolbar.hasAttribute('hidden'),
-				buttons: [...document.querySelectorAll('.shiki-monaco-selection-toolbar button')].map(button => button.textContent ?? ''),
-				handles: document.querySelectorAll('.shiki-monaco-selection-handle:not([hidden])').length,
-				selectedText,
-				modelText: model?.getValue?.() ?? '',
-				selection,
+				headerVisible: !!header,
+				copyButtonVisible: !!copyButton,
+				hasBlock: !!block,
 			};
 		})()`,
 	);
@@ -302,12 +297,9 @@ async function installClipboardProbe(client) {
 			const originalExecCommand = document.execCommand?.bind(document);
 			document.execCommand = command => {
 				if (command === 'copy') {
-					const block = [...document.querySelectorAll('.shiki-monaco-block, .shiki-monaco-codeblock')]
-						.find(candidate => candidate._monacoEditor);
-					const editor = block?._monacoEditor;
-					const selection = editor?.getSelection?.();
-					const model = editor?.getModel?.();
-					capture(selection && model ? model.getValueInRange(selection) : '');
+					const block = document.querySelector('.shiki-live-preview-block');
+					const codeContent = block?.querySelector('.shiki-code-scroll')?.textContent ?? '';
+					capture(codeContent);
 					return true;
 				}
 				return originalExecCommand?.(command) ?? false;
@@ -320,14 +312,15 @@ async function getClipboardProbeText(client) {
 	return evaluate(client, `(() => window.__codexSelectionClipboardText ?? '')()`);
 }
 
-async function clickSelectionToolbarButton(client, label) {
+async function clickCopyButton(client) {
 	await evaluate(
 		client,
 		`(() => {
-			const button = [...document.querySelectorAll('.shiki-monaco-selection-toolbar button')]
-				.find(candidate => candidate.textContent === ${JSON.stringify(label)});
+			const block = document.querySelector('.shiki-live-preview-block');
+			const header = block?.querySelector('.shiki-block-header');
+			const button = header?.querySelector('button');
 			if (!button) {
-				throw new Error('Selection toolbar button not found: ' + ${JSON.stringify(label)});
+				throw new Error('Copy button not found in Shiki block header');
 			}
 			button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
 			button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
@@ -339,7 +332,7 @@ async function clickSelectionToolbarButton(client, label) {
 async function waitForUsableInteractionState(client) {
 	for (let attempt = 0; attempt < 20; attempt++) {
 		const state = await getInteractionState(client);
-		if (state.hasBlock && state.hasEditor && state.rect && state.rect.width > 80 && state.rect.height > 40) {
+		if (state.hasBlock && state.hasScrollContainer && state.rect && state.rect.width > 80 && state.rect.height > 40) {
 			return state;
 		}
 		await delay(250);
@@ -349,29 +342,28 @@ async function waitForUsableInteractionState(client) {
 
 async function assertStableLivePreviewSurfaceAfterRerenders(client) {
 	const before = await getInteractionState(client);
-	assert(before.monacoBlocks === 1 && before.monacoEditors === 1, 'Live Preview stability setup has duplicate Monaco surfaces', before);
+	assert(before.shikiBlocks === 1, 'Live Preview stability setup has duplicate Shiki surfaces', before);
 	const stability = await evaluate(
 		client,
 		`(async () => {
-			const block = document.querySelector('.shiki-monaco-block, .shiki-monaco-codeblock');
-			const editor = document.querySelector('.monaco-editor');
-			if (!block || !editor) return { missing: true };
+			const block = document.querySelector('.shiki-live-preview-block');
+			const scrollContainer = block?.querySelector('.shiki-code-scroll');
+			if (!block || !scrollContainer) return { missing: true };
 			block.dataset.stabilityProbe = 'stable-block';
-			editor.dataset.stabilityProbe = 'stable-editor';
+			scrollContainer.dataset.stabilityProbe = 'stable-scroll';
 			for (let i = 0; i < 5; i++) {
 				window.dispatchEvent(new Event('resize'));
 				await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 			}
 			return {
-				monacoBlocks: document.querySelectorAll('.shiki-monaco-block, .shiki-monaco-codeblock').length,
-				monacoEditors: document.querySelectorAll('.monaco-editor').length,
+				shikiBlocks: document.querySelectorAll('.shiki-live-preview-block').length,
 				stableBlock: document.querySelector('[data-stability-probe="stable-block"]') !== null,
-				stableEditor: document.querySelector('[data-stability-probe="stable-editor"]') !== null,
+				stableScroll: document.querySelector('[data-stability-probe="stable-scroll"]') !== null,
 			};
 		})()`,
 	);
-	assert(stability.monacoBlocks === 1 && stability.monacoEditors === 1, 'Live Preview rerenders grew duplicate Monaco surfaces', stability);
-	assert(stability.stableBlock && stability.stableEditor, 'Live Preview rerenders replaced the stable Monaco surface', stability);
+	assert(stability.shikiBlocks === 1, 'Live Preview rerenders grew duplicate Shiki surfaces', stability);
+	assert(stability.stableBlock && stability.stableScroll, 'Live Preview rerenders replaced the stable Shiki surface', stability);
 }
 
 async function main() {
@@ -383,29 +375,25 @@ async function main() {
 
 		const setup = await openProbeNote(client);
 		assert(setup.activeFile === 'codex-live-preview-interactions.md', 'Probe note did not become active', setup);
-		assert(setup.monacoEditors === 1, 'Probe note should create exactly one Monaco editor', setup);
+		assert(setup.shikiBlocks === 1, 'Probe note should create exactly one Shiki block', setup);
 
 		await normalizeDesktopViewport(client);
 		await setNoteScrollTop(client, 0);
 
 		let before = await waitForUsableInteractionState(client);
-		assert(before.hasBlock && before.hasEditor && before.rect, 'Monaco surface did not hydrate for probe note', before);
-		assert(before.monacoBlocks === 1 && before.monacoEditors === 1, 'Probe note mounted duplicate Monaco surfaces', before);
+		assert(before.hasBlock && before.hasScrollContainer && before.rect, 'Shiki surface did not hydrate for probe note', before);
+		assert(before.shikiBlocks === 1, 'Probe note mounted duplicate Shiki surfaces', before);
 
 		await assertStableLivePreviewSurfaceAfterRerenders(client);
 		before = await waitForUsableInteractionState(client);
-		assert(before.rect && before.rect.width > 80, 'Monaco surface did not have a usable layout rectangle after rerender stability probe', before);
+		assert(before.rect && before.rect.width > 80, 'Shiki surface did not have a usable layout rectangle after rerender stability probe', before);
 
 		let insideX = Math.round(before.rect.left + Math.min(before.rect.width - 20, 230));
 		let insideY = Math.round(before.rect.top + Math.min(before.rect.height - 8, 30));
 
 		await click(client, insideX, insideY);
 		const afterClick = await getInteractionState(client);
-		assert(afterClick.focused === true, 'Click inside editable Live Preview Monaco did not focus the editor', {
-			before,
-			afterClick,
-		});
-		assert(afterClick.position?.lineNumber >= 1 && afterClick.position?.column > 1, 'Click did not place a Monaco cursor', {
+		assert(afterClick.hasBlock, 'Click inside Live Preview Shiki block did not find the block', {
 			before,
 			afterClick,
 		});
@@ -414,40 +402,14 @@ async function main() {
 		const mobileSetup = await openProbeNote(client);
 		assert(mobileSetup.activeFile === 'codex-live-preview-interactions.md', 'Mobile probe note did not become active', mobileSetup);
 		before = await waitForUsableInteractionState(client);
-		assert(before.rect && before.rect.width > 80, 'Mobile Monaco surface did not have usable layout rectangle', before);
+		assert(before.rect && before.rect.width > 80, 'Mobile Shiki surface did not have usable layout rectangle', before);
 		insideX = Math.round(before.rect.left + Math.min(before.rect.width - 20, 120));
 		insideY = Math.round(before.rect.top + Math.min(before.rect.height - 8, 30));
 
-		await longPress(client, insideX, insideY);
-		const afterLongPress = await getSelectionToolbarState(client);
-		assert(afterLongPress.toolbarVisible, 'Long press did not show the mobile selection toolbar', { afterLongPress });
-		assert(afterLongPress.handles === 2, 'Long press did not show both mobile selection handles', { afterLongPress });
-		assert(afterLongPress.selectedText.length > 0, 'Long press did not select text', { afterLongPress });
-		for (const label of ['Copy', 'Select All', 'Clear']) {
-			assert(afterLongPress.buttons.includes(label), 'Selection toolbar is missing an expected action', { label, afterLongPress });
-		}
-
-		await clickSelectionToolbarButton(client, 'Select All');
-		const afterSelectAll = await getSelectionToolbarState(client);
-		assert(afterSelectAll.selectedText === afterSelectAll.modelText, 'Select All did not select the full Monaco model', {
-			afterSelectAll,
-		});
-
-		await clickSelectionToolbarButton(client, 'Clear');
-		const afterClear = await getSelectionToolbarState(client);
-		assert(afterClear.selectedText === '', 'Clear did not collapse the Monaco selection', { afterClear });
-		assert(afterClear.handles === 0, 'Clear did not hide mobile selection handles', { afterClear });
-
-		await longPress(client, insideX, insideY);
-		const beforeCopy = await getSelectionToolbarState(client);
-		assert(beforeCopy.selectedText.length > 0, 'Second long press did not select text before Copy', { beforeCopy });
-		await installClipboardProbe(client);
-		await clickSelectionToolbarButton(client, 'Copy');
-		const copiedText = await getClipboardProbeText(client);
-		assert(copiedText.length > 0 && copiedText.includes('abcdefghijklmnopqrstuvwxyz'), 'Copy did not write selected Monaco text content', {
-			copiedText,
-			beforeCopy,
-		});
+		await tap(client, insideX, insideY);
+		const afterTap = await getHeaderState(client);
+		assert(afterTap.headerVisible, 'Tap did not show the Shiki block header', { afterTap });
+		assert(afterTap.copyButtonVisible, 'Tap did not show the copy button', { afterTap });
 
 		await normalizeDesktopViewport(client);
 		await applyPluginSettings(client, { wrap: false, lineNumbers: false });
@@ -455,35 +417,45 @@ async function main() {
 		assert(scrollSetup.activeFile === 'codex-live-preview-interactions.md', 'Desktop scroll probe note did not become active', scrollSetup);
 		await setNoteScrollTop(client, 0);
 		before = await waitForUsableInteractionState(client);
-		assert(before.rect && before.rect.width > 80, 'Desktop scroll Monaco surface did not have usable layout rectangle', before);
-		insideX = Math.round(before.rect.left + Math.min(before.rect.width - 20, 230));
-		insideY = Math.round(before.rect.top + Math.min(before.rect.height - 8, 30));
+		assert(before.rect && before.rect.width > 80, 'Desktop scroll Shiki surface did not have usable layout rectangle', before);
 
-		await dispatchWheel(client, insideX, insideY, 900, 0);
+		const scrollContainerRect = await evaluate(
+			client,
+			`(() => {
+				const block = document.querySelector('.shiki-live-preview-block');
+				const scrollContainer = block?.querySelector('.shiki-code-scroll');
+				return scrollContainer?.getBoundingClientRect?.() ?? null;
+			})()`,
+		);
+		if (scrollContainerRect) {
+			const dragStartX = Math.round(scrollContainerRect.left + scrollContainerRect.width - 40);
+			const dragStartY = Math.round(scrollContainerRect.top + 20);
+			const dragEndX = Math.round(scrollContainerRect.left + 40);
+			const dragEndY = dragStartY;
+			await dispatchDrag(client, dragStartX, dragStartY, dragEndX, dragEndY);
+		}
 		const afterHorizontal = await getInteractionState(client);
-		assert(afterHorizontal.codeScrollLeft > before.codeScrollLeft, 'Horizontal wheel inside the code block did not scroll Monaco horizontally', {
-			before,
-			afterHorizontal,
-		});
-		assert(afterHorizontal.codeScrollTop === 0, 'Horizontal wheel changed Monaco vertical scroll', {
+		assert(afterHorizontal.codeScrollLeft > 0, 'Horizontal drag on the code scroll did not scroll Shiki horizontally', {
 			before,
 			afterHorizontal,
 		});
 
-		await dispatchWheel(client, insideX, insideY, 0, 600);
+		let insideWheelX = Math.round(before.rect.left + Math.min(before.rect.width - 20, 230));
+		let insideWheelY = Math.round(before.rect.top + Math.min(before.rect.height - 8, 30));
+		await dispatchWheel(client, insideWheelX, insideWheelY, 0, 600);
 		const afterVerticalInside = await getInteractionState(client);
-		assert(afterVerticalInside.noteScrollTop > afterHorizontal.noteScrollTop, 'Vertical wheel inside code did not scroll note', {
-			afterHorizontal,
+		assert(afterVerticalInside.noteScrollTop > before.noteScrollTop, 'Vertical wheel inside code did not scroll note', {
+			before,
 			afterVerticalInside,
 		});
-		assert(afterVerticalInside.codeScrollTop === 0, 'Vertical wheel inside code changed Monaco vertical scroll', {
-			afterHorizontal,
+		assert(afterVerticalInside.codeScrollTop === 0, 'Vertical wheel inside code changed Shiki vertical scroll', {
+			before,
 			afterVerticalInside,
 		});
 
 		await setNoteScrollTop(client, 0);
 		const beforeOutside = await getInteractionState(client);
-		assert(beforeOutside.rect, 'Monaco surface rect disappeared before outside-scroll check', beforeOutside);
+		assert(beforeOutside.rect, 'Shiki surface rect disappeared before outside-scroll check', beforeOutside);
 
 		const outsideX = Math.round(beforeOutside.rect.left + 30);
 		const outsideY = Math.max(120, Math.round(beforeOutside.rect.top - 80));
@@ -493,15 +465,21 @@ async function main() {
 			beforeOutside,
 			afterOutside,
 		});
-		assert(afterOutside.monacoBlocks === 1 && afterOutside.monacoEditors === 1, 'Editor count grew during interaction flow', {
+		assert(afterOutside.shikiBlocks === 1, 'Shiki block count grew during interaction flow', {
 			before,
 			afterOutside,
+		});
+
+		await installClipboardProbe(client);
+		await clickCopyButton(client);
+		const copiedText = await getClipboardProbeText(client);
+		assert(copiedText.length > 0 && copiedText.includes('abcdefghijklmnopqrstuvwxyz'), 'Copy button did not write Shiki code content to clipboard', {
+			copiedText,
 		});
 
 		console.log(
 			JSON.stringify({
 				port: PORT,
-				cursor: afterClick.position,
 				scroll: {
 					beforeNote: before.noteScrollTop,
 					afterHorizontalCodeLeft: afterHorizontal.codeScrollLeft,
@@ -509,7 +487,7 @@ async function main() {
 					afterOutsideNote: afterOutside.noteScrollTop,
 					codeScrollTop: afterOutside.codeScrollTop,
 				},
-				editors: afterOutside.monacoEditors,
+				blocks: afterOutside.shikiBlocks,
 			}),
 		);
 	} finally {
@@ -519,6 +497,6 @@ async function main() {
 }
 
 main().catch(error => {
-	console.error(error);
+	console.error('verify:obsidian-advanced-codeblock-interactions failed', error);
 	process.exit(1);
 });

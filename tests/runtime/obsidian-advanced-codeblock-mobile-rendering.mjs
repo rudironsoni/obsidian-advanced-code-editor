@@ -6,7 +6,7 @@ import path from 'node:path';
 const DEFAULT_PORT = 9230;
 const PORT = Number(process.env.OBSIDIAN_DEBUG_PORT ?? DEFAULT_PORT);
 const REPORT_DIR = process.env.OBSIDIAN_MOBILE_RENDER_REPORT_DIR ?? path.join('planning', 'test-reports', 'runtime', 'mobile-rendering');
-const NOTE_PATH = 'codex-monaco-mobile-rendering.md';
+const NOTE_PATH = 'codex-shiki-mobile-rendering.md';
 const MOBILE_VIEWPORTS = [
 	{ name: 'iphone-390x844', width: 390, height: 844, deviceScaleFactor: 3 },
 	{ name: 'phone-430x932', width: 430, height: 932, deviceScaleFactor: 3 },
@@ -379,8 +379,8 @@ async function createFixtureAndCaptureSettings(client) {
 	return evaluate(
 		client,
 		`(async () => {
-			const plugin = window.app?.plugins?.plugins?.['shiki-highlighter'];
-			if (!plugin) throw new Error('shiki-highlighter plugin is not loaded');
+			const plugin = window.app?.plugins?.plugins?.['advanced-code-block'];
+			if (!plugin) throw new Error('advanced-code-block plugin is not loaded');
 			const originalSettings = structuredClone(plugin.settings);
 			const path = ${JSON.stringify(NOTE_PATH)};
 			const content = ${JSON.stringify(content)};
@@ -399,11 +399,11 @@ async function restoreSettings(client, originalSettings) {
 	await evaluate(
 		client,
 		`(async () => {
-			let plugin = window.app.plugins.plugins['shiki-highlighter'];
+			let plugin = window.app.plugins.plugins['advanced-code-block'];
 			if (!plugin) {
 				await window.app.plugins.loadManifests?.();
-				await window.app.plugins.loadPlugin?.('shiki-highlighter');
-				plugin = window.app.plugins.plugins['shiki-highlighter'];
+				await window.app.plugins.loadPlugin?.('advanced-code-block');
+				plugin = window.app.plugins.plugins['advanced-code-block'];
 			}
 			if (!plugin) return false;
 			plugin.settings = ${JSON.stringify(originalSettings)};
@@ -417,23 +417,23 @@ async function applySettings(client, settings) {
 	await evaluate(
 		client,
 		`(async () => {
-			let plugin = window.app.plugins.plugins['shiki-highlighter'];
+			let plugin = window.app.plugins.plugins['advanced-code-block'];
 			if (!plugin) {
 				await window.app.plugins.loadManifests?.();
-				await window.app.plugins.loadPlugin?.('shiki-highlighter');
-				plugin = window.app.plugins.plugins['shiki-highlighter'];
+				await window.app.plugins.loadPlugin?.('advanced-code-block');
+				plugin = window.app.plugins.plugins['advanced-code-block'];
 			}
-			if (!plugin) throw new Error('shiki-highlighter plugin is not loaded');
-			plugin.settings.ecDefaultWrap = ${JSON.stringify(settings.wrap)};
-			plugin.settings.ecDefaultShowLineNumbers = ${JSON.stringify(settings.lineNumbers)};
+			if (!plugin) throw new Error('advanced-code-block plugin is not loaded');
+			plugin.settings.wrapLines = ${JSON.stringify(settings.wrap)};
+			plugin.settings.showLineNumbers = ${JSON.stringify(settings.lineNumbers)};
 			plugin.loadedSettings = structuredClone(plugin.settings);
 			await plugin.saveSettings?.();
-			await window.app.plugins.disablePlugin('shiki-highlighter');
-			await window.app.plugins.enablePlugin('shiki-highlighter');
-			plugin = window.app.plugins.plugins['shiki-highlighter'];
+			await window.app.plugins.disablePlugin('advanced-code-block');
+			await window.app.plugins.enablePlugin('advanced-code-block');
+			plugin = window.app.plugins.plugins['advanced-code-block'];
 			return {
-				wrap: plugin.loadedSettings.ecDefaultWrap,
-				lineNumbers: plugin.loadedSettings.ecDefaultShowLineNumbers,
+				wrap: plugin.loadedSettings.wrapLines,
+				lineNumbers: plugin.loadedSettings.showLineNumbers,
 			};
 		})()`,
 	);
@@ -448,8 +448,8 @@ async function openMode(client, mode) {
 		client,
 		`(async () => {
 			let leaf = window.app.workspace.activeLeaf;
-			if (window.app.workspace.getActiveFile?.()?.path !== "codex-monaco-mobile-rendering.md" || leaf?.view?.getViewType?.() !== 'markdown') {
-				const file = window.app.vault.getAbstractFileByPath("codex-monaco-mobile-rendering.md");
+			if (window.app.workspace.getActiveFile?.()?.path !== ${JSON.stringify(NOTE_PATH)} || leaf?.view?.getViewType?.() !== 'markdown') {
+				const file = window.app.vault.getAbstractFileByPath(${JSON.stringify(NOTE_PATH)});
 				if (!file) throw new Error('Fixture note does not exist');
 				leaf = window.app.workspace.getLeaf(false);
 				await leaf.openFile(file, { active: true });
@@ -460,9 +460,11 @@ async function openMode(client, mode) {
 			for (const element of document.querySelectorAll('.view-content, .cm-scroller, .cm-editor, .markdown-preview-view')) {
 				element.scrollLeft = 0;
 			}
-			for (const block of document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')) {
-				block._monacoEditor?.setScrollLeft?.(0);
-				block._monacoEditor?.setScrollPosition?.({ scrollLeft: 0 });
+			for (const block of document.querySelectorAll('.shiki-live-preview-block')) {
+				const scrollContainer = block.querySelector('.shiki-code-scroll');
+				if (scrollContainer) {
+					scrollContainer.scrollLeft = 0;
+				}
 			}
 			await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 			return leaf.view?.getState?.() ?? null;
@@ -488,22 +490,22 @@ async function waitForRendering(client, mode) {
 	while (Date.now() - started < 15000) {
 		state = await getRenderState(client, mode);
 		if (mode === 'source') {
-			if (state.source.monacoBlocks === 0 && state.source.cmText.length > 500) {
+			if (state.source.shikiBlocks === 0 && state.source.cmText.length > 500) {
 				return state;
 			}
 		} else if (
-			state.monaco.blocks === 1 &&
-			state.monaco.editors === 1 &&
-			state.monaco.modelText.includes('List<int[]> intervals') &&
-			state.monaco.textLength > 20 &&
-			state.monaco.firstRect.width > 80 &&
-			state.monaco.firstRect.height > 80
+			state.shiki.blocks === 1 &&
+			state.shiki.tokens > 0 &&
+			state.shiki.visibleText.includes('List<int[]> intervals') &&
+			state.shiki.textLength > 20 &&
+			state.shiki.firstRect.width > 80 &&
+			state.shiki.firstRect.height > 80
 		) {
 			return state;
 		}
 		await delay(250);
 	}
-	throw new Error(`Timed out waiting for ${mode} Monaco rendering\n${JSON.stringify(state, null, 2)}`);
+	throw new Error(`Timed out waiting for ${mode} Shiki rendering\n${JSON.stringify(state, null, 2)}`);
 }
 
 async function getRenderState(client, mode) {
@@ -514,29 +516,27 @@ async function getRenderState(client, mode) {
 			const sourceRoot = active.querySelector('.markdown-source-view.mod-cm6');
 			const previewRoot = active.querySelector('.markdown-preview-view');
 			const renderRoot = ${JSON.stringify(mode)} === 'reading' ? previewRoot : sourceRoot;
-			const blocks = [...(renderRoot ?? active).querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')];
-			const block =
-				blocks.find(candidate => {
-					const rect = candidate.getBoundingClientRect();
-					return candidate._monacoEditor && rect.width > 0 && rect.height > 0;
-				}) ??
-				blocks.find(candidate => candidate._monacoEditor) ??
-				blocks[0] ??
-				null;
-			const editor = block?._monacoEditor ?? null;
+			const blocks = [...(renderRoot ?? active).querySelectorAll('.shiki-live-preview-block')];
+			const block = blocks.find(candidate => {
+				const rect = candidate.getBoundingClientRect();
+				return rect.width > 0 && rect.height > 0;
+			}) ?? blocks[0] ?? null;
 			const blockRect = block?.getBoundingClientRect?.();
-			const visibleText = [...(block?.querySelectorAll('.view-line') ?? [])].map(line => line.textContent ?? '').join('\\n');
+			const scrollContainer = block?.querySelector('.shiki-code-scroll');
+			const header = block?.querySelector('.shiki-block-header');
+			const tokenSpans = [...(block?.querySelectorAll('[style*="color:"]') ?? [])];
+			const visibleText = tokenSpans.map(span => span.textContent ?? '').join('');
 			const hiddenLines = [...(renderRoot ?? active).querySelectorAll('.cm-line.shiki-editing-codeblock-line-hidden, .cm-line.shiki-editing-codeblock-fence.shiki-editing-codeblock-line-hidden')];
 			const cmCodeLines = [...(renderRoot ?? active).querySelectorAll('.cm-line.shiki-editing-codeblock-line, .cm-line.shiki-editing-codeblock-fence')];
 			const visibleCmCodeLines = cmCodeLines.filter(line => {
-				if (line.querySelector('.shiki-monaco-live-widget')) return false;
+				if (line.querySelector('.shiki-live-preview-block')) return false;
 				const rect = line.getBoundingClientRect();
 				const style = getComputedStyle(line);
 				return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
 			});
 			let noteScroller = block?.parentElement ?? null;
 			while (noteScroller && noteScroller !== document.body) {
-				if (noteScroller.scrollHeight > noteScroller.clientHeight + 1 && !noteScroller.classList.contains('monaco-scrollable-element')) {
+				if (noteScroller.scrollHeight > noteScroller.clientHeight + 1) {
 					break;
 				}
 				noteScroller = noteScroller.parentElement;
@@ -568,17 +568,18 @@ async function getRenderState(client, mode) {
 				source: {
 					className: sourceRoot?.className ?? null,
 					previewClassName: previewRoot?.className ?? null,
-					monacoBlocks: sourceRoot?.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block').length ?? 0,
+					shikiBlocks: sourceRoot?.querySelectorAll('.shiki-live-preview-block').length ?? 0,
 					cmText: [...(sourceRoot ?? active).querySelectorAll('.cm-line')].map(line => line.textContent ?? '').join('\\n'),
 				},
-				monaco: {
+				shiki: {
 					blocks: blocks.length,
-					editors: (renderRoot ?? active).querySelectorAll('.monaco-editor').length,
+					header: header?.textContent ?? '',
+					scrollContainer: !!scrollContainer,
 					hiddenLines: hiddenLines.length,
 					cmCodeLines: cmCodeLines.length,
 					visibleCmCodeLines: visibleCmCodeLines.length,
 					visibleText,
-					modelText: editor?.getModel?.()?.getValue?.() ?? '',
+					tokens: tokenSpans.length,
 					textLength: visibleText.trim().length,
 					firstRect: blockRect ? {
 						left: blockRect.left,
@@ -588,12 +589,11 @@ async function getRenderState(client, mode) {
 						right: blockRect.right,
 						bottom: blockRect.bottom,
 					} : { left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 },
-					scrollLeft: editor?.getScrollLeft?.() ?? null,
-					scrollTop: editor?.getScrollTop?.() ?? null,
-					scrollWidth: block?.querySelector('.monaco-scrollable-element')?.scrollWidth ?? null,
-					clientWidth: block?.querySelector('.monaco-scrollable-element')?.clientWidth ?? null,
-					viewLines: block?.querySelectorAll('.view-line').length ?? 0,
-					lineNumbers: block?.querySelectorAll('.line-numbers').length ?? 0,
+					scrollLeft: scrollContainer?.scrollLeft ?? null,
+					scrollTop: scrollContainer?.scrollTop ?? null,
+					scrollWidth: scrollContainer?.scrollWidth ?? null,
+					clientWidth: scrollContainer?.clientWidth ?? null,
+					lineNumbers: block?.querySelectorAll('.shiki-line-numbers').length ?? 0,
 				},
 			};
 		})()`,
@@ -609,7 +609,7 @@ async function screenshot(client, name) {
 }
 
 function blockPoint(state) {
-	const rect = state.monaco.firstRect;
+	const rect = state.shiki.firstRect;
 	const viewportHeight = state.mobile.visualHeight ?? state.mobile.innerHeight;
 	const viewportWidth = state.mobile.visualWidth ?? state.mobile.innerWidth;
 	return {
@@ -656,13 +656,13 @@ async function setNoteScrollTop(client, value) {
 		client,
 		`(() => {
 			const active = window.app?.workspace?.activeLeaf?.view?.contentEl ?? document.querySelector('.workspace-leaf.mod-active') ?? document;
-			const block = [...active.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(candidate => {
+			const block = [...active.querySelectorAll('.shiki-live-preview-block')].find(candidate => {
 				const rect = candidate.getBoundingClientRect();
-				return rect.width > 0 && rect.height > 0 && candidate._monacoEditor;
+				return rect.width > 0 && rect.height > 0;
 			});
 			let scroller = block?.parentElement ?? null;
 			while (scroller && scroller !== document.body) {
-				if (scroller.scrollHeight > scroller.clientHeight + 1 && !scroller.classList.contains('monaco-scrollable-element')) {
+				if (scroller.scrollHeight > scroller.clientHeight + 1) {
 					break;
 				}
 				scroller = scroller.parentElement;
@@ -684,7 +684,7 @@ async function positionBlockForGestures(client, mode) {
 	}
 	const state = await getRenderState(client, mode);
 	const currentScrollTop = state.page.noteScrollTop ?? 0;
-	const targetScrollTop = Math.max(0, currentScrollTop + state.monaco.firstRect.top - 240);
+	const targetScrollTop = Math.max(0, currentScrollTop + state.shiki.firstRect.top - 240);
 	await setNoteScrollTop(client, targetScrollTop);
 }
 
@@ -700,8 +700,8 @@ async function verifyScroll(client, mode, settings, state) {
 	const afterHorizontalInside = await getRenderState(client, mode);
 	if (!settings.wrap) {
 		assert(
-			(afterHorizontalInside.monaco.scrollLeft ?? 0) > (before.monaco.scrollLeft ?? 0),
-			`${mode}: horizontal wheel inside wrap-off code block did not scroll Monaco horizontally`,
+			(afterHorizontalInside.shiki.scrollLeft ?? 0) > (before.shiki.scrollLeft ?? 0),
+			`${mode}: horizontal wheel inside wrap-off code block did not scroll Shiki horizontally`,
 			{ before, afterHorizontalInside, settings },
 		);
 	}
@@ -711,15 +711,15 @@ async function verifyScroll(client, mode, settings, state) {
 	});
 	assert((afterHorizontalInside.page.noteScrollLeft ?? 0) === 0, `${mode}: note scroller moved horizontally`, { afterHorizontalInside, settings });
 
-	const outsideX = Math.max(12, Math.round(before.monaco.firstRect.left - 36));
-	const outsideY = Math.max(80, Math.min(Math.round(before.monaco.firstRect.top + 40), before.mobile.innerHeight - 140));
+	const outsideX = Math.max(12, Math.round(before.shiki.firstRect.left - 36));
+	const outsideY = Math.max(80, Math.min(Math.round(before.shiki.firstRect.top + 40), before.mobile.innerHeight - 140));
 	await delay(900);
 	const beforeOutside = await getRenderState(client, mode);
-	const outsideStartX = Math.max(8, Math.round(before.monaco.firstRect.left - 16));
-	const outsideEndX = Math.max(4, Math.round(before.monaco.firstRect.left - 38));
+	const outsideStartX = Math.max(8, Math.round(before.shiki.firstRect.left - 16));
+	const outsideEndX = Math.max(4, Math.round(before.shiki.firstRect.left - 38));
 	await dispatchTouchSwipe(client, outsideStartX, outsideY, outsideEndX, outsideY);
 	const afterOutside = await getRenderState(client, mode);
-	assert((afterOutside.monaco.scrollLeft ?? 0) === (beforeOutside.monaco.scrollLeft ?? 0), `${mode}: horizontal wheel outside code block moved Monaco`, {
+	assert((afterOutside.shiki.scrollLeft ?? 0) === (beforeOutside.shiki.scrollLeft ?? 0), `${mode}: horizontal wheel outside code block moved Shiki`, {
 		beforeOutside,
 		afterOutside,
 		settings,
@@ -744,7 +744,7 @@ async function verifyScroll(client, mode, settings, state) {
 	const afterVertical = await getRenderState(client, mode);
 	let finalAfterVertical = afterVertical;
 	let noteScrollChanged = (finalAfterVertical.page.noteScrollTop ?? 0) !== (beforeVertical.page.noteScrollTop ?? 0);
-	let blockMovedWithNote = Math.abs(finalAfterVertical.monaco.firstRect.top - beforeVertical.monaco.firstRect.top) > 8;
+	let blockMovedWithNote = Math.abs(finalAfterVertical.shiki.firstRect.top - beforeVertical.shiki.firstRect.top) > 8;
 	if (!noteScrollChanged && !blockMovedWithNote) {
 		await dispatchTouchSwipe(
 			client,
@@ -755,20 +755,20 @@ async function verifyScroll(client, mode, settings, state) {
 		);
 		finalAfterVertical = await getRenderState(client, mode);
 		noteScrollChanged = (finalAfterVertical.page.noteScrollTop ?? 0) !== (beforeVertical.page.noteScrollTop ?? 0);
-		blockMovedWithNote = Math.abs(finalAfterVertical.monaco.firstRect.top - beforeVertical.monaco.firstRect.top) > 8;
+		blockMovedWithNote = Math.abs(finalAfterVertical.shiki.firstRect.top - beforeVertical.shiki.firstRect.top) > 8;
 	}
 	if (!noteScrollChanged && !blockMovedWithNote) {
 		await dispatchWheel(client, verticalPoint.x, verticalPoint.y, 0, canScrollUp ? -300 : 300);
 		finalAfterVertical = await getRenderState(client, mode);
 		noteScrollChanged = (finalAfterVertical.page.noteScrollTop ?? 0) !== (beforeVertical.page.noteScrollTop ?? 0);
-		blockMovedWithNote = Math.abs(finalAfterVertical.monaco.firstRect.top - beforeVertical.monaco.firstRect.top) > 8;
+		blockMovedWithNote = Math.abs(finalAfterVertical.shiki.firstRect.top - beforeVertical.shiki.firstRect.top) > 8;
 	}
 	assert(noteScrollChanged || blockMovedWithNote, `${mode}: vertical touch inside code block did not scroll the note`, {
 		beforeVertical,
 		afterVertical: finalAfterVertical,
 		settings,
 	});
-	assert((finalAfterVertical.monaco.scrollTop ?? 0) === 0, `${mode}: Monaco scrolled vertically`, {
+	assert((finalAfterVertical.shiki.scrollTop ?? 0) === 0, `${mode}: Shiki scroll container scrolled vertically`, {
 		beforeVertical,
 		afterVertical: finalAfterVertical,
 		settings,
@@ -786,24 +786,24 @@ async function verifyNoFlicker(client, mode, settings) {
 		const state = await getRenderState(client, mode);
 		samples.push({
 			index,
-			blocks: state.monaco.blocks,
-			editors: state.monaco.editors,
-			textLength: state.monaco.textLength,
-			rect: state.monaco.firstRect,
+			blocks: state.shiki.blocks,
+			tokens: state.shiki.tokens,
+			textLength: state.shiki.textLength,
+			rect: state.shiki.firstRect,
 		});
-		assert(state.monaco.blocks === 1, `${mode}: Monaco block count changed during scroll sampling`, {
+		assert(state.shiki.blocks === 1, `${mode}: Shiki block count changed during scroll sampling`, {
 			settings,
 			samples,
 		});
-		assert(state.monaco.editors === 1, `${mode}: Monaco editor count changed during scroll sampling`, {
+		assert(state.shiki.tokens > 0, `${mode}: Shiki token count dropped to zero during scroll sampling`, {
 			settings,
 			samples,
 		});
-		assert(state.monaco.textLength > 20, `${mode}: Monaco visible text blanked during scroll sampling`, {
+		assert(state.shiki.textLength > 20, `${mode}: Shiki visible text blanked during scroll sampling`, {
 			settings,
 			samples,
 		});
-		assert(state.monaco.firstRect.width > 80 && state.monaco.firstRect.height > 80, `${mode}: Monaco rect collapsed`, {
+		assert(state.shiki.firstRect.width > 80 && state.shiki.firstRect.height > 80, `${mode}: Shiki block rect collapsed`, {
 			settings,
 			samples,
 		});
@@ -821,25 +821,26 @@ function assertRenderState(mode, settings, state) {
 	});
 
 	if (mode === 'source') {
-		assert(state.source.monacoBlocks === 0, 'Source mode mounted Monaco blocks', state.source);
+		assert(state.source.shikiBlocks === 0, 'Source mode mounted Shiki blocks', state.source);
 		assert(state.source.cmText.length > 500, 'Source mode did not show native CodeMirror code', state.source);
 		return;
 	}
 
-	assert(state.monaco.blocks === 1, `${mode}: expected one Monaco block`, { settings, state });
-	assert(state.monaco.editors === 1, `${mode}: expected one Monaco editor`, { settings, state });
+	assert(state.shiki.blocks === 1, `${mode}: expected one Shiki block`, { settings, state });
+	assert(state.shiki.tokens > 0, `${mode}: expected Shiki syntax highlighted tokens`, { settings, state });
 	assert(
-		state.monaco.modelText.includes('List<int[]> intervals') && state.monaco.modelText.includes('mergedIntervals'),
-		`${mode}: Monaco visible text is missing expected code`,
-		{ settings, visibleText: state.monaco.visibleText, modelText: state.monaco.modelText },
+		state.shiki.visibleText.includes('List<int[]> intervals') && state.shiki.visibleText.includes('mergedIntervals'),
+		`${mode}: Shiki visible text is missing expected code`,
+		{ settings, visibleText: state.shiki.visibleText },
 	);
-	assert(state.monaco.textLength > 20, `${mode}: Monaco rendered text is blank`, { settings, state });
-	assert(state.monaco.firstRect.width > 80, `${mode}: Monaco block width is unusable`, { settings, state });
-	assert(state.monaco.firstRect.height > 80, `${mode}: Monaco block height is unusable`, { settings, state });
-	assert(state.monaco.visibleCmCodeLines === 0, `${mode}: native CodeMirror code lines are visible under Monaco`, { settings, state });
-	assert(settings.lineNumbers ? state.monaco.lineNumbers > 0 : state.monaco.lineNumbers === 0, `${mode}: line number visibility does not match setting`, {
+	assert(state.shiki.textLength > 20, `${mode}: Shiki rendered text is blank`, { settings, state });
+	assert(state.shiki.firstRect.width > 80, `${mode}: Shiki block width is unusable`, { settings, state });
+	assert(state.shiki.firstRect.height > 80, `${mode}: Shiki block height is unusable`, { settings, state });
+	assert(state.shiki.visibleCmCodeLines === 0, `${mode}: native CodeMirror code lines are visible under Shiki`, { settings, state });
+	assert(state.shiki.scrollContainer, `${mode}: Shiki scroll container is missing`, { settings, state });
+	assert(settings.lineNumbers ? state.shiki.lineNumbers > 0 : state.shiki.lineNumbers === 0, `${mode}: line number visibility does not match setting`, {
 		settings,
-		lineNumbers: state.monaco.lineNumbers,
+		lineNumbers: state.shiki.lineNumbers,
 	});
 }
 
@@ -878,18 +879,18 @@ async function main() {
 						mode,
 						screenshot: shot,
 						render: {
-							blocks: state.monaco.blocks,
-							editors: state.monaco.editors,
-							textLength: state.monaco.textLength,
-							lineNumbers: state.monaco.lineNumbers,
-							visibleCmCodeLines: state.monaco.visibleCmCodeLines,
+							blocks: state.shiki.blocks,
+							tokens: state.shiki.tokens,
+							textLength: state.shiki.textLength,
+							lineNumbers: state.shiki.lineNumbers,
+							visibleCmCodeLines: state.shiki.visibleCmCodeLines,
 							bodyOverflow: state.page.bodyScrollWidth - state.page.bodyClientWidth,
 						},
 						scroll: scroll
 							? {
-									horizontalCodeScrollLeft: scroll.afterHorizontalInside.monaco.scrollLeft,
-									verticalNoteScrollTop: scroll.afterVertical.page.noteScrollTop,
-								}
+								horizontalCodeScrollLeft: scroll.afterHorizontalInside.shiki.scrollLeft,
+								verticalNoteScrollTop: scroll.afterVertical.page.noteScrollTop,
+							}
 							: null,
 						flickerSamples: flicker.length,
 					});
@@ -909,5 +910,6 @@ async function main() {
 
 main().catch(error => {
 	console.error(error);
+	console.error('verify:obsidian-advanced-codeblock-mobile-rendering failed');
 	process.exit(1);
 });

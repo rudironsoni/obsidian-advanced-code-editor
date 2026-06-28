@@ -80,7 +80,7 @@ Use `electron-devtools` MCP for screenshots:
 - Live Preview interactions: `rtk bun run verify:obsidian-live-preview-interactions`
 - Monaco editing: `rtk bun run verify:obsidian-monaco-edit`
 - Mobile rendering: `rtk bun run verify:obsidian-monaco-mobile-rendering`
-- General runtime: `rtk bun run verify:obsidian-real`
+- General runtime: `rtk bun run verify:obsidian-advanced-codeblock-integration`
 
 Run the focused verifier for the active bug class even when `rtk bun run check` passes.
 

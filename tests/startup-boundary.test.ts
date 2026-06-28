@@ -133,12 +133,12 @@ test('settings language listing uses static metadata without loading heavy modul
 });
 
 test('real Obsidian verifier bounds CDP evaluation waits', () => {
-	const source = read('tests/runtime/obsidian-real.mjs');
+	const source = read('tests/runtime/obsidian-advanced-codeblock-integration.mjs');
 
 	expect(source).toContain('Timed out opening CDP socket');
 	expect(source).toContain('CDP_EVALUATE_TIMEOUT_MS');
 	expect(source).toContain('Timed out evaluating CDP expression #');
-	expect(source).toContain('verify:obsidian-real failed:');
+	expect(source).toContain('verify:obsidian-advanced-codeblock-integration failed:');
 	const evaluateStart = source.indexOf('async function evaluate');
 	const evaluateEnd = source.indexOf('async function dispatchMouseClick', evaluateStart);
 	const evaluateSource = source.slice(evaluateStart, evaluateEnd);

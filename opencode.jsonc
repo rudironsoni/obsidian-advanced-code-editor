@@ -20,7 +20,7 @@
       "rtk bun run build": "allow",
       "rtk bun run typecheck": "allow",
       "rtk bun run verify:*": "allow",
-      "OBSIDIAN_LAUNCH_MODE=fresh rtk bun run verify:obsidian-real": "allow"
+      "OBSIDIAN_LAUNCH_MODE=fresh rtk bun run verify:obsidian-advanced-codeblock-integration": "allow"
     }
   }
 }

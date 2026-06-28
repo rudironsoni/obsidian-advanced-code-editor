@@ -95,13 +95,13 @@ rtk obsidian dev:cdp method=Input.insertText params='{"text":"```cs\nvar x = 1;\
 BRAT-style installs may only include `main.js`, `manifest.json`, and `styles.css`. Use the repo verifier for this path when possible:
 
 ```bash
-rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-real
+rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-advanced-codeblock-integration
 ```
 
 For downloaded release assets:
 
 ```bash
-rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true OBSIDIAN_VERIFY_PLUGIN_DIR=/tmp/shiki-release-assets bun run verify:obsidian-real
+rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true OBSIDIAN_VERIFY_PLUGIN_DIR=/tmp/shiki-release-assets bun run verify:obsidian-advanced-codeblock-integration
 ```
 
 ## Footguns

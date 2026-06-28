@@ -16,7 +16,7 @@ Judge as failed if any step fails.
 ## Phase 2: Runtime Gate
 
 ```bash
-rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-real
+rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-advanced-codeblock-integration
 ```
 
 Verifies:

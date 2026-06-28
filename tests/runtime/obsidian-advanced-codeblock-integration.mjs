@@ -13,7 +13,7 @@ const PORT = Number(process.env.OBSIDIAN_REMOTE_DEBUGGING_PORT ?? 9230);
 const VAULT = process.env.OBSIDIAN_VERIFY_VAULT ?? '/private/tmp/obsidian-shiki-real-verify-vault';
 const USER_DATA = process.env.OBSIDIAN_VERIFY_USER_DATA ?? '/private/tmp/obsidian-shiki-real-verify-user-data';
 const PLUGIN_SOURCE_DIR = process.env.OBSIDIAN_VERIFY_PLUGIN_DIR ?? 'dist';
-const PLUGIN_ID = 'shiki-highlighter';
+const PLUGIN_ID = 'advanced-code-block';
 const BRAT_INSTALL = process.env.OBSIDIAN_VERIFY_BRAT_INSTALL === 'true';
 const ENFORCE_PLUGIN_LOAD_MS = OBSIDIAN_LAUNCH_MODE === 'fresh' || process.env.OBSIDIAN_VERIFY_ENFORCE_STARTUP === 'true';
 const VERIFY_READING_MODE = OBSIDIAN_LAUNCH_MODE === 'fresh' || process.env.OBSIDIAN_VERIFY_READING === 'true';
@@ -83,8 +83,8 @@ function prepareVault({ resetUserData }) {
 				customLanguageFolder: 'customLanguages',
 				customThemeFolder: 'customThemes',
 				inlineHighlighting: true,
-				ecDefaultShowLineNumbers: false,
-				ecDefaultWrap: false,
+				showLineNumbers: false,
+				wrapLines: false,
 				darkTheme: 'obsidian-theme',
 				lightTheme: 'obsidian-theme',
 				preferThemeColors: true,
@@ -731,64 +731,17 @@ async function dispatchHorizontalWheel(wsUrl, x, y, deltaX) {
 	}
 }
 
-async function dispatchWheelOnActiveMonaco(wsUrl, deltaX) {
+async function dispatchWheelOnActiveShiki(wsUrl, deltaX) {
 	return evaluate(
 		wsUrl,
 		`(() => {
-			const block = document.querySelector('.shiki-monaco-codeblock.shiki-monaco-active, .shiki-monaco-block.shiki-monaco-active');
-			if (!block) return { ok: false, error: 'no-active-monaco-block' };
+			const block = document.querySelector('.shiki-live-preview-block');
+			if (!block) return { ok: false, error: 'no-active-shiki-block' };
 			const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: ${deltaX}, deltaY: 0 });
-			block.dispatchEvent(event);
-			return { ok: true, defaultPrevented: event.defaultPrevented };
-		})()`,
-	);
-}
-
-async function dispatchTouchDragOnTargetMonaco(wsUrl, fromX, fromY, toX, toY) {
-	return evaluate(
-		wsUrl,
-		`(() => {
-			const block = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(el => {
-				const rect = el.getBoundingClientRect();
-				const modelText = el._monacoEditor?.getModel?.()?.getValue?.() ?? '';
-				const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
-				return !!el._monacoEditor && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
-			});
-			if (!block) return { ok: false, error: 'no-monaco-block' };
-			const createTouch = (x, y) => new Touch({ identifier: 1, target: block, clientX: x, clientY: y, radiusX: 1, radiusY: 1, force: 1 });
-			const startTouch = createTouch(${fromX}, ${fromY});
-			const moveTouch = createTouch(${toX}, ${toY});
-			block.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [startTouch], targetTouches: [startTouch], changedTouches: [startTouch] }));
-			block.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: [moveTouch], targetTouches: [moveTouch], changedTouches: [moveTouch] }));
-			block.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true, touches: [], targetTouches: [], changedTouches: [moveTouch] }));
-			return { ok: true };
-		})()`,
-	);
-}
-
-async function readTargetMonacoScrollState(wsUrl) {
-	return evaluate(
-		wsUrl,
-		`(() => {
-			const block = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(el => {
-				const rect = el.getBoundingClientRect();
-				const modelText = el._monacoEditor?.getModel?.()?.getValue?.() ?? '';
-				const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
-				return !!el._monacoEditor && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
-			});
-			const editor = block?._monacoEditor;
-			if (!block || !editor) return null;
-			const noteScroller = block.closest('.markdown-source-view, .markdown-preview-view')?.querySelector('.cm-scroller, .markdown-preview-sizer') ?? null;
-			const line = block.querySelector('.view-line');
-			return {
-				scrollLeft: editor.getScrollLeft?.() ?? 0,
-				hasOverflow: (editor.getScrollWidth?.() ?? block.scrollWidth) > block.clientWidth,
-				contentLeft: line?.getBoundingClientRect?.().left ?? null,
-				width: block.clientWidth,
-				scrollWidth: editor.getScrollWidth?.() ?? block.scrollWidth,
-				noteClientWidth: noteScroller?.clientWidth ?? null,
-				noteScrollWidth: noteScroller?.scrollWidth ?? null,
-			};
+			const scrollContainer = block.querySelector('.shiki-code-scroll');
+			const target = scrollContainer || block;
+			target.dispatchEvent(event);
+			return { ok: true, defaultPrevented: event.defaultPrevented, scrollLeft: target.scrollLeft };
 		})()`,
 	);
 }
@@ -799,7 +752,7 @@ async function measureEditableGestureSet(wsUrl, stateName, label) {
 		`(async () => {
 			const app = window.app;
 			if (!app?.plugins || !app?.vault) throw new Error('Obsidian app was not ready');
-			const plugin = app.plugins?.plugins['shiki-highlighter'];
+			const plugin = app.plugins?.plugins['advanced-code-block'];
 			const activeView = app.workspace.activeLeaf?.view;
 			const editor = activeView?.editor;
 			const csharpLineIndex = editor?.getValue?.().split('\\n').findIndex(line => line.includes('List<int[]> intervals')) ?? -1;
@@ -1090,8 +1043,8 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			const renderHost = document.createElement('div');
 			document.body.appendChild(renderHost);
 			const renderStart = performance.now();
-			await plugin.highlighter.renderWithEc('const z: number = 3', 'ts', 'title="Perf" showLineNumbers', renderHost);
-			measurements.warmRenderWithEcMs = performance.now() - renderStart;
+			await plugin.highlighter.render('const z: number = 3', 'ts', renderHost);
+			measurements.warmRenderMs = performance.now() - renderStart;
 			const renderedText = renderHost.textContent;
 			renderHost.remove();
 			const languages = await plugin.highlighter.supportedLanguages();
@@ -1129,16 +1082,16 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			plugin.settings = savedSettings;
 			await plugin.saveSettingsAndReloadHighlighter();
 			const viewRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-			for (let i = 0; i < 80 && document.querySelectorAll('.markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-block, .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock').length === 0; i++) {
+			for (let i = 0; i < 80 && document.querySelectorAll('.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-block').length === 0; i++) {
 				await new Promise(resolve => setTimeout(resolve, 250));
 			}
-			const codeBlocks = [...[...viewRoot.querySelectorAll('.shiki-monaco-block, .shiki-monaco-codeblock'), ...document.querySelectorAll('.markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-block, .markdown-source-view.mod-cm6.is-live-preview .shiki-monaco-codeblock')].filter((el, index, all) => all.indexOf(el) === index)].map(el => ({
+			const codeBlocks = [...[...viewRoot.querySelectorAll('.shiki-live-preview-block'), ...document.querySelectorAll('.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-block')].filter((el, index, all) => all.indexOf(el) === index)].map(el => ({
 				blockId: el.getAttribute('data-shiki-block-id'),
 				text: el.textContent,
-				hasMonacoEditor: !!el.querySelector('.monaco-editor'),
-				hasEditorHook: !!el._monacoEditor,
-				viewLines: el.querySelectorAll('.view-line').length,
-				hasLineNumbers: !!el.querySelector('.line-numbers'),
+				hasTokenSpans: !!el.querySelector('span[style*="color:"]'),
+				hasLineNumbers: !!el.querySelector('.shiki-line-numbers'),
+				hasBlockHeader: !!el.querySelector('.shiki-block-header'),
+				hasScrollContainer: !!el.querySelector('.shiki-code-scroll'),
 				parentClassName: el.parentElement?.className ?? '',
 				grandParentClassName: el.parentElement?.parentElement?.className ?? '',
 				previousSibling: el.previousElementSibling?.tagName ?? null,
@@ -1157,13 +1110,13 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			if (plugin?.updateCm6Plugin) await Promise.race([plugin.updateCm6Plugin(), new Promise(resolve => setTimeout(resolve, 5000))]);
 			await new Promise(resolve => setTimeout(resolve, 500));
 			const livePreviewRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-			const livePreviewCodeBlocks = [...livePreviewRoot.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].map(el => ({
+const livePreviewCodeBlocks = [...livePreviewRoot.querySelectorAll('.shiki-live-preview-block')].map(el => ({
 				blockId: el.getAttribute('data-shiki-block-id'),
 				text: el.textContent,
-				hasMonacoEditor: !!el.querySelector('.monaco-editor'),
-				hasEditorHook: !!el._monacoEditor,
-				viewLines: el.querySelectorAll('.view-line').length,
-				hasLineNumbers: !!el.querySelector('.line-numbers'),
+				hasTokenSpans: !!el.querySelector('span[style*="color:"]'),
+				hasLineNumbers: !!el.querySelector('.shiki-line-numbers'),
+				hasBlockHeader: !!el.querySelector('.shiki-block-header'),
+				hasScrollContainer: !!el.querySelector('.shiki-code-scroll'),
 			}));
 			const activeView = app.workspace.activeLeaf?.view;
 			const editor = activeView?.editor;
@@ -1193,7 +1146,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 				loadError,
 				pluginLoaded: !!plugin,
 				settingsTabLoaded: !!app.setting?.pluginTabs?.find?.(tab => tab.id === '${PLUGIN_ID}' || tab.plugin === plugin),
-				highlighterLoaded: !!plugin?.monacoRuntime?.isLoaded?.(),
+				highlighterLoaded: !!plugin?.highlighter,
 				themes: {
 					dark: plugin.settings.darkTheme,
 					light: plugin.settings.lightTheme,
@@ -1215,259 +1168,64 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			return {};
 		})()`,
 	);
-	if (mobile) {
-		const livePreviewEditTarget = await evaluate(
+if (mobile) {
+		const livePreviewScrollTarget = await evaluate(
 			activeWsUrl,
 			`(() => {
 				const app = window.app;
-			if (!app?.vault) throw new Error('Obsidian app vault was not ready');
+				if (!app?.vault) throw new Error('Obsidian app vault was not ready');
 				const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-		const renderedCodeBlock = [...editorRoot.querySelectorAll('.shiki-monaco-codeblock[data-shiki-block-id], .shiki-monaco-block[data-shiki-block-id]')].find(el => {
-					const modelText = el._monacoEditor?.getModel?.()?.getValue?.() ?? '';
+				const renderedCodeBlock = [...editorRoot.querySelectorAll('.shiki-live-preview-block[data-shiki-block-id]')].find(el => {
 					const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
-					return !!el._monacoEditor && (modelText.includes('List<int[]> intervals') || visibleText.includes('List<int[]> intervals'));
+					return visibleText.includes('List<int[]> intervals');
 				});
-				if (!renderedCodeBlock) { globalThis.__shikiVerifyMobileNativeTap = { x: 1, y: 1, editorHasFocus: false, reason: "missing-rendered-code-block", monacoBlocks: document.querySelectorAll(".shiki-monaco-codeblock, .shiki-monaco-block").length, editors: document.querySelectorAll(".monaco-editor").length }; return globalThis.__shikiVerifyMobileNativeTap; }
-				const rect = renderedCodeBlock.getBoundingClientRect();
+				if (!renderedCodeBlock) {
+					globalThis.__shikiVerifyMobileScroll = {
+						x: 1, y: 1,
+						reason: "missing-rendered-code-block",
+						shikiBlocks: document.querySelectorAll(".shiki-live-preview-block").length,
+					};
+					return globalThis.__shikiVerifyMobileScroll;
+				}
+				const scrollContainer = renderedCodeBlock.querySelector('.shiki-code-scroll');
+				const rect = (scrollContainer || renderedCodeBlock).getBoundingClientRect();
 				return {
 					x: rect.left + Math.min(rect.width / 2, 160),
 					y: rect.top + Math.min(rect.height / 2, 32),
+					scrollLeftBefore: scrollContainer?.scrollLeft ?? 0,
+					hasScrollContainer: !!scrollContainer,
 				};
 			})()`,
 		);
-		if (livePreviewEditTarget) {
-			await dispatchTouchTap(activeWsUrl, livePreviewEditTarget.x, livePreviewEditTarget.y);
-			await evaluate(
+		if (livePreviewScrollTarget?.hasScrollContainer) {
+			await dispatchTouchDrag(
 				activeWsUrl,
-				`(async () => {
-				const app = window.app;
-				if (!app?.vault) throw new Error('Obsidian app vault was not ready');
-				for (let i = 0; i < 20 && document.activeElement?.closest?.('.monaco-editor'); i++) {
-					await new Promise(resolve => setTimeout(resolve, 50));
-				}
-				const activeView = app.workspace.activeLeaf?.view;
-				const editor = activeView?.editor;
-					const cursor = editor?.getCursor?.() ?? null;
-					const lines = editor?.getValue?.().split('\\n') ?? [];
-					const csharpLine = lines.findIndex(line => line.includes('List<int[]> intervals'));
-					const csharpEndLine = lines.findIndex(line => line.includes('intervals.Sort'));
-					const activeElement = document.activeElement;
-					globalThis.__shikiVerifyMobileNativeTap = {
-						cursor,
-						csharpLine,
-						csharpEndLine,
-						editorHasFocus: editor?.hasFocus?.() ?? false,
-						activeElementClass: activeElement?.className?.toString?.() ?? null,
-						activeElementTag: activeElement?.tagName ?? null,
-						activeElementInMonaco: !!activeElement?.closest?.('.monaco-editor'),
-					};
-					return globalThis.__shikiVerifyMobileNativeTap;
-				})()`,
+				livePreviewScrollTarget.x + 80,
+				livePreviewScrollTarget.y,
+				livePreviewScrollTarget.x - 80,
+				livePreviewScrollTarget.y,
 			);
 			await evaluate(
-				activeWsUrl,
-				`(async () => {
-					const app = window.app;
-					if (!app?.plugins || !app?.vault) throw new Error('Obsidian app was not ready');
-					const plugin = app.plugins?.plugins['${PLUGIN_ID}'];
-					const activeView = app.workspace.activeLeaf?.view;
-					const editor = activeView?.editor;
-					const csharpLine = editor?.getValue?.().split('\\n').findIndex(line => line.includes('List<int[]> intervals')) ?? -1;
-					if (editor && csharpLine >= 0) {
-						editor.setCursor({ line: csharpLine, ch: 12 });
-						editor.focus();
-					}
-					if (plugin?.updateCm6Plugin) await Promise.race([plugin.updateCm6Plugin(), new Promise(resolve => setTimeout(resolve, 5000))]);
-					await new Promise(resolve => setTimeout(resolve, 1000));
-					return {
-						csharpLine,
-						activeLine: activeView?.contentEl?.querySelector('.cm-active')?.textContent ?? null,
-						editableLines: activeView?.contentEl?.querySelectorAll('.shiki-editing-codeblock-line')?.length ?? 0,
-					};
-				})()`,
-			);
-			const monacoHorizontalTarget = await evaluate(
 				activeWsUrl,
 				`(() => {
-					const block = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')].find(el => {
-						const rect = el.getBoundingClientRect();
-						const modelText = el._monacoEditor?.getModel?.()?.getValue?.() ?? '';
-						return !!el._monacoEditor && modelText.includes('List<int[]> intervals');
+					const app = window.app;
+					if (!app?.vault) throw new Error('Obsidian app vault was not ready');
+					const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
+					const renderedCodeBlock = [...editorRoot.querySelectorAll('.shiki-live-preview-block[data-shiki-block-id]')].find(el => {
+						const visibleText = el.textContent?.replace(/\u00a0/g, ' ') ?? '';
+						return visibleText.includes('List<int[]> intervals');
 					});
-					if (!block?._monacoEditor) return null;
-					const rect = block.getBoundingClientRect();
-					const editor = block._monacoEditor;
-					editor.setScrollLeft?.(0);
-					return {
-						fromX: Math.floor((rect.width > 0 ? rect.left : 0) + Math.max(24, (rect.width || 282) * 0.8)),
-						fromY: Math.floor((rect.height > 0 ? rect.top : 0) + Math.max(16, Math.min((rect.height || 84) - 8, (rect.height || 84) * 0.5))),
-						toX: Math.floor((rect.width > 0 ? rect.left : 0) + Math.max(8, (rect.width || 282) * 0.2)),
-						toY: Math.floor((rect.height > 0 ? rect.top : 0) + Math.max(16, Math.min((rect.height || 84) - 8, (rect.height || 84) * 0.5))),
-						width: rect.width,
-						height: rect.height,
-						scrollWidth: editor.getScrollWidth?.() ?? block.scrollWidth,
-						clientWidth: block.clientWidth,
+					const scrollContainer = renderedCodeBlock?.querySelector('.shiki-code-scroll');
+					globalThis.__shikiVerifyMobileScroll = {
+						scrollLeftBefore: ${livePreviewScrollTarget.scrollLeftBefore},
+						scrollLeftAfter: scrollContainer?.scrollLeft ?? 0,
+						hasScrollContainer: !!scrollContainer,
+						scrollWidth: scrollContainer?.scrollWidth ?? 0,
+						clientWidth: scrollContainer?.clientWidth ?? 0,
 					};
+					return globalThis.__shikiVerifyMobileScroll;
 				})()`,
 			);
-			if (monacoHorizontalTarget) {
-				const before = await readTargetMonacoScrollState(activeWsUrl);
-				await dispatchTouchDragOnTargetMonaco(
-					activeWsUrl,
-					monacoHorizontalTarget.fromX,
-					monacoHorizontalTarget.fromY,
-					monacoHorizontalTarget.toX,
-					monacoHorizontalTarget.toY,
-				);
-				await new Promise(resolve => setTimeout(resolve, 100));
-				const after = await readTargetMonacoScrollState(activeWsUrl);
-				await evaluate(
-					activeWsUrl,
-					`(() => {
-						globalThis.__shikiVerifyMonacoHorizontal = ${JSON.stringify({ before, after })};
-						return globalThis.__shikiVerifyMonacoHorizontal;
-					})()`,
-				);
-			}
-		}
-		const swipeTarget = await evaluate(
-			activeWsUrl,
-			`(() => {
-				const app = window.app;
-			if (!app?.vault) throw new Error('Obsidian app vault was not ready');
-				const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-				const csharpLine = [...editorRoot.querySelectorAll('.cm-content .shiki-editing-codeblock-line')].find(el =>
-					el.textContent?.includes('List<int[]> intervals')
-				);
-				if (!csharpLine) return null;
-				const blockId = csharpLine.getAttribute('data-shiki-editing-block-id');
-				const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${blockId}"]\`)];
-				for (const line of blockLines) line.scrollLeft = 0;
-				app.workspace.rightSplit?.collapse?.();
-				const rect = csharpLine.getBoundingClientRect();
-				const y = rect.top + Math.min(rect.height / 2, 24);
-				const fromX = Math.min(rect.right - 24, rect.left + Math.max(120, rect.width * 0.75));
-					globalThis.__shikiVerifyEditableSwipe = {
-						blockId,
-						before: blockLines.map(line => line.scrollLeft),
-						after: null,
-						hasOverflowingLine: blockLines.some(line => line.scrollWidth > line.clientWidth),
-						beforeContentLeft: csharpLine.querySelector('.shiki-editing-token')?.getBoundingClientRect().left ?? null,
-						afterContentLeft: null,
-						rightSplitCollapsedBefore: app.workspace.rightSplit?.collapsed ?? null,
-						rightSplitCollapsedAfter: null,
-					};
-				return {
-					fromX,
-					fromY: y,
-					toX: Math.max(rect.left + 24, fromX - 220),
-					toY: y,
-				};
-			})()`,
-		);
-		if (swipeTarget) {
-			await dispatchTouchDrag(activeWsUrl, swipeTarget.fromX, swipeTarget.fromY, swipeTarget.toX, swipeTarget.toY);
-			await new Promise(resolve => setTimeout(resolve, 100));
-			await evaluate(
-				activeWsUrl,
-				`(() => {
-					const app = window.app;
-			if (!app?.vault) throw new Error('Obsidian app vault was not ready');
-					const state = globalThis.__shikiVerifyEditableSwipe;
-					if (!state?.blockId) return null;
-					const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-					const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${state.blockId}"]\`)];
-					state.after = blockLines.map(line => line.scrollLeft);
-					const csharpLine = blockLines.find(el => el.textContent?.includes('List<int[]> intervals'));
-					state.afterContentLeft = csharpLine?.querySelector('.shiki-editing-token')?.getBoundingClientRect().left ?? null;
-					state.rightSplitCollapsedAfter = app.workspace.rightSplit?.collapsed ?? null;
-					return state;
-				})()`,
-			);
-			const verticalTarget = await evaluate(
-				activeWsUrl,
-				`(() => {
-					const app = window.app;
-			if (!app?.vault) throw new Error('Obsidian app vault was not ready');
-					const swipeState = globalThis.__shikiVerifyEditableSwipe;
-					if (!swipeState?.blockId) return null;
-					const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-					const scroller = editorRoot.querySelector('.cm-scroller');
-					const csharpLine = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${swipeState.blockId}"]\`)].find(el =>
-						el.textContent?.includes('List<int[]> intervals')
-					);
-					if (!scroller || !csharpLine) return null;
-					scroller.scrollTop = 0;
-					const rect = csharpLine.getBoundingClientRect();
-					const x = Math.min(rect.right - 24, rect.left + Math.max(120, rect.width * 0.75));
-					const y = rect.top + Math.min(rect.height / 2, 24);
-					globalThis.__shikiVerifyEditableVertical = {
-						before: scroller.scrollTop,
-						after: null,
-						scrollable: scroller.scrollHeight > scroller.clientHeight,
-					};
-					return { x, fromY: y, toY: Math.max(12, y - 180) };
-				})()`,
-			);
-			if (verticalTarget) {
-				await dispatchTouchDrag(activeWsUrl, verticalTarget.x, verticalTarget.fromY, verticalTarget.x, verticalTarget.toY);
-				await evaluate(
-					activeWsUrl,
-					`(() => {
-						const app = window.app;
-			if (!app?.vault) throw new Error('Obsidian app vault was not ready');
-						const state = globalThis.__shikiVerifyEditableVertical;
-						if (!state) return null;
-						const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-						const scroller = editorRoot.querySelector('.cm-scroller');
-						state.after = scroller?.scrollTop ?? null;
-						return state;
-					})()`,
-				);
-			}
-			const wheelTarget = await evaluate(
-				activeWsUrl,
-				`(() => {
-					const app = window.app;
-			if (!app?.vault) throw new Error('Obsidian app vault was not ready');
-					const swipeState = globalThis.__shikiVerifyEditableSwipe;
-					if (!swipeState?.blockId) return null;
-					const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-					const csharpLine = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${swipeState.blockId}"]\`)].find(el =>
-						el.textContent?.includes('List<int[]> intervals')
-					);
-					if (!csharpLine) return null;
-					const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${swipeState.blockId}"]\`)];
-					for (const line of blockLines) line.scrollLeft = 0;
-					const rect = csharpLine.getBoundingClientRect();
-					globalThis.__shikiVerifyEditableWheel = {
-						blockId: swipeState.blockId,
-						before: blockLines.map(line => line.scrollLeft),
-						after: null,
-						hasOverflowingLine: blockLines.some(line => line.scrollWidth > line.clientWidth),
-					};
-					return {
-						x: Math.min(rect.right - 24, rect.left + Math.max(120, rect.width * 0.75)),
-						y: rect.top + Math.min(rect.height / 2, 24),
-					};
-				})()`,
-			);
-			if (wheelTarget) {
-				await dispatchHorizontalWheel(activeWsUrl, wheelTarget.x, wheelTarget.y, 180);
-				await evaluate(
-					activeWsUrl,
-					`(() => {
-						const app = window.app;
-			if (!app?.vault) throw new Error('Obsidian app vault was not ready');
-						const state = globalThis.__shikiVerifyEditableWheel;
-						if (!state?.blockId) return null;
-						const editorRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-						const blockLines = [...editorRoot.querySelectorAll(\`.cm-content .shiki-editing-codeblock-line[data-shiki-editing-block-id="\${state.blockId}"]\`)];
-						state.after = blockLines.map(line => line.scrollLeft);
-						return state;
-					})()`,
-				);
-			}
 		}
 	}
 
@@ -1546,7 +1304,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 		`(async () => {
 			const app = window.app;
 			if (!app?.plugins || !app?.vault) throw new Error('Obsidian app was not ready');
-			const plugin = app.plugins?.plugins['shiki-highlighter'];
+			const plugin = app.plugins?.plugins['advanced-code-block'];
 			const file = app.vault.getAbstractFileByPath('feature-test.md');
 			const leaf = app.workspace.getLeaf(false);
 			await leaf.openFile(file, { state: { mode: 'source', source: true } });
@@ -1601,8 +1359,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			const editableWheel = globalThis.__shikiVerifyEditableWheel ?? null;
 			const editableDrag = globalThis.__shikiVerifyEditableDrag ?? null;
 			const editableSource = globalThis.__shikiVerifyEditableSource ?? null;
-			const monacoHorizontal = globalThis.__shikiVerifyMonacoHorizontal ?? null;
-			const mobileNativeTap = globalThis.__shikiVerifyMobileNativeTap ?? null;
+			const mobileScroll = globalThis.__shikiVerifyMobileScroll ?? null;
 			const plugin = app.plugins?.plugins['${PLUGIN_ID}'];
 			await new Promise(resolve => setTimeout(resolve, 1000));
 			if (plugin?.updateCm6Plugin) await Promise.race([plugin.updateCm6Plugin(), new Promise(resolve => setTimeout(resolve, 5000))]);
@@ -1660,14 +1417,12 @@ async function verifyFeatureSet(wsUrl, mobile) {
 				};
 			}
 			const editableLineNumbers = [...editorRoot.querySelectorAll('.cm-content .shiki-editing-line-number')].map(el => el.textContent);
-			const allMonacoBlocks = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')];
+			const allShikiBlocks = [...document.querySelectorAll('.shiki-live-preview-block')];
 			const sourceRoot = editorRoot.querySelector('.markdown-source-view.mod-cm6') ?? editorRoot.closest?.('.markdown-source-view.mod-cm6') ?? editorRoot;
-			const sourceModeMonacoBlocks = sourceRoot.querySelectorAll('.cm-content .shiki-monaco-codeblock, .cm-content .shiki-monaco-block').length;
-			const sourceViewMonacoBlocks = sourceRoot.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block').length;
-			const readingViewMonacoBlocks = allMonacoBlocks.filter(el => el.closest('.markdown-preview-view')).length;
-			const nonReadingMonacoBlocks = allMonacoBlocks.filter(el => !el.closest('.markdown-preview-view')).length;
-			const nonReadingMonacoEditors = [...document.querySelectorAll('.monaco-editor')].filter(el => !el.closest('.markdown-preview-view')).length;
-			const globalOverlayRoots = document.querySelectorAll('.shiki-monaco-overlay-root').length;
+			const sourceModeShikiBlocks = sourceRoot.querySelectorAll('.cm-content .shiki-live-preview-block, .cm-content .shiki-live-preview-block').length;
+			const sourceViewShikiBlocks = sourceRoot.querySelectorAll('.shiki-live-preview-block').length;
+			const readingViewShikiBlocks = allShikiBlocks.filter(el => el.closest('.markdown-preview-view')).length;
+			const nonReadingShikiBlocks = allShikiBlocks.filter(el => !el.closest('.markdown-preview-view')).length;
 			return {
 				...state,
 				editorTokens,
@@ -1679,15 +1434,12 @@ async function verifyFeatureSet(wsUrl, mobile) {
 				editableWheel,
 				editableDrag,
 				editableSource,
-				monacoHorizontal,
-				mobileNativeTap,
+				mobileScroll,
 				editableLineNumbers,
-				sourceModeMonacoBlocks,
-				sourceViewMonacoBlocks,
-				readingViewMonacoBlocks,
-				nonReadingMonacoBlocks,
-				nonReadingMonacoEditors,
-				globalOverlayRoots,
+				sourceModeShikiBlocks,
+				sourceViewShikiBlocks,
+				readingViewShikiBlocks,
+				nonReadingShikiBlocks,
 			};
 		})()`,
 	);
@@ -1708,7 +1460,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 					signature: sample.map(token => [token.text, token.style, token.color].join('|')).join('::'),
 					sample,
 					fences,
-					monacoBlocks: document.querySelectorAll('.cm-content .shiki-monaco-codeblock, .cm-content .shiki-monaco-block').length,
+					shikiBlocks: document.querySelectorAll('.cm-content .shiki-live-preview-block, .cm-content .shiki-live-preview-block').length,
 				};
 			};
 			if (!plugin) return { ok: false, error: 'missing-plugin' };
@@ -1760,13 +1512,13 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 	assert(result.pluginLoaded, `${label}: plugin was not loaded`, result);
 	assert(result.settingsTabLoaded, `${label}: settings tab was not loaded`, result);
 	assert(
-		result.livePreviewCodeBlocks.some(block => block.hasMonacoEditor && block.hasEditorHook),
-		`${label}: Monaco surfaces did not lazy-hydrate`,
+		result.livePreviewCodeBlocks.some(block => block.hasTokenSpans),
+		`${label}: Shiki Live Preview blocks did not render token spans`,
 		result,
 	);
 	assert(result.activeFile === 'feature-test.md', `${label}: feature note was not active`, result);
 	assert(result.tokenSummary.lines === 1 && result.tokenSummary.firstLineTokens > 0, `${label}: tokenization failed`, result);
-	assert(result.renderedText.includes('Perf') && result.renderedText.includes('const z'), `${label}: direct EC render failed`, result);
+	assert(result.renderedText.includes('const z'), `${label}: direct render failed`, result);
 	assert(result.customLanguageOdinSupported, `${label}: custom language was not available`, result);
 	assert(result.disabledLanguageReturns === null, `${label}: disabled language still returned tokens`, result);
 	assert(result.themeSelection.light === 'runtime-selected-light-theme', `${label}: light mode did not use saved light theme setting`, result);
@@ -1776,8 +1528,8 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 	if (VERIFY_READING_MODE || result.isMobile) {
 		assert(uniqueReadingBlocks >= 4, `${label}: expected rendered reading surfaces for each fenced block`, result);
 		assert(
-			result.codeBlocks.some(block => block.hasMonacoEditor && block.hasEditorHook && block.viewLines > 0),
-			`${label}: Reading mode rendered wrappers without a hydrated Monaco editor`,
+			result.codeBlocks.some(block => block.hasTokenSpans),
+			`${label}: Reading mode rendered blocks without Shiki token spans`,
 			result,
 		);
 		assert(
@@ -1811,22 +1563,20 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 	);
 	assert(
 		result.livePreviewCodeBlocks.length === 0 ||
-			result.livePreviewCodeBlocks.some(block => block.hasMonacoEditor && block.hasEditorHook && block.viewLines > 0),
-		`${label}: Live Preview rendered wrappers without a hydrated Monaco editor`,
+			result.livePreviewCodeBlocks.some(block => block.hasTokenSpans),
+		`${label}: Live Preview rendered blocks without Shiki token spans`,
 		result,
 	);
 	assert(
 		livePreviewBlockIds.length === new Set(livePreviewBlockIds).size,
-		`${label}: Live Preview rendered duplicate Monaco surfaces for the same logical block`,
+		`${label}: Live Preview rendered duplicate Shiki surfaces for the same logical block`,
 		result.livePreviewCodeBlocks,
 	);
 	assert(result.editorTokens.length > 0, `${label}: editor Shiki highlighting missing`, result);
 	assert(result.fencedEditorTokens.length >= 4, `${label}: editable fenced code block Shiki tokens missing`, result);
-	assert(result.sourceModeMonacoBlocks === 0, `${label}: Source mode mounted Monaco surfaces inside CM content`, result);
-	assert(result.sourceViewMonacoBlocks === 0, `${label}: Source mode left Monaco block hosts in active source view`, result);
-	assert(result.nonReadingMonacoBlocks === 0, `${label}: Source mode left non-Reading Monaco block hosts mounted`, result);
-	assert(result.nonReadingMonacoEditors === 0, `${label}: Source mode left non-Reading Monaco editors mounted`, result);
-	assert(result.globalOverlayRoots === 0, `${label}: Source mode left Live Preview overlay roots mounted`, result);
+	assert(result.sourceModeShikiBlocks === 0, `${label}: Source mode mounted Shiki surfaces inside CM content`, result);
+	assert(result.sourceViewShikiBlocks === 0, `${label}: Source mode left Shiki block hosts in active source view`, result);
+	assert(result.nonReadingShikiBlocks === 0, `${label}: Source mode left non-Reading Shiki block hosts mounted`, result);
 	assert(result.sourceModeState, `${label}: Source mode persistence state was not captured`, result);
 	assert(!result.sourceModeState.editorMissing, `${label}: Source mode editor was not available`, result.sourceModeState);
 	assert(result.sourceModeState.markerInEditor, `${label}: Source mode marker was not present in editor`, result.sourceModeState);
@@ -1835,51 +1585,22 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 	assert(result.sourceThemeReloadState.ok, `${label}: Source mode theme reload token was not measured`, result.sourceThemeReloadState);
 	assert(result.sourceThemeReloadState.changed, `${label}: Source mode token color did not update after theme reload`, result.sourceThemeReloadState);
 	assert(result.sourceThemeReloadState.after.fences >= 2, `${label}: Source mode theme reload hid raw fences`, result.sourceThemeReloadState);
-	assert(result.sourceThemeReloadState.after.monacoBlocks === 0, `${label}: Source mode theme reload mounted Monaco surfaces`, result.sourceThemeReloadState);
+	assert(result.sourceThemeReloadState.after.shikiBlocks === 0, `${label}: Source mode theme reload mounted Shiki surfaces`, result.sourceThemeReloadState);
 	if (result.isMobile) {
-		assert(result.livePreviewCodeBlocks.length > 0, `${label}: mobile Live Preview did not render Monaco before touch`, result);
+		assert(result.livePreviewCodeBlocks.length > 0, `${label}: mobile Live Preview did not render Shiki blocks before touch`, result);
 		assert(
-			result.livePreviewCodeBlocks.some(block => block.hasMonacoEditor && block.hasEditorHook && block.viewLines > 0),
-			`${label}: mobile Live Preview Monaco did not hydrate before touch`,
+			result.livePreviewCodeBlocks.some(block => block.hasTokenSpans),
+			`${label}: mobile Live Preview Shiki did not render tokens before touch`,
 			result.livePreviewCodeBlocks,
 		);
-		assert(result.mobileNativeTap !== null, `${label}: mobile native tap was not measured`, result);
-		assert(!result.mobileNativeTap.activeElementInMonaco, `${label}: read-only mobile tap focused Monaco internals`, result.mobileNativeTap);
-		assert(
-			result.mobileNativeTap.cursor?.line >= result.mobileNativeTap.csharpLine &&
-				result.mobileNativeTap.cursor?.line <= result.mobileNativeTap.csharpEndLine,
-			`${label}: mobile tap did not place the native cursor inside the fenced code block`,
-			result.mobileNativeTap,
-		);
-		assert(!result.mobileNativeTap.activeElementInMonaco, `${label}: mobile tap focused Monaco instead of Obsidian editor`, result.mobileNativeTap);
-		assert(result.mobileNativeTap.csharpLine >= 0, `${label}: mobile C# block start was not found`, result.mobileNativeTap);
-		assert(
-			result.mobileNativeTap.csharpEndLine >= result.mobileNativeTap.csharpLine,
-			`${label}: mobile C# block end was not found`,
-			result.mobileNativeTap,
-		);
-		assert(
-			result.mobileNativeTap.cursor?.line >= result.mobileNativeTap.csharpLine &&
-				result.mobileNativeTap.cursor?.line <= result.mobileNativeTap.csharpEndLine,
-			`${label}: mobile tap did not move Obsidian cursor into code block`,
-			result.mobileNativeTap,
-		);
-		assert(result.monacoHorizontal !== null, `${label}: Monaco horizontal touch scroll was not measured`, {
-			monacoHorizontal: result.monacoHorizontal,
-			livePreviewCodeBlocks: result.livePreviewCodeBlocks,
-		});
-		assert(result.monacoHorizontal.before?.hasOverflow, `${label}: Monaco horizontal touch target did not overflow`, result.monacoHorizontal);
-		assert(
-			result.monacoHorizontal.after?.scrollLeft > result.monacoHorizontal.before?.scrollLeft,
-			`${label}: Monaco horizontal touch drag did not scroll code horizontally`,
-			result.monacoHorizontal,
-		);
-		assert(
-			result.monacoHorizontal.before?.noteScrollWidth === null ||
-				result.monacoHorizontal.before?.noteScrollWidth <= result.monacoHorizontal.before?.noteClientWidth + 1,
-			`${label}: Monaco block expanded the note horizontal scroll width`,
-			result.monacoHorizontal,
-		);
+		assert(result.mobileScroll !== null, `${label}: mobile scroll was not measured`, result);
+		if (result.mobileScroll?.hasScrollContainer) {
+			assert(
+				result.mobileScroll.scrollLeftAfter > result.mobileScroll.scrollLeftBefore,
+				`${label}: mobile horizontal touch drag did not scroll Shiki code horizontally`,
+				result.mobileScroll,
+			);
+		}
 		assert(result.editableVertical !== null, `${label}: editable fenced code block vertical touch scroll was not measured`, result);
 		assert(result.editableVertical.scrollable, `${label}: editable fenced code block vertical touch scroll had no scrollable editor`, result);
 	}
@@ -1891,7 +1612,7 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 async function main() {
 	traceCdp(`main: start mode=${OBSIDIAN_LAUNCH_MODE} target=${VERIFY_TARGET}`);
 	assert(
-		existsSync(path.join(PLUGIN_SOURCE_DIR, 'main.js')) && (BRAT_INSTALL || existsSync(path.join(PLUGIN_SOURCE_DIR, 'modern-monaco.js'))),
+		existsSync(path.join(PLUGIN_SOURCE_DIR, 'main.js')),
 		'plugin artifacts are missing. Run bun run build first or set OBSIDIAN_VERIFY_PLUGIN_DIR.',
 		{ pluginSourceDir: PLUGIN_SOURCE_DIR, bratInstall: BRAT_INSTALL },
 	);
@@ -1965,7 +1686,7 @@ async function main() {
 }
 
 main().catch(error => {
-	console.error(`verify:obsidian-real failed: ${error?.message ?? error}`);
+	console.error(`verify:obsidian-advanced-codeblock-integration failed: ${error?.message ?? error}`);
 	console.error(error);
 	process.exit(1);
 });

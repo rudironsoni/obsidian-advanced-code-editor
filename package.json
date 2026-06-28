@@ -1,7 +1,7 @@
 {
-	"name": "shiki-highlighter",
-	"version": "0.8.0-beta.188",
-	"description": "Highlight code blocks with Shiki.",
+	"name": "advanced-code-block",
+	"version": "0.9.0",
+	"description": "Advanced code block highlighting with Shiki.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "vite build --mode=development --watch",
@@ -12,8 +12,8 @@
 		"test:log": "LOG_TESTS=true bun test",
 		"bench:startup": "node tests/performance/startup-bench.mjs",
 		"bench:startup:mobile": "OBSIDIAN_EMULATE_MOBILE=true node tests/performance/startup-bench.mjs",
-		"verify:obsidian-live-preview-redraw-loop": "node tests/runtime/obsidian-live-preview-redraw-loop.mjs",
-		"verify:obsidian-real": "node tests/runtime/obsidian-real.mjs",
+		"verify:obsidian-advanced-codeblock-redraw-loop": "node tests/runtime/obsidian-advanced-codeblock-redraw-loop.mjs",
+		"verify:obsidian-advanced-codeblock-integration": "node tests/runtime/obsidian-advanced-codeblock-integration.mjs",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"lint": "eslint --max-warnings=0 packages/**",

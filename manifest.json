@@ -1,9 +1,9 @@
 {
-	"id": "shiki-highlighter",
-	"name": "Shiki Highlighter",
-	"version": "0.8.0-beta.188",
+	"id": "advanced-code-block",
+	"name": "Advanced Code Block",
+	"version": "0.9.0",
 	"minAppVersion": "1.10.0",
-	"description": "Highlight code blocks with Shiki.",
+	"description": "Advanced code block highlighting with Shiki.",
 	"author": "Moritz Jung",
 	"authorUrl": "https://www.moritzjung.dev",
 	"fundingUrl": "https://github.com/sponsors/mProjectsCode",

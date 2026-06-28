@@ -91,7 +91,7 @@ For release-level confidence:
 
 ```bash
 rtk bun run check
-rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-real
+rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-advanced-codeblock-integration
 ```
 
 ### Live Preview Redraw-Loop Success Criteria

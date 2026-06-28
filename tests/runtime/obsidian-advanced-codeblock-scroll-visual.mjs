@@ -9,7 +9,7 @@ const root = '/private/tmp/obsidian-shiki-visual-scroll';
 const vault = path.join(root, 'vault');
 const userData = path.join(root, 'user-data');
 const report = path.join(repo, 'planning/test-reports/mobile-scroll-visual');
-const pluginDir = path.join(vault, '.obsidian/plugins/shiki-highlighter');
+const pluginDir = path.join(vault, '.obsidian/plugins/advanced-code-block');
 
 function resetDir(dir) {
 	rmSync(dir, { recursive: true, force: true });
@@ -139,11 +139,11 @@ resetDir(root);
 resetDir(report);
 mkdirSync(userData, { recursive: true });
 mkdirSync(pluginDir, { recursive: true });
-for (const file of ['main.js', 'styles.css', 'manifest.json', 'modern-monaco.js']) {
+for (const file of ['main.js', 'styles.css', 'manifest.json']) {
 	cpSync(path.join(repo, 'dist', file), path.join(pluginDir, file));
 }
 mkdirSync(path.join(vault, '.obsidian'), { recursive: true });
-writeFileSync(path.join(vault, '.obsidian/community-plugins.json'), JSON.stringify(['shiki-highlighter'], null, '\t'));
+writeFileSync(path.join(vault, '.obsidian/community-plugins.json'), JSON.stringify(['advanced-code-block'], null, '\t'));
 writeFileSync(path.join(vault, '.obsidian/app.json'), JSON.stringify({ livePreview: true }, null, '\t'));
 writeFileSync(
 	path.join(vault, '.obsidian/workspace.json'),
@@ -374,7 +374,7 @@ try {
 	await evaluateWithReattach(
 		`(async () => {
 		window.app.plugins.setEnable(true);
-		await window.app.plugins.loadPlugin('shiki-highlighter');
+		await window.app.plugins.loadPlugin('advanced-code-block');
 		await new Promise(resolve => {
 			window.app.workspace.onLayoutReady(resolve);
 			setTimeout(resolve, 3000);
@@ -400,7 +400,7 @@ try {
 			await evaluateWithReattach(
 				`(async () => {
 			window.app.plugins.setEnable(true);
-			await window.app.plugins.loadPlugin('shiki-highlighter');
+			await window.app.plugins.loadPlugin('advanced-code-block');
 			await new Promise(resolve => {
 				window.app.workspace.onLayoutReady(resolve);
 				setTimeout(resolve, 3000);
@@ -428,7 +428,7 @@ try {
 			await evaluateWithReattach(
 				`(async () => {
 				window.app.plugins.setEnable(true);
-				await window.app.plugins.loadPlugin('shiki-highlighter');
+				await window.app.plugins.loadPlugin('advanced-code-block');
 				await new Promise(resolve => {
 					window.app.workspace.onLayoutReady(resolve);
 					setTimeout(resolve, 3000);
@@ -459,7 +459,7 @@ try {
 				leafCount: window.app.workspace.getLeavesOfType('markdown').length,
 				openResult: window.__visualOpenResult ?? null,
 				pluginsEnabled: window.app.plugins.enabled,
-				pluginLoaded: !!window.app.plugins.plugins['shiki-highlighter'],
+				pluginLoaded: !!window.app.plugins.plugins['advanced-code-block'],
 				bodyText: document.body.innerText.slice(0, 500),
 			}))()`,
 			false,
@@ -495,55 +495,61 @@ try {
 	const before = await evaluate(
 		cdp,
 		`(() => {
-			const candidates = [...document.querySelectorAll('.shiki-monaco-codeblock, .shiki-monaco-block')];
+			const candidates = [...document.querySelectorAll('.shiki-live-preview-block')];
 			const usable = candidates
-				.map((candidate) => {
-					const rect = candidate.getBoundingClientRect();
-					const editor = candidate._monacoEditor;
-					const layoutWidth = editor?.getLayoutInfo?.()?.width ?? candidate.clientWidth;
-					const scrollWidth = editor?.getScrollWidth?.() ?? candidate.scrollWidth;
-					const modelText = editor?.getModel?.()?.getValue?.() ?? candidate.innerText ?? '';
-					return { candidate, rect, editor, layoutWidth, scrollWidth, modelText };
+				.map((block) => {
+					const rect = block.getBoundingClientRect();
+					const scrollContainer = block.querySelector('.shiki-code-scroll');
+					const layoutWidth = scrollContainer?.clientWidth ?? block.clientWidth;
+					const scrollWidth = scrollContainer?.scrollWidth ?? block.scrollWidth;
+					const textContent = scrollContainer?.innerText ?? block.innerText ?? '';
+					return { block, rect, scrollContainer, layoutWidth, scrollWidth, textContent };
 				})
-				.filter((entry) => entry.rect.width > 20 && entry.rect.height > 20 && entry.editor && entry.scrollWidth > entry.layoutWidth + 8);
-			const pre = usable.find((entry) => /very_long|horizontal|scroll/i.test(entry.modelText))?.candidate ?? usable[0]?.candidate;
-			if (!pre) {
+				.filter((entry) => entry.rect.width > 20 && entry.rect.height > 20 && entry.scrollContainer && entry.scrollWidth > entry.layoutWidth + 8);
+			const targetBlock = usable.find((entry) => /LEFT_EDGE|CENTER_MARK|RIGHT_EDGE/i.test(entry.textContent))?.block ?? usable[0]?.block;
+			if (!targetBlock) {
 				return {
 					missing: true,
 					candidateCount: candidates.length,
-					candidates: candidates.map((candidate) => {
-						const rect = candidate.getBoundingClientRect();
+					candidates: candidates.map((block) => {
+						const rect = block.getBoundingClientRect();
+						const scrollContainer = block.querySelector('.shiki-code-scroll');
 						return {
-							className: candidate.className,
+							className: block.className,
 							rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-							hasEditor: Boolean(candidate._monacoEditor),
-							text: candidate.innerText?.slice(0, 120) ?? '',
+							hasScrollContainer: Boolean(scrollContainer),
+							text: block.innerText?.slice(0, 120) ?? '',
 						};
 					}),
 					html: document.body.innerText.slice(0, 500),
 				};
 			}
 			for (const candidate of candidates) candidate.removeAttribute('data-shiki-mobile-visual-target');
-			pre.setAttribute('data-shiki-mobile-visual-target', 'true');
-			pre._monacoEditor?.setScrollLeft?.(0);
-			pre.scrollLeft = 0;
-			pre.scrollIntoView({ block: 'center', inline: 'nearest' });
-			const rect = pre.getBoundingClientRect();
-			const styles = getComputedStyle(pre);
-			const codeStyles = getComputedStyle(pre.querySelector('code') ?? pre);
+			targetBlock.setAttribute('data-shiki-mobile-visual-target', 'true');
+			const scrollContainer = targetBlock.querySelector('.shiki-code-scroll');
+			if (scrollContainer) {
+				scrollContainer.scrollLeft = 0;
+			}
+			targetBlock.scrollLeft = 0;
+			targetBlock.scrollIntoView({ block: 'center', inline: 'nearest' });
+			const rect = targetBlock.getBoundingClientRect();
+			const styles = getComputedStyle(targetBlock);
+			const scrollStyles = scrollContainer ? getComputedStyle(scrollContainer) : null;
+			const codeStyles = getComputedStyle(targetBlock.querySelector('code') ?? targetBlock);
 			return {
 				missing: false,
-				scrollLeft: pre._monacoEditor?.getScrollLeft?.() ?? pre.scrollLeft,
-				scrollWidth: pre._monacoEditor?.getScrollWidth?.() ?? pre.scrollWidth,
-				clientWidth: pre._monacoEditor?.getLayoutInfo?.()?.width ?? pre.clientWidth,
+				scrollLeft: scrollContainer?.scrollLeft ?? targetBlock.scrollLeft,
+				scrollWidth: scrollContainer?.scrollWidth ?? targetBlock.scrollWidth,
+				clientWidth: scrollContainer?.clientWidth ?? targetBlock.clientWidth,
 				rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-				pre: { overflowX: styles.overflowX, whiteSpace: styles.whiteSpace, webkitOverflowScrolling: styles.webkitOverflowScrolling },
+				block: { overflowX: styles.overflowX, whiteSpace: styles.whiteSpace, webkitOverflowScrolling: styles.webkitOverflowScrolling },
+				scrollContainer: scrollStyles ? { overflowX: scrollStyles.overflowX, overflowY: scrollStyles.overflowY, whiteSpace: scrollStyles.whiteSpace } : null,
 				code: { display: codeStyles.display, minWidth: codeStyles.minWidth, flexBasis: codeStyles.flexBasis },
-				text: pre.innerText.slice(0, 120),
+				text: targetBlock.innerText.slice(0, 120),
 			};
 		})()`,
 	);
-	if (before.missing) throw new Error(`No rendered Monaco code block surface found: ${JSON.stringify(before)}`);
+	if (before.missing) throw new Error(`No rendered Shiki code block surface found: ${JSON.stringify(before)}`);
 	await screenshot(cdp, '01-before.png');
 	const x1 = Math.floor(before.rect.x + before.rect.width - 30);
 	const x2 = Math.floor(before.rect.x + 40);
@@ -564,9 +570,10 @@ try {
 	const afterTouch = await evaluate(
 		cdp,
 		`(() => {
-			const pre = document.querySelector('[data-shiki-mobile-visual-target="true"]');
+			const block = document.querySelector('[data-shiki-mobile-visual-target="true"]');
+			const scrollContainer = block?.querySelector('.shiki-code-scroll');
 			const line = document.elementFromPoint(${Math.floor(before.rect.x + before.rect.width - 20)}, ${y})?.textContent?.slice(0, 120);
-			return { scrollLeft: pre?._monacoEditor?.getScrollLeft?.() ?? pre?.scrollLeft ?? null, line };
+			return { scrollLeft: scrollContainer?.scrollLeft ?? block?.scrollLeft ?? null, line };
 		})()`,
 	);
 	await screenshot(cdp, '02-after-touch-drag.png');
@@ -581,8 +588,9 @@ try {
 	const afterWheel = await evaluate(
 		cdp,
 		`(() => {
-			const pre = document.querySelector('[data-shiki-mobile-visual-target="true"]');
-			return { scrollLeft: pre?._monacoEditor?.getScrollLeft?.() ?? pre?.scrollLeft ?? null };
+			const block = document.querySelector('[data-shiki-mobile-visual-target="true"]');
+			const scrollContainer = block?.querySelector('.shiki-code-scroll');
+			return { scrollLeft: scrollContainer?.scrollLeft ?? block?.scrollLeft ?? null };
 		})()`,
 	);
 	await screenshot(cdp, '03-after-wheel.png');

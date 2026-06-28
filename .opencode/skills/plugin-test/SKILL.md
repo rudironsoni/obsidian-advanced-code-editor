@@ -52,13 +52,13 @@ Judge Pass 1 as failed if formatting, build, lint, tests, or startup benches fai
 Prefer the repo verifier when available because it creates an isolated vault and checks both desktop and `app.emulateMobile(true)` paths:
 
 ```bash
-rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-real
+rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-advanced-codeblock-integration
 ```
 
 When verifying a downloaded release payload, set `OBSIDIAN_VERIFY_PLUGIN_DIR` to the directory containing `main.js`, `manifest.json`, and `styles.css`:
 
 ```bash
-rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true OBSIDIAN_VERIFY_PLUGIN_DIR=/tmp/shiki-release-assets bun run verify:obsidian-real
+rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true OBSIDIAN_VERIFY_PLUGIN_DIR=/tmp/shiki-release-assets bun run verify:obsidian-advanced-codeblock-integration
 ```
 
 The runtime gate must verify:
