@@ -77,20 +77,43 @@ export class ReadingViewAdapter {
 			return;
 		}
 
-		// Wait for Prism to finish
-		const codeElement = container.querySelector('code');
-		if (!codeElement) {
+		const pre = container.querySelector('pre') ?? (container.tagName === 'PRE' ? container : null);
+		const codeElement = pre?.querySelector('code');
+		if (!pre || !codeElement) {
 			return;
 		}
 
-		// Apply Shiki highlighting
-		void this.applyShikiHighlight(state, codeElement);
-
-		// Apply wrap/scroll classes
-		container.classList.add('shiki-reading-block');
-		if (this.plugin.loadedSettings.wrapLines) {
-			container.classList.add('wrap-lines');
+		if (container.querySelector('.shiki-block-header')) {
+			return;
 		}
+
+		const wrapper = container.parentElement ?? container;
+		wrapper.classList.add('shiki-reading-block');
+		if (this.plugin.loadedSettings.wrapLines) {
+			wrapper.classList.add('wrap-lines');
+		}
+
+		const header = wrapper.createDiv({ cls: 'shiki-block-header' });
+		const left = header.createDiv({ cls: 'shiki-header-left' });
+		left.createSpan({ cls: 'shiki-lang-name', text: state.language });
+		const right = header.createDiv({ cls: 'shiki-header-right' });
+		const copyBtn = right.createEl('button', { cls: 'shiki-copy-button', text: 'Copy' });
+		copyBtn.onclick = (): void => {
+			navigator.clipboard.writeText(state.block.code).catch(() => {});
+		};
+		wrapper.insertBefore(header, wrapper.firstChild);
+
+		const scroll = wrapper.createDiv({ cls: 'shiki-code-scroll' });
+		scroll.style.overflowX = 'auto';
+		(pre as HTMLElement).remove();
+		scroll.appendChild(pre);
+
+		if (!this.plugin.loadedSettings.wrapLines) {
+			(pre as HTMLElement).style.whiteSpace = 'pre';
+			(codeElement as HTMLElement).style.whiteSpace = 'pre';
+		}
+
+		void this.applyShikiHighlight(state, codeElement as HTMLElement);
 	}
 
 	private async applyShikiHighlight(state: ReadingBlockState, codeElement: HTMLElement): Promise<void> {
@@ -127,18 +150,15 @@ export class ReadingViewAdapter {
 
 		// Add line numbers if enabled
 		if (this.plugin.loadedSettings.showLineNumbers) {
-			const pre = codeElement.parentElement;
-			if (pre instanceof HTMLElement) {
-				// Only add once
-				if (!pre.querySelector('.shiki-line-numbers')) {
-					pre.style.display = 'flex';
-					const lineNumbers = document.createElement('div');
-					lineNumbers.className = 'shiki-line-numbers';
-					for (let i = 1; i <= lines.length; i++) {
-						lineNumbers.createSpan({ text: String(i) });
-					}
-					pre.insertBefore(lineNumbers, codeElement);
+			const scrollContainer = codeElement.closest<HTMLElement>('.shiki-code-scroll');
+			if (scrollContainer && !scrollContainer.querySelector('.shiki-line-numbers')) {
+				scrollContainer.style.display = 'flex';
+				const lineNumbers = document.createElement('div');
+				lineNumbers.className = 'shiki-line-numbers';
+				for (let i = 1; i <= lines.length; i++) {
+					lineNumbers.createSpan({ text: String(i) });
 				}
+				scrollContainer.insertBefore(lineNumbers, scrollContainer.firstChild);
 			}
 		}
 	}

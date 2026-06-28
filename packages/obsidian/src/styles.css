@@ -39,6 +39,7 @@ span.shiki-ul {
 }
 
 /* Reading Mode Shiki Blocks */
+.markdown-rendered .shiki-reading-block,
 .markdown-rendered pre.shiki-reading-block {
 	overflow-x: auto;
 	border-radius: var(--code-radius);
@@ -47,22 +48,26 @@ span.shiki-ul {
 	position: relative;
 }
 
+.markdown-rendered .shiki-reading-block code,
 .markdown-rendered pre.shiki-reading-block code {
 	display: block;
 	font-family: var(--font-monospace);
 	font-size: var(--code-size);
 }
 
+.markdown-rendered .shiki-reading-block:not(.wrap-lines) code,
 .markdown-rendered pre.shiki-reading-block:not(.wrap-lines) code {
 	white-space: pre;
 }
 
+.markdown-rendered .shiki-reading-block.wrap-lines code,
 .markdown-rendered pre.shiki-reading-block.wrap-lines code {
 	white-space: pre-wrap;
 	word-break: break-word;
 }
 
 /* Line numbers in reading mode */
+.markdown-rendered .shiki-reading-block .shiki-line-numbers,
 .markdown-rendered pre.shiki-reading-block .shiki-line-numbers {
 	display: flex;
 	flex-direction: column;
@@ -79,11 +84,41 @@ span.shiki-ul {
 	margin-right: 12px;
 }
 
+.markdown-rendered .shiki-reading-block .shiki-line-numbers span,
 .markdown-rendered pre.shiki-reading-block .shiki-line-numbers span {
 	display: block;
 }
 
-/* Live Preview Shiki Widgets */
+/* Reading Mode scroll and header */
+.markdown-rendered .shiki-reading-block .shiki-block-header,
+.markdown-rendered pre.shiki-reading-block .shiki-block-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 6px 12px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-modifier-form-field);
+	border-radius: var(--code-radius) var(--code-radius) 0 0;
+}
+
+.markdown-rendered .shiki-reading-block .shiki-code-scroll,
+.markdown-rendered pre.shiki-reading-block .shiki-code-scroll {
+	display: flex;
+	overflow-x: auto;
+	padding: var(--code-padding);
+}
+
+.markdown-rendered .shiki-reading-block .shiki-code-scroll pre,
+.markdown-rendered pre.shiki-reading-block .shiki-code-scroll pre {
+	margin: 0;
+	font-family: var(--font-monospace);
+	font-size: var(--code-size);
+	line-height: var(--line-height-normal);
+	overflow-x: auto;
+	flex: 1;
+}
 .shiki-live-preview-block {
 	border-radius: var(--code-radius);
 	background: var(--code-background);
@@ -200,8 +235,13 @@ span.shiki-ul {
 	line-height: var(--line-height-normal);
 }
 
-/* Live Preview: keep native Obsidian lines visible behind widget */
+/* Hide raw code lines and closing fence; widget renders the full block */
 .markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-line,
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-closing-fence {
+	display: none !important;
+}
+
+/* Keep opening fence line visible to host widget */
 .markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-editing-codeblock-fence {
 	max-width: 100%;
 	position: relative;

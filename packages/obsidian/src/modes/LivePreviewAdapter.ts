@@ -74,10 +74,12 @@ class ShikiLivePreviewWidget extends WidgetType {
 
 		// Add line numbers if enabled
 		if (this.plugin.loadedSettings.showLineNumbers) {
-			const lineNumbers = bodyEl.createDiv({ cls: 'shiki-line-numbers' });
+			const lineNumbers = document.createElement('div');
+			lineNumbers.className = 'shiki-line-numbers';
 			for (let i = 1; i <= lines.length; i++) {
 				lineNumbers.createSpan({ text: String(i) });
 			}
+			bodyEl.insertBefore(lineNumbers, bodyEl.firstChild);
 		}
 
 		for (let i = 0; i < lines.length; i++) {
@@ -225,15 +227,20 @@ export class LivePreviewAdapter {
 			}
 			for (let lineNumber = block.openingFenceLine ?? 0; lineNumber <= (block.closingFenceLine ?? -1); lineNumber++) {
 				const line = this.view.state.doc.line(lineNumber);
+				let className: string;
+				if (lineNumber === block.openingFenceLine) {
+					className = 'shiki-editing-codeblock-fence';
+				} else if (lineNumber === block.closingFenceLine) {
+					className = 'shiki-editing-codeblock-fence shiki-editing-codeblock-closing-fence';
+				} else {
+					className = 'shiki-editing-codeblock-line';
+				}
 				builder.add(
 					line.from,
 					line.from,
 					Decoration.line({
 						attributes: {
-							class:
-								lineNumber === block.openingFenceLine || lineNumber === block.closingFenceLine
-									? 'shiki-editing-codeblock-fence'
-									: 'shiki-editing-codeblock-line',
+							class: className,
 							'data-shiki-editing-block-id': block.id,
 						},
 					}),
