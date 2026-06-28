@@ -269,15 +269,38 @@ async function openMode(client, mode) {
 				}
 			};
 			let file = globalThis.app.vault.getAbstractFileByPath(${JSON.stringify(NOTE_PATH)});
-				if (!file) {
-					file = await globalThis.app.vault.create(${JSON.stringify(NOTE_PATH)}, ${JSON.stringify(fixtureContent())});
+			if (!file) {
+				file = await globalThis.app.vault.create(${JSON.stringify(NOTE_PATH)}, ${JSON.stringify(fixtureContent())});
+			}
+			// In fresh sessions there may be no ready tab group yet.
+			const isUsableLeaf = leaf => !!leaf && typeof leaf.setViewState === 'function' && typeof leaf.openFile === 'function';
+			const safeGetLeaf = getter => {
+				try {
+					return getter();
+				} catch {
+					return null;
 				}
-				// The active workspace leaf can be transiently null during redraw transitions.
-				// getLeaf(false) may also return null in some Obsidian states, so we use explicit fallbacks.
-				let leaf = globalThis.app.workspace.activeLeaf;
-				if (!leaf || leaf.view?.getViewType?.() === 'empty') {
-					leaf = globalThis.app.workspace.getLeaf('tab') ?? globalThis.app.workspace.getLeaf(true);
-				}
+			};
+			let leaf = globalThis.app.workspace.activeLeaf;
+			if (!isUsableLeaf(leaf) || leaf.view?.getViewType?.() === 'empty') {
+				leaf = null;
+			}
+			if (!isUsableLeaf(leaf)) {
+				leaf = safeGetLeaf(() => globalThis.app.workspace.getLeaf('tab'));
+			}
+			if (!isUsableLeaf(leaf)) {
+				leaf = safeGetLeaf(() => globalThis.app.workspace.getLeaf(false));
+			}
+			if (!isUsableLeaf(leaf)) {
+				leaf = safeGetLeaf(() => globalThis.app.workspace.getLeaf(true));
+			}
+			if (!isUsableLeaf(leaf) && globalThis.app.workspace.openLinkText) {
+				await bounded(globalThis.app.workspace.openLinkText(${JSON.stringify(NOTE_PATH)}, '', true, { active: true }));
+				leaf = globalThis.app.workspace.activeLeaf;
+			}
+			if (!isUsableLeaf(leaf)) {
+				leaf = safeGetLeaf(() => globalThis.app.workspace.getLeaf('tab')) ?? safeGetLeaf(() => globalThis.app.workspace.activeLeaf);
+			}
 			if (!leaf || !leaf.setViewState || !leaf.openFile) {
 				throw new Error('Unable to acquire a valid workspace leaf');
 			}
