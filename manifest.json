@@ -4,8 +4,8 @@
 	"version": "0.8.0-beta.194",
 	"minAppVersion": "1.10.0",
 	"description": "Advanced code block highlighting with Shiki.",
-	"author": "Moritz Jung",
-	"authorUrl": "https://www.moritzjung.dev",
+	"author": "Rudimar Ronsoni",
+	"authorUrl": "https://github.com/rudironsoni",
 	"fundingUrl": "https://github.com/sponsors/mProjectsCode",
 	"isDesktopOnly": false
 }

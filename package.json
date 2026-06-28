@@ -25,7 +25,7 @@
 		"release": "lemons-automation release"
 	},
 	"keywords": [],
-	"author": "Moritz Jung",
+	"author": "Rudimar Ronsoni",
 	"license": "MIT",
 	"devDependencies": {
 		"@codemirror/language": "^6.12.3",
