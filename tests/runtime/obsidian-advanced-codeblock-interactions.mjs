@@ -76,6 +76,14 @@ function assert(condition, message, details) {
 	}
 }
 
+function asFiniteNumber(value, label) {
+	const numeric = Number(value);
+	if (!Number.isFinite(numeric)) {
+		throw new Error(`Invalid CDP coordinate for ${label}: ${String(value)}`);
+	}
+	return numeric;
+}
+
 function findNoteScrollerScript() {
 	return `
 		const fallbackScroller =
@@ -212,19 +220,23 @@ async function getInteractionState(client) {
 async function dispatchWheel(client, x, y, deltaX, deltaY) {
 	await client.send('Input.dispatchMouseEvent', {
 		type: 'mouseWheel',
-		x,
-		y,
-		deltaX,
-		deltaY,
+		x: asFiniteNumber(x, 'mouseWheel.x'),
+		y: asFiniteNumber(y, 'mouseWheel.y'),
+		deltaX: asFiniteNumber(deltaX, 'mouseWheel.deltaX'),
+		deltaY: asFiniteNumber(deltaY, 'mouseWheel.deltaY'),
 	});
 	await delay(250);
 }
 
 async function dispatchDrag(client, startX, startY, endX, endY) {
-	await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: startX, y: startY, button: 'none' });
-	await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: startX, y: startY, button: 'left', clickCount: 1 });
-	await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: endX, y: endY, button: 'left' });
-	await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: endX, y: endY, button: 'left', clickCount: 1 });
+	const fromX = asFiniteNumber(startX, 'drag.startX');
+	const fromY = asFiniteNumber(startY, 'drag.startY');
+	const toX = asFiniteNumber(endX, 'drag.endX');
+	const toY = asFiniteNumber(endY, 'drag.endY');
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: fromX, y: fromY, button: 'none' });
+	await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: fromX, y: fromY, button: 'left', clickCount: 1 });
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: toX, y: toY, button: 'left' });
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: toX, y: toY, button: 'left', clickCount: 1 });
 	await delay(250);
 }
 
@@ -244,16 +256,20 @@ async function setNoteScrollTop(client, scrollTop) {
 }
 
 async function click(client, x, y) {
-	await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none' });
-	await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
-	await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+	const clickX = asFiniteNumber(x, 'click.x');
+	const clickY = asFiniteNumber(y, 'click.y');
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: clickX, y: clickY, button: 'none' });
+	await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: clickX, y: clickY, button: 'left', clickCount: 1 });
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: clickX, y: clickY, button: 'left', clickCount: 1 });
 	await delay(600);
 }
 
 async function tap(client, x, y) {
+	const tapX = asFiniteNumber(x, 'tap.x');
+	const tapY = asFiniteNumber(y, 'tap.y');
 	await client.send('Input.dispatchTouchEvent', {
 		type: 'touchStart',
-		touchPoints: [{ x, y, id: 1, radiusX: 4, radiusY: 4, force: 1 }],
+		touchPoints: [{ x: tapX, y: tapY, id: 1, radiusX: 4, radiusY: 4, force: 1 }],
 	});
 	await delay(50);
 	await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });

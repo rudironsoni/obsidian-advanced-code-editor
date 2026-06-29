@@ -2,7 +2,7 @@ import { OBSIDIAN_THEME_IDENTIFIER } from 'packages/obsidian/src/Constants';
 import type ShikiPlugin from 'packages/obsidian/src/main';
 
 export function getActiveTheme(plugin: ShikiPlugin): string {
-	const isDark = document.body.classList.contains('theme-dark') || (!document.body.classList.contains('theme-light') && plugin.app.isDarkMode());
+	const isDark = document.body.classList.contains('theme-dark') || plugin.app.isDarkMode();
 	const setting = isDark ? plugin.loadedSettings.darkTheme : plugin.loadedSettings.lightTheme;
 	if (setting === OBSIDIAN_THEME_IDENTIFIER) {
 		return isDark ? 'github-dark' : 'github-light';

@@ -40,9 +40,11 @@ class ShikiLivePreviewWidget extends WidgetType {
 			container.classList.add('wrap-lines');
 		}
 
-		// Click to focus editor at code block start
-		container.addEventListener('click', e => {
-			if ((e.target as HTMLElement).closest('.shiki-copy-button')) {
+		const focusCodeBlockEditor = (e: Event): void => {
+			const clickedCopyButton = e
+				.composedPath()
+				.some(node => (node as Element).closest?.('.shiki-copy-button'));
+			if (clickedCopyButton) {
 				return;
 			}
 			const leaf = this.plugin.app.workspace.activeLeaf;
@@ -54,7 +56,11 @@ class ShikiLivePreviewWidget extends WidgetType {
 					mdView.editor.setCursor(mdView.editor.offsetToPos(this.block.codeFrom));
 				}
 			}
-		});
+		};
+
+		// Click and pointer interactions to focus the editor at code block start.
+		container.addEventListener('pointerdown', focusCodeBlockEditor);
+		container.addEventListener('click', focusCodeBlockEditor);
 
 		// Header
 		const header = container.createDiv({ cls: 'shiki-block-header' });
