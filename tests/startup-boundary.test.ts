@@ -106,12 +106,11 @@ describe('startup module boundary', () => {
 		expect(livePreview).toContain('codeTo: block.range.charTo');
 	});
 
-	test('live preview adapter edits inside the custom live preview block', () => {
+	test('live preview adapter keeps Obsidian editor focus for mobile toolbar', () => {
 		const livePreview = read('packages/obsidian/src/modes/LivePreviewAdapter.ts');
-		expect(livePreview).toContain("scrollContainer.createEl('textarea', { cls: 'shiki-code-editor' })");
-		expect(livePreview).toContain("container.classList.add('is-editing')");
-		expect(livePreview).toContain('this.renderTokens(codeEl, body, editor.value');
-		expect(livePreview).toContain('changes: { from: this.block.codeFrom, to: this.block.codeTo, insert: editor.value }');
+		expect(livePreview).toContain('this.editorView.focus()');
+		expect(livePreview).toContain('selection: EditorSelection.cursor(this.block.codeFrom)');
+		expect(livePreview).not.toContain('shiki-code-editor');
 		expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged)');
 		expect(livePreview).not.toContain('blockIsSelected');
 		expect(livePreview).not.toContain('if (update.viewportChanged || update.selectionSet)');

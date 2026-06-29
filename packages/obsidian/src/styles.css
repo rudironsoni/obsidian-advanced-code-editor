@@ -213,44 +213,8 @@ span.shiki-ul {
 }
 
 .shiki-code-scroll {
-	position: relative;
 	flex: 1;
 	overflow-x: auto;
-}
-
-.shiki-code-editor {
-	display: none;
-	position: absolute;
-	inset: 0;
-	z-index: 1;
-	min-width: 0;
-	width: 100%;
-	box-sizing: border-box;
-	resize: none;
-	appearance: none;
-	-webkit-appearance: none;
-	border: 0 !important;
-	border-radius: 0;
-	box-shadow: none !important;
-	outline: 0 !important;
-	padding: 0;
-	margin: 0;
-	background: transparent !important;
-	background-image: none !important;
-	color: transparent !important;
-	caret-color: var(--text-normal);
-	-webkit-text-fill-color: transparent !important;
-	font-family: var(--font-monospace);
-	font-size: var(--code-size);
-	line-height: var(--line-height-normal);
-	letter-spacing: normal;
-	white-space: pre;
-	overflow: auto;
-	tab-size: 4;
-}
-
-.shiki-live-preview-block.is-editing .shiki-code-editor {
-	display: block;
 }
 
 .shiki-live-preview-block:not(.wrap-lines) .shiki-block-body,
