@@ -408,11 +408,13 @@ export class LivePreviewAdapter {
 		for (const [line, handler] of this.activeLineScrollHandlers) {
 			if (!activeLineSet.has(line)) {
 				line.removeEventListener('scroll', handler);
+				this.clearActiveLineWidth(line);
 				this.activeLineScrollHandlers.delete(line);
 			}
 		}
 
 		for (const line of activeLines) {
+			this.syncActiveLineWidth(line);
 			if (this.activeLineScrollHandlers.has(line)) {
 				continue;
 			}
@@ -428,9 +430,37 @@ export class LivePreviewAdapter {
 		}
 	}
 
+	private syncActiveLineWidth(line: HTMLElement): void {
+		const content = this.view.dom.querySelector<HTMLElement>('.cm-content');
+		const container = content ?? this.view.dom.querySelector<HTMLElement>('.cm-scroller');
+		if (!container) {
+			this.clearActiveLineWidth(line);
+			return;
+		}
+
+		const containerRect = container.getBoundingClientRect();
+		const lineRect = line.getBoundingClientRect();
+		const availableWidth = Math.floor(containerRect.right - lineRect.left);
+		if (availableWidth <= 0) {
+			this.clearActiveLineWidth(line);
+			return;
+		}
+
+		line.style.boxSizing = 'border-box';
+		line.style.width = `${availableWidth}px`;
+		line.style.maxWidth = `${availableWidth}px`;
+	}
+
+	private clearActiveLineWidth(line: HTMLElement): void {
+		line.style.removeProperty('box-sizing');
+		line.style.removeProperty('width');
+		line.style.removeProperty('max-width');
+	}
+
 	private clearActiveLineScrollHandlers(): void {
 		for (const [line, handler] of this.activeLineScrollHandlers) {
 			line.removeEventListener('scroll', handler);
+			this.clearActiveLineWidth(line);
 		}
 		this.activeLineScrollHandlers.clear();
 	}
