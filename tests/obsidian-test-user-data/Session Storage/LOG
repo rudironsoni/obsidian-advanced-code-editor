@@ -1,2 +1,3 @@
-2026/06/20-23:29:07.917 c1399f Creating DB /Users/rudironsoni/src/github/rudironsoni/obsidian-shiki-plugin/tests/obsidian-test-user-data/Session Storage since it was missing.
-2026/06/20-23:29:07.939 c1399f Reusing MANIFEST /Users/rudironsoni/src/github/rudironsoni/obsidian-shiki-plugin/tests/obsidian-test-user-data/Session Storage/MANIFEST-000001
+2026/06/29-15:41:53.361 2032eae Reusing MANIFEST /Users/rudironsoni/src/github/rudironsoni/obsidian-shiki-plugin/tests/obsidian-test-user-data/Session Storage/MANIFEST-000001
+2026/06/29-15:41:53.371 2032eae Recovering log #3
+2026/06/29-15:41:53.372 2032eae Reusing old log /Users/rudironsoni/src/github/rudironsoni/obsidian-shiki-plugin/tests/obsidian-test-user-data/Session Storage/000003.log 

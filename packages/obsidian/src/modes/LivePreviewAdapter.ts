@@ -1,5 +1,5 @@
 import { Decoration, WidgetType, type DecorationSet, type EditorView, type ViewUpdate } from '@codemirror/view';
-import type { MarkdownView } from 'obsidian';
+import { EditorSelection } from '@codemirror/state';
 import { RangeSetBuilder } from '@codemirror/state';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
@@ -16,6 +16,7 @@ class ShikiLivePreviewWidget extends WidgetType {
 	constructor(
 		private readonly block: CodeBlockModel,
 		private readonly plugin: ShikiPlugin,
+		private readonly editorView: EditorView,
 	) {
 		super();
 		this.showLineNumbers = this.plugin.loadedSettings.showLineNumbers;
@@ -23,11 +24,7 @@ class ShikiLivePreviewWidget extends WidgetType {
 	}
 
 	eq(other: ShikiLivePreviewWidget): boolean {
-		return (
-			other.block.id === this.block.id &&
-			other.showLineNumbers === this.showLineNumbers &&
-			other.wrapLines === this.wrapLines
-		);
+		return other.block.id === this.block.id && other.showLineNumbers === this.showLineNumbers && other.wrapLines === this.wrapLines;
 	}
 
 	toDOM(): HTMLElement {
@@ -41,21 +38,18 @@ class ShikiLivePreviewWidget extends WidgetType {
 		}
 
 		const focusCodeBlockEditor = (e: Event): void => {
-			const clickedCopyButton = e
-				.composedPath()
-				.some(node => (node as Element).closest?.('.shiki-copy-button'));
+			const clickedCopyButton = e.composedPath().some(node => (node as Element).closest?.('.shiki-copy-button'));
 			if (clickedCopyButton) {
 				return;
 			}
-			const leaf = this.plugin.app.workspace.activeLeaf;
-			const view = leaf?.view;
-			if (view && 'editor' in view) {
-				const mdView = view as MarkdownView;
-				mdView.editor.focus();
-				if (this.block.codeFrom !== undefined) {
-					mdView.editor.setCursor(mdView.editor.offsetToPos(this.block.codeFrom));
-				}
+			if (this.block.codeFrom === undefined) {
+				return;
 			}
+			this.editorView.focus();
+			this.editorView.dispatch({
+				selection: EditorSelection.cursor(this.block.codeFrom),
+				scrollIntoView: true,
+			});
 		};
 
 		// Click and pointer interactions to focus the editor at code block start.
@@ -299,7 +293,7 @@ export class LivePreviewAdapter {
 						line.to,
 						line.to,
 						Decoration.widget({
-							widget: new ShikiLivePreviewWidget(block, this.plugin),
+							widget: new ShikiLivePreviewWidget(block, this.plugin, this.view),
 							side: 1,
 						}),
 					);

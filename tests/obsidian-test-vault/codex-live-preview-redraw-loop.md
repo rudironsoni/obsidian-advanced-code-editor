@@ -1,0 +1,20 @@
+# Live Preview redraw loop fixture
+
+Intro paragraph before the code block. Intro paragraph before the code block. Intro paragraph before the code block. Intro paragraph before the code block. Intro paragraph before the code block. Intro paragraph before the code block. Intro paragraph before the code block. Intro paragraph before the code block. Intro paragraph before the code block. Intro paragraph before the code block. 
+
+```ts
+const intervals = [[1, 3], [2, 6], [8, 10], [15, 18]];
+const merged: Array<[number, number]> = [];
+const redrawLoopMarker = "abcdefghijklmnopqrstuvwxyz0123456789_abcdefghijklmnopqrstuvwxyz0123456789_abcdefghijklmnopqrstuvwxyz0123456789_abcdefghijklmnopqrstuvwxyz0123456789_abcdefghijklmnopqrstuvwxyz0123456789_abcdefghijklmnopqrstuvwxyz0123456789_abcdefghijklmnopqrstuvwxyz0123456789_abcdefghijklmnopqrstuvwxyz0123456789_abcdefghijklmnopqrstuvwxyz0123456789_abcdefghijklmnopqrstuvwxyz0123456789_abcdefghijklmnopqrstuvwxyz0123456789_abcdefghijklmnopqrstuvwxyz0123456789_";
+for (const [start, end] of intervals) {
+  const previous = merged.at(-1);
+  if (!previous || previous[1] < start) {
+    merged.push([start, end]);
+  } else {
+    previous[1] = Math.max(previous[1], end);
+  }
+}
+console.log(merged);
+```
+
+After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. After paragraph. 
