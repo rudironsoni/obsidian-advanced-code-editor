@@ -16,6 +16,7 @@
 		"bench:startup:mobile": "OBSIDIAN_EMULATE_MOBILE=true node tests/performance/startup-bench.mjs",
 		"verify:obsidian-advanced-codeblock-redraw-loop": "node tests/runtime/obsidian-advanced-codeblock-redraw-loop.mjs",
 		"verify:obsidian-advanced-codeblock-integration": "node tests/runtime/obsidian-advanced-codeblock-integration.mjs",
+		"verify:obsidian-codeblock-horizontal-scroll-regression": "node tests/runtime/obsidian-codeblock-horizontal-scroll-regression.mjs",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"lint": "eslint --max-warnings=0 packages/**",

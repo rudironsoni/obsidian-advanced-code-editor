@@ -221,6 +221,12 @@ test('styles contain Shiki block styles and no Monaco styles', () => {
 	expect(styles).toContain('.shiki-live-preview-block');
 	expect(styles).toContain('.shiki-reading-block');
 	expect(styles).toContain('.shiki-block-header');
+	expect(styles).toContain('.shiki-block-body');
+	expect(styles).toContain('.markdown-source-view.mod-cm6.is-live-preview.shiki-live-preview-editing-nowrap .cm-scroller');
+	expect(styles).toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-scroller');
+	expect(styles).toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line');
+	expect(styles).toContain('overflow-x: visible');
+	expect(styles).not.toContain('scrollbar-gutter: stable');
 	expect(styles).not.toContain('.shiki-monaco-block');
 	expect(styles).not.toContain('.shiki-monaco-editor');
 	expect(styles).not.toContain('.shiki-monaco-live-widget');
