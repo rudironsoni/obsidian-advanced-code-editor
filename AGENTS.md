@@ -49,6 +49,7 @@ rtk pip list            rtk pnpm install        rtk npm run <script>
 - Runtime reload is cheap and idempotent. Prefer it over relaunching Obsidian.
 - Visual-test scripts must probe CDP port first skip `spawn()` when target alive.
 - Reuse same test vault same Obsidian instance across setup, debugging, verification. Do not spin up extra instances.
+- Use `tests/obsidian-test-vault/` as the canonical Obsidian test vault for manual/runtime debugging unless a verifier script explicitly requires a different vault.
 - Keep all verification artifacts in one explicit runtime workspace, never scattered at top-level repo paths.
 - Always use model's vision capabilities screenshots from real Obsidian to verify actually rendered before concluding UI bug fixed or understood.
 - Preferred artifact root is `tests/runtime-session`.
@@ -118,5 +119,5 @@ A fix is not complete unless the runtime verifier proves:
 - Do not refactor unrelated code.
 - Do not add debug globals, console spam, or broad DOM polling.
 - Do not spawn a second Obsidian instance.
-- Reuse the existing CDP port and test vault.
+- Reuse the existing CDP port and `tests/obsidian-test-vault/` test vault.
 - If a runtime check is skipped, report it explicitly.

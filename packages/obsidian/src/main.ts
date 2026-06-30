@@ -45,6 +45,14 @@ export default class ShikiPlugin extends Plugin {
 		this.sourceModeTokenizationCache = new SourceModeTokenizationCache();
 		this.activeCodeBlocks = new Map();
 		this.updateCm6Plugin = async (): Promise<void> => {};
+		void this.ensureSettingsLoaded()
+			.then(() => {
+				this.applyFontSizeClass();
+				void this.reloadHighlighter();
+			})
+			.catch(error => {
+				console.warn('Unable to load Shiki settings.', error);
+			});
 
 		this.addSettingTab(new LazyShikiSettingsTab(this));
 

@@ -36,6 +36,14 @@ describe('startup module boundary', () => {
 		expect(source).not.toContain("from 'virtual:ec-runtime'");
 	});
 
+	test('main does not block Obsidian startup on settings storage', () => {
+		const source = read('packages/obsidian/src/main.ts');
+		const onload = source.match(/async onload\(\): Promise<void> \{[\s\S]*?\n\t\}/)?.[0] ?? '';
+
+		expect(onload).not.toContain('await this.ensureSettingsLoaded()');
+		expect(onload).toContain('void this.ensureSettingsLoaded()');
+	});
+
 	test('async CM6 decoration producers do not dispatch directly', () => {
 		const cm6Plugin = read('packages/obsidian/src/codemirror/Cm6_ViewPlugin.ts');
 		const livePreview = read('packages/obsidian/src/modes/LivePreviewAdapter.ts');
