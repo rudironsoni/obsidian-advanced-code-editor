@@ -8,6 +8,13 @@ import { getActiveTheme } from 'packages/obsidian/src/runtime/ThemeBridge';
 const LIVE_PREVIEW_ADAPTER_OWNER = '__shikiLivePreviewAdapterOwner';
 
 type LivePreviewOwnerElement = HTMLElement & { [LIVE_PREVIEW_ADAPTER_OWNER]?: LivePreviewAdapter };
+interface ActiveEditScrollHandlers {
+	touchStart: EventListener;
+	touchMove: EventListener;
+	end: EventListener;
+	pointerStart: EventListener;
+	pointerMove: EventListener;
+}
 
 class ShikiLivePreviewWidget extends WidgetType {
 	private readonly showLineNumbers: boolean;
@@ -166,6 +173,7 @@ export class LivePreviewAdapter {
 	private livePreviewActive = false;
 	private lastRootLivePreviewClass = false;
 	private tokenizationRequest = 0;
+	private activeEditScrollHandlers: ActiveEditScrollHandlers | undefined;
 
 	private readonly gutterObserver: MutationObserver;
 
@@ -403,10 +411,123 @@ export class LivePreviewAdapter {
 	private syncActiveLineHorizontalScroll(): void {
 		const activeLines = Array.from(this.view.dom.querySelectorAll<HTMLElement>('.shiki-editing-codeblock-active-line-nowrap'));
 		this.getSourceViewRoot().classList.toggle('shiki-live-preview-editing-nowrap', activeLines.length > 0);
+		if (activeLines.length > 0) {
+			this.syncActiveEditScrollHandlers();
+		} else {
+			this.clearActiveEditScrollHandlers();
+		}
 
 		for (const line of activeLines) {
 			this.clearActiveLineWidth(line);
 		}
+	}
+
+	private syncActiveEditScrollHandlers(): void {
+		if (this.activeEditScrollHandlers) {
+			return;
+		}
+
+		let startX = 0;
+		let startY = 0;
+		let startScrollLeft = 0;
+		let activePointerId: number | undefined;
+		let activeScroller: HTMLElement | undefined;
+		let horizontalDrag = false;
+		const getActiveScroller = (clientX: number, clientY: number, event: Event): HTMLElement | undefined => {
+			if (!document.body.classList.contains('is-mobile')) {
+				return undefined;
+			}
+			const target = event.target instanceof Element ? event.target : document.elementFromPoint(clientX, clientY);
+			const line = target?.closest<HTMLElement>('.shiki-editing-codeblock-active-line-nowrap') ?? document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('.shiki-editing-codeblock-active-line-nowrap');
+			return line?.closest<HTMLElement>('.cm-scroller') ?? undefined;
+		};
+		const startDrag = (event: Event, clientX: number, clientY: number): void => {
+			activeScroller = getActiveScroller(clientX, clientY, event);
+			if (!activeScroller) {
+				return;
+			}
+			startX = clientX;
+			startY = clientY;
+			startScrollLeft = activeScroller.scrollLeft;
+			horizontalDrag = false;
+		};
+		const moveDrag = (event: Event, clientX: number, clientY: number): void => {
+			if (!activeScroller) {
+				return;
+			}
+			const deltaX = startX - clientX;
+			const deltaY = startY - clientY;
+			if (!horizontalDrag) {
+				if (Math.abs(deltaY) > Math.abs(deltaX)) {
+					return;
+				}
+				if (Math.abs(deltaX) < 8) {
+					return;
+				}
+				horizontalDrag = true;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			if ('stopImmediatePropagation' in event) {
+				event.stopImmediatePropagation();
+			}
+			activeScroller.scrollLeft = startScrollLeft + deltaX;
+		};
+		const touchStart = ((event: TouchEvent): void => {
+			const touch = event.touches[0];
+			if (touch) {
+				startDrag(event, touch.clientX, touch.clientY);
+			}
+		}) as EventListener;
+		const touchMove = ((event: TouchEvent): void => {
+			const touch = event.touches[0];
+			if (touch) {
+				moveDrag(event, touch.clientX, touch.clientY);
+			}
+		}) as EventListener;
+		const pointerStart = ((event: PointerEvent): void => {
+			if (event.pointerType !== 'touch' && event.pointerType !== 'pen') {
+				return;
+			}
+			activePointerId = event.pointerId;
+			startDrag(event, event.clientX, event.clientY);
+		}) as EventListener;
+		const pointerMove = ((event: PointerEvent): void => {
+			if (activePointerId === event.pointerId) {
+				moveDrag(event, event.clientX, event.clientY);
+			}
+		}) as EventListener;
+		const end = (() => {
+			activeScroller = undefined;
+			activePointerId = undefined;
+			horizontalDrag = false;
+		}) as EventListener;
+
+		window.addEventListener('touchstart', touchStart, { capture: true, passive: true });
+		window.addEventListener('touchmove', touchMove, { capture: true, passive: false });
+		window.addEventListener('touchend', end, { capture: true, passive: true });
+		window.addEventListener('touchcancel', end, { capture: true, passive: true });
+		window.addEventListener('pointerdown', pointerStart, { capture: true, passive: true });
+		window.addEventListener('pointermove', pointerMove, { capture: true, passive: false });
+		window.addEventListener('pointerup', end, { capture: true, passive: true });
+		window.addEventListener('pointercancel', end, { capture: true, passive: true });
+		this.activeEditScrollHandlers = { touchStart, touchMove, end, pointerStart, pointerMove };
+	}
+
+	private clearActiveEditScrollHandlers(): void {
+		const handlers = this.activeEditScrollHandlers;
+		if (!handlers) {
+			return;
+		}
+		window.removeEventListener('touchstart', handlers.touchStart, true);
+		window.removeEventListener('touchmove', handlers.touchMove, true);
+		window.removeEventListener('touchend', handlers.end, true);
+		window.removeEventListener('touchcancel', handlers.end, true);
+		window.removeEventListener('pointerdown', handlers.pointerStart, true);
+		window.removeEventListener('pointermove', handlers.pointerMove, true);
+		window.removeEventListener('pointerup', handlers.end, true);
+		window.removeEventListener('pointercancel', handlers.end, true);
+		this.activeEditScrollHandlers = undefined;
 	}
 
 	private clearActiveLineWidth(line: HTMLElement): void {
@@ -417,6 +538,7 @@ export class LivePreviewAdapter {
 
 	private clearActiveLineScrollHandlers(): void {
 		this.getSourceViewRoot().classList.remove('shiki-live-preview-editing-nowrap');
+		this.clearActiveEditScrollHandlers();
 		for (const line of this.view.dom.querySelectorAll<HTMLElement>('.shiki-editing-codeblock-active-line-nowrap')) {
 			this.clearActiveLineWidth(line);
 		}
