@@ -9,9 +9,11 @@ const LIVE_PREVIEW_ADAPTER_OWNER = '__shikiLivePreviewAdapterOwner';
 
 type LivePreviewOwnerElement = HTMLElement & { [LIVE_PREVIEW_ADAPTER_OWNER]?: LivePreviewAdapter };
 interface ActiveLineTouchHandlers {
-	start: EventListener;
-	move: EventListener;
+	touchStart: EventListener;
+	touchMove: EventListener;
 	end: EventListener;
+	pointerStart: EventListener;
+	pointerMove: EventListener;
 }
 
 class ShikiLivePreviewWidget extends WidgetType {
@@ -454,6 +456,7 @@ export class LivePreviewAdapter {
 		}
 
 		let activeLine: HTMLElement | undefined;
+		let activePointerId: number | undefined;
 		let startX = 0;
 		let startY = 0;
 		let startScrollLeft = 0;
@@ -462,30 +465,22 @@ export class LivePreviewAdapter {
 			const target = event.target instanceof Element ? event.target : (event.target as Node | null)?.parentElement;
 			return target?.closest<HTMLElement>('.shiki-editing-codeblock-active-line-nowrap') ?? undefined;
 		};
-		const start = ((event: TouchEvent): void => {
-			const touch = event.touches[0];
-			if (!touch) {
-				return;
-			}
-			activeLine = getActiveLine(event) ?? document.elementFromPoint(touch.clientX, touch.clientY)?.closest<HTMLElement>('.shiki-editing-codeblock-active-line-nowrap') ?? undefined;
+		const startDrag = (event: Event, clientX: number, clientY: number): void => {
+			activeLine = getActiveLine(event) ?? document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('.shiki-editing-codeblock-active-line-nowrap') ?? undefined;
 			if (!activeLine) {
 				return;
 			}
-			startX = touch.clientX;
-			startY = touch.clientY;
+			startX = clientX;
+			startY = clientY;
 			startScrollLeft = activeLine.scrollLeft;
 			horizontalDrag = false;
-		}) as EventListener;
-		const move = ((event: TouchEvent): void => {
+		};
+		const moveDrag = (event: Event, clientX: number, clientY: number): void => {
 			if (!activeLine) {
 				return;
 			}
-			const touch = event.touches[0];
-			if (!touch) {
-				return;
-			}
-			const deltaX = startX - touch.clientX;
-			const deltaY = startY - touch.clientY;
+			const deltaX = startX - clientX;
+			const deltaY = startY - clientY;
 			if (!horizontalDrag) {
 				if (Math.abs(deltaY) > Math.abs(deltaX)) {
 					return;
@@ -498,17 +493,49 @@ export class LivePreviewAdapter {
 			event.preventDefault();
 			event.stopPropagation();
 			this.setActiveLineScrollLeft(startScrollLeft + deltaX);
+		};
+		const touchStart = ((event: TouchEvent): void => {
+			const touch = event.touches[0];
+			if (!touch) {
+				return;
+			}
+			startDrag(event, touch.clientX, touch.clientY);
+		}) as EventListener;
+		const touchMove = ((event: TouchEvent): void => {
+			const touch = event.touches[0];
+			if (!touch) {
+				return;
+			}
+			moveDrag(event, touch.clientX, touch.clientY);
+		}) as EventListener;
+		const pointerStart = ((event: PointerEvent): void => {
+			if (event.pointerType !== 'touch' && event.pointerType !== 'pen') {
+				return;
+			}
+			activePointerId = event.pointerId;
+			startDrag(event, event.clientX, event.clientY);
+		}) as EventListener;
+		const pointerMove = ((event: PointerEvent): void => {
+			if (activePointerId !== event.pointerId) {
+				return;
+			}
+			moveDrag(event, event.clientX, event.clientY);
 		}) as EventListener;
 		const end = (() => {
 			activeLine = undefined;
+			activePointerId = undefined;
 			horizontalDrag = false;
 		}) as EventListener;
 
-		this.view.dom.addEventListener('touchstart', start, { capture: true, passive: true });
-		this.view.dom.addEventListener('touchmove', move, { capture: true, passive: false });
-		this.view.dom.addEventListener('touchend', end, { capture: true, passive: true });
-		this.view.dom.addEventListener('touchcancel', end, { capture: true, passive: true });
-		this.activeLineTouchHandlers = { start, move, end };
+		window.addEventListener('touchstart', touchStart, { capture: true, passive: true });
+		window.addEventListener('touchmove', touchMove, { capture: true, passive: false });
+		window.addEventListener('touchend', end, { capture: true, passive: true });
+		window.addEventListener('touchcancel', end, { capture: true, passive: true });
+		window.addEventListener('pointerdown', pointerStart, { capture: true, passive: true });
+		window.addEventListener('pointermove', pointerMove, { capture: true, passive: false });
+		window.addEventListener('pointerup', end, { capture: true, passive: true });
+		window.addEventListener('pointercancel', end, { capture: true, passive: true });
+		this.activeLineTouchHandlers = { touchStart, touchMove, end, pointerStart, pointerMove };
 	}
 
 	private clearActiveLineTouchHandlers(): void {
@@ -516,10 +543,14 @@ export class LivePreviewAdapter {
 		if (!handlers) {
 			return;
 		}
-		this.view.dom.removeEventListener('touchstart', handlers.start, true);
-		this.view.dom.removeEventListener('touchmove', handlers.move, true);
-		this.view.dom.removeEventListener('touchend', handlers.end, true);
-		this.view.dom.removeEventListener('touchcancel', handlers.end, true);
+		window.removeEventListener('touchstart', handlers.touchStart, true);
+		window.removeEventListener('touchmove', handlers.touchMove, true);
+		window.removeEventListener('touchend', handlers.end, true);
+		window.removeEventListener('touchcancel', handlers.end, true);
+		window.removeEventListener('pointerdown', handlers.pointerStart, true);
+		window.removeEventListener('pointermove', handlers.pointerMove, true);
+		window.removeEventListener('pointerup', handlers.end, true);
+		window.removeEventListener('pointercancel', handlers.end, true);
 		this.activeLineTouchHandlers = undefined;
 	}
 
