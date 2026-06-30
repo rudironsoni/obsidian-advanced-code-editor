@@ -14,6 +14,7 @@ interface ActiveEditScrollHandlers {
 	end: EventListener;
 	pointerStart: EventListener;
 	pointerMove: EventListener;
+	wheel: EventListener;
 }
 
 class ShikiLivePreviewWidget extends WidgetType {
@@ -441,30 +442,43 @@ export class LivePreviewAdapter {
 		let startY = 0;
 		let startScrollLeft = 0;
 		let activePointerId: number | undefined;
-		let activeScroller: HTMLElement | undefined;
+		let activeBlockLines: HTMLElement[] = [];
 		let horizontalDrag = false;
-		const getActiveScroller = (clientX: number, clientY: number, event: Event): HTMLElement | undefined => {
-			if (!document.body.classList.contains('is-mobile')) {
-				return undefined;
+		const readScrollLeft = (line: HTMLElement): number => Number.parseFloat(line.style.getPropertyValue('--shiki-editing-scroll-left')) || 0;
+		const writeBlockScrollLeft = (scrollLeft: number): void => {
+			const maxScrollLeft = Math.max(0, ...activeBlockLines.map(line => line.scrollWidth - line.clientWidth));
+			const nextScrollLeft = Math.max(0, Math.min(scrollLeft, maxScrollLeft));
+			for (const line of activeBlockLines) {
+				line.style.setProperty('--shiki-editing-scroll-left', String(nextScrollLeft));
 			}
+		};
+		const getActiveBlockLines = (clientX: number, clientY: number, event: Event): HTMLElement[] => {
 			const target = event.target instanceof Element ? event.target : document.elementFromPoint(clientX, clientY);
 			const line =
 				target?.closest<HTMLElement>('.shiki-editing-codeblock-active-line-nowrap') ??
 				document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('.shiki-editing-codeblock-active-line-nowrap');
-			return line?.closest<HTMLElement>('.cm-scroller') ?? undefined;
+			const blockId = line?.getAttribute('data-shiki-editing-block-id');
+			if (!blockId) {
+				return [];
+			}
+			return Array.from(
+				this.view.dom.querySelectorAll<HTMLElement>(
+					`.shiki-editing-codeblock-active-line-nowrap[data-shiki-editing-block-id="${CSS.escape(blockId)}"]`,
+				),
+			);
 		};
 		const startDrag = (event: Event, clientX: number, clientY: number): void => {
-			activeScroller = getActiveScroller(clientX, clientY, event);
-			if (!activeScroller) {
+			activeBlockLines = getActiveBlockLines(clientX, clientY, event);
+			if (activeBlockLines.length === 0) {
 				return;
 			}
 			startX = clientX;
 			startY = clientY;
-			startScrollLeft = activeScroller.scrollLeft;
+			startScrollLeft = readScrollLeft(activeBlockLines[0]);
 			horizontalDrag = false;
 		};
 		const moveDrag = (event: Event, clientX: number, clientY: number): void => {
-			if (!activeScroller) {
+			if (activeBlockLines.length === 0) {
 				return;
 			}
 			const deltaX = startX - clientX;
@@ -483,7 +497,24 @@ export class LivePreviewAdapter {
 			if ('stopImmediatePropagation' in event) {
 				event.stopImmediatePropagation();
 			}
-			activeScroller.scrollLeft = startScrollLeft + deltaX;
+			writeBlockScrollLeft(startScrollLeft + deltaX);
+		};
+		const wheel = ((event: WheelEvent): void => {
+			if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) {
+				return;
+			}
+			activeBlockLines = getActiveBlockLines(event.clientX, event.clientY, event);
+			if (activeBlockLines.length === 0) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			writeBlockScrollLeft(readScrollLeft(activeBlockLines[0]) + event.deltaX);
+		}) as EventListener;
+		const reset = (): void => {
+			activeBlockLines = [];
+			activePointerId = undefined;
+			horizontalDrag = false;
 		};
 		const touchStart = ((event: TouchEvent): void => {
 			const touch = event.touches[0];
@@ -509,12 +540,9 @@ export class LivePreviewAdapter {
 				moveDrag(event, event.clientX, event.clientY);
 			}
 		}) as EventListener;
-		const end = (() => {
-			activeScroller = undefined;
-			activePointerId = undefined;
-			horizontalDrag = false;
-		}) as EventListener;
+		const end = reset as EventListener;
 
+		window.addEventListener('wheel', wheel, { capture: true, passive: false });
 		window.addEventListener('touchstart', touchStart, { capture: true, passive: true });
 		window.addEventListener('touchmove', touchMove, { capture: true, passive: false });
 		window.addEventListener('touchend', end, { capture: true, passive: true });
@@ -523,7 +551,7 @@ export class LivePreviewAdapter {
 		window.addEventListener('pointermove', pointerMove, { capture: true, passive: false });
 		window.addEventListener('pointerup', end, { capture: true, passive: true });
 		window.addEventListener('pointercancel', end, { capture: true, passive: true });
-		this.activeEditScrollHandlers = { touchStart, touchMove, end, pointerStart, pointerMove };
+		this.activeEditScrollHandlers = { touchStart, touchMove, end, pointerStart, pointerMove, wheel };
 	}
 
 	private clearActiveEditScrollHandlers(): void {
@@ -531,6 +559,7 @@ export class LivePreviewAdapter {
 		if (!handlers) {
 			return;
 		}
+		window.removeEventListener('wheel', handlers.wheel, true);
 		window.removeEventListener('touchstart', handlers.touchStart, true);
 		window.removeEventListener('touchmove', handlers.touchMove, true);
 		window.removeEventListener('touchend', handlers.end, true);
@@ -546,6 +575,7 @@ export class LivePreviewAdapter {
 		line.style.removeProperty('box-sizing');
 		line.style.removeProperty('width');
 		line.style.removeProperty('max-width');
+		line.style.removeProperty('--shiki-editing-scroll-left');
 	}
 
 	private clearActiveLineScrollHandlers(): void {

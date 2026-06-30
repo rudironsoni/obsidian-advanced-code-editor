@@ -131,8 +131,65 @@ async function verifyLivePreviewViewing(client) {
 }
 
 async function verifyLivePreviewEditing(client) {
-	const state = await evaluate(client, blockScrollExpression('live-preview-editing', false));
-	assertBlockScrollerState(state, 'Live Preview editing');
+	const state = await evaluate(
+		client,
+		`(async () => {
+			const leaf = window.app.workspace.activeLeaf;
+			const file = window.app.workspace.getActiveFile();
+			await leaf.setViewState({ type: 'markdown', state: { file: file.path, mode: 'source', source: false }, active: true }, { history: false });
+			await new Promise(resolve => setTimeout(resolve, 1000));
+			const editor = leaf.view.editor;
+			const line = editor.getValue().split('\\n').findIndex(value => value.includes('insanelyLongValueName'));
+			editor.setCursor({ line, ch: 20 });
+			editor.focus();
+			await window.app.plugins.plugins['advanced-code-block']?.updateCm6Plugin?.();
+			await new Promise(resolve => setTimeout(resolve, 1000));
+			const root = leaf.view.containerEl;
+			const scroller = root.querySelector('.cm-scroller');
+			if (scroller) scroller.scrollLeft = 0;
+			const lines = [...root.querySelectorAll('.shiki-editing-codeblock-active-line-nowrap')].filter(el => el.textContent?.includes('LongValueName'));
+			for (const line of lines) line.style.setProperty('--shiki-editing-scroll-left', '0');
+			const tokenLeftBefore = lines.map(line => line.querySelector('span')?.getBoundingClientRect().left ?? null);
+			const rect = lines[0]?.getBoundingClientRect();
+			if (rect) {
+				const y = rect.top + Math.min(rect.height / 2, 20);
+				const fromX = Math.min(rect.right - 24, rect.left + 320);
+				const toX = Math.max(rect.left + 16, fromX - 300);
+				lines[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 991, pointerType: 'touch', clientX: fromX, clientY: y }));
+				lines[0].dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, pointerId: 991, pointerType: 'touch', clientX: toX, clientY: y }));
+				lines[0].dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 991, pointerType: 'touch', clientX: toX, clientY: y }));
+			}
+			const tokenLeftAfter = lines.map(line => line.querySelector('span')?.getBoundingClientRect().left ?? null);
+			return {
+				label: 'live-preview-editing',
+				lineCount: lines.length,
+				scrollerScrollLeft: scroller?.scrollLeft ?? 0,
+				virtualScrollLeft: lines.map(line => Number.parseFloat(line.style.getPropertyValue('--shiki-editing-scroll-left')) || 0),
+				tokenMoved: tokenLeftBefore.map((left, index) => left !== null && tokenLeftAfter[index] !== null ? left - tokenLeftAfter[index] : 0),
+				anyLineOwnScroll: lines.some(el => el.scrollLeft > 0),
+				bodyScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
+			};
+		})()`,
+	);
+	assert(state.lineCount >= 2, 'Live Preview editing did not find both long code lines', state);
+	assert(state.scrollerScrollLeft === 0, 'Live Preview editing moved the whole editor horizontally', state);
+	assert(
+		state.virtualScrollLeft.every(value => value > 0),
+		'Live Preview editing did not set shared block scroll offset',
+		state,
+	);
+	assert(
+		state.virtualScrollLeft.every(value => Math.abs(value - state.virtualScrollLeft[0]) < 1),
+		'Live Preview editing did not sync every active row',
+		state,
+	);
+	assert(
+		state.tokenMoved.every(value => value > 0),
+		'Live Preview editing did not move token content horizontally',
+		state,
+	);
+	assert(!state.anyLineOwnScroll, 'Live Preview editing left horizontal scroll on individual lines', state);
+	assert(state.bodyScrollLeft === 0, 'Live Preview editing moved the document horizontally', state);
 	return state;
 }
 
