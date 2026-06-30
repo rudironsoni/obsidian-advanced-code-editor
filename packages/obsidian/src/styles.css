@@ -73,25 +73,6 @@ span.shiki-ul {
 	word-break: break-word;
 }
 
-/* Line numbers in reading mode */
-.markdown-rendered .shiki-reading-block .shiki-line-numbers,
-.markdown-rendered pre.shiki-reading-block .shiki-line-numbers {
-	display: flex;
-	flex-direction: column;
-	text-align: right;
-	padding-right: 12px;
-	color: var(--text-faint);
-	font-family: var(--font-monospace);
-	font-size: var(--code-size);
-	line-height: var(--line-height-normal);
-	user-select: none;
-	min-width: 3.5ch;
-	flex-shrink: 0;
-	border-right: 1px solid var(--background-modifier-border);
-	margin-right: 12px;
-	box-sizing: content-box;
-}
-
 .markdown-rendered .shiki-reading-block .shiki-line-numbers span,
 .markdown-rendered pre.shiki-reading-block .shiki-line-numbers span {
 	display: block;
@@ -221,7 +202,7 @@ span.shiki-ul {
 	z-index: 1;
 	text-align: right;
 	padding-right: 12px;
-	background: var(--code-background);
+	background: var(--background-modifier-form-field);
 	color: var(--text-faint);
 	font-family: var(--font-monospace);
 	font-size: var(--code-size);
