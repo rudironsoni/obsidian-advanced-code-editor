@@ -116,6 +116,10 @@ class ShikiLivePreviewWidget extends WidgetType {
 			codeEl.textContent = this.block.code;
 			return;
 		}
+		const themeBackground = this.plugin.highlighter.getThemeBackground(highlight);
+		if (themeBackground) {
+			bodyEl.closest<HTMLElement>('.shiki-live-preview-block')?.style.setProperty('--shiki-code-background', themeBackground);
+		}
 
 		const lines = this.block.code.split('\n');
 

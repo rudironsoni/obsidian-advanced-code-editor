@@ -134,6 +134,10 @@ export class ReadingViewAdapter {
 		if (!highlight) {
 			return;
 		}
+		const themeBackground = this.plugin.highlighter.getThemeBackground(highlight);
+		if (themeBackground) {
+			codeElement.closest<HTMLElement>('.shiki-reading-block')?.style.setProperty('--shiki-code-background', themeBackground);
+		}
 
 		const lines = state.block.code.split('\n');
 

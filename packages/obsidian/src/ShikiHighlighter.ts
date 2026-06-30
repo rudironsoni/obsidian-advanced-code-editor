@@ -122,4 +122,11 @@ export class ShikiHighlighter {
 		}
 		return { style: styles.join('; '), classes: [] };
 	}
+
+	getThemeBackground(highlight: TokensResult | undefined): string | undefined {
+		if (!this.plugin.loadedSettings.preferThemeColors) {
+			return undefined;
+		}
+		return highlight?.bg;
+	}
 }

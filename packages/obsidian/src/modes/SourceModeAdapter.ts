@@ -51,6 +51,8 @@ export class SourceModeAdapter {
 		const builder = new RangeSetBuilder<Decoration>();
 		const theme = getActiveTheme(this.plugin);
 		const settingsSignature = JSON.stringify({ disabledLanguages: this.plugin.loadedSettings.disabledLanguages, theme });
+		const sourceViewRoot = this.view.dom.closest<HTMLElement>('.markdown-source-view.mod-cm6');
+		sourceViewRoot?.style.removeProperty('--shiki-code-background');
 
 		for (const block of visibleBlocks) {
 			const cached = this.plugin.sourceModeTokenizationCache.get({
@@ -75,6 +77,10 @@ export class SourceModeAdapter {
 			}
 			if (requestId !== this.tokenizationRequest || !highlight || block.codeFrom === undefined || block.codeTo === undefined) {
 				continue;
+			}
+			const themeBackground = this.plugin.highlighter.getThemeBackground(highlight);
+			if (themeBackground) {
+				sourceViewRoot?.style.setProperty('--shiki-code-background', themeBackground);
 			}
 			for (const lineTokens of highlight.tokens) {
 				for (const token of lineTokens) {
