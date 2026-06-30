@@ -83,7 +83,7 @@ export class ReadingViewAdapter {
 			return;
 		}
 
-		const wrapper = container.tagName === 'PRE' ? container.parentElement ?? container : container;
+		const wrapper = container.tagName === 'PRE' ? (container.parentElement ?? container) : container;
 		const existingBody = wrapper.querySelector<HTMLElement>(':scope > .shiki-block-body');
 
 		if (existingBody) {
