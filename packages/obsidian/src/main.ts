@@ -226,7 +226,7 @@ export default class ShikiPlugin extends Plugin {
 				processedPre.add(pre);
 				const codeBlock = new CodeBlock(
 					this,
-					pre,
+					pre.parentElement ?? pre,
 					codeElement.textContent?.trim() ? codeElement.textContent : sourceFromSectionInfo(pre),
 					language,
 					ctx,
@@ -243,7 +243,7 @@ export default class ShikiPlugin extends Plugin {
 					continue;
 				}
 				processedPre.add(pre);
-				const codeBlock = new CodeBlock(this, pre, pre.textContent?.trim() ? pre.textContent : sourceFromSectionInfo(pre), language, ctx);
+				const codeBlock = new CodeBlock(this, pre.parentElement ?? pre, pre.textContent?.trim() ? pre.textContent : sourceFromSectionInfo(pre), language, ctx);
 				ctx.addChild(codeBlock);
 			}
 		}, 1000);

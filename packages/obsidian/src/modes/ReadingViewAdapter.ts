@@ -83,21 +83,25 @@ export class ReadingViewAdapter {
 			return;
 		}
 
-		const wrapper = container.parentElement ?? container;
-		const alreadyEnhanced = !!wrapper.querySelector(':scope > .shiki-block-header');
+		const wrapper = container.tagName === 'PRE' ? container.parentElement ?? container : container;
+		const existingBody = wrapper.querySelector<HTMLElement>(':scope > .shiki-block-body');
 
-		// Guard: already enhanced (header is a direct child of wrapper, not container)
-		if (alreadyEnhanced) {
+		if (existingBody) {
 			void this.applyShikiHighlight(state, codeElement);
 			return;
 		}
 
 		wrapper.classList.add('shiki-reading-block');
+		wrapper.classList.remove('wrap-lines');
 		if (this.plugin.loadedSettings.wrapLines) {
 			wrapper.classList.add('wrap-lines');
 		}
+		for (const stale of wrapper.querySelectorAll(':scope > .shiki-block-header, :scope > .shiki-block-body, :scope > .shiki-code-scroll')) {
+			stale.remove();
+		}
 
-		const header = wrapper.createDiv({ cls: 'shiki-block-header' });
+		const header = document.createElement('div');
+		header.className = 'shiki-block-header';
 		const left = header.createDiv({ cls: 'shiki-header-left' });
 		left.createSpan({ cls: 'shiki-lang-name', text: state.language });
 		const right = header.createDiv({ cls: 'shiki-header-right' });
@@ -105,12 +109,17 @@ export class ReadingViewAdapter {
 		copyBtn.onclick = (): void => {
 			navigator.clipboard.writeText(state.block.code).catch(() => {});
 		};
-		wrapper.insertBefore(header, wrapper.firstChild);
 
-		const scroll = wrapper.createDiv({ cls: 'shiki-code-scroll' });
-		scroll.style.overflowX = 'auto';
+		const body = document.createElement('div');
+		body.className = 'shiki-block-body';
+		const scroll = body.createDiv({ cls: 'shiki-code-scroll' });
 		pre.remove();
+		if (container !== wrapper && container !== pre && container.childElementCount === 0 && container.textContent?.trim() === '') {
+			container.remove();
+		}
 		scroll.appendChild(pre);
+		wrapper.appendChild(header);
+		wrapper.appendChild(body);
 
 		if (!this.plugin.loadedSettings.wrapLines) {
 			pre.style.whiteSpace = 'pre';
@@ -159,21 +168,21 @@ export class ReadingViewAdapter {
 				lineNumbers.remove();
 			}
 		}
-		const scrollContainer = codeElement.closest<HTMLElement>('.shiki-code-scroll');
-		if (scrollContainer) {
+		const bodyEl = codeElement.closest<HTMLElement>('.shiki-block-body');
+		if (bodyEl) {
 			if (!this.plugin.loadedSettings.showLineNumbers) {
-				scrollContainer.style.display = '';
+				bodyEl.style.display = '';
 			}
 		}
 		if (this.plugin.loadedSettings.showLineNumbers) {
-			if (scrollContainer && !scrollContainer.querySelector('.shiki-line-numbers')) {
-				scrollContainer.style.display = 'flex';
+			if (bodyEl && !bodyEl.querySelector('.shiki-line-numbers')) {
+				bodyEl.style.display = 'flex';
 				const lineNumbers = document.createElement('div');
 				lineNumbers.className = 'shiki-line-numbers';
 				for (let i = 1; i <= lines.length; i++) {
 					lineNumbers.createSpan({ text: String(i) });
 				}
-				scrollContainer.insertBefore(lineNumbers, scrollContainer.firstChild);
+				bodyEl.insertBefore(lineNumbers, bodyEl.firstChild);
 			}
 		}
 	}
