@@ -334,8 +334,10 @@ function blockScrollExpression(label, source) {
 		await new Promise(resolve => setTimeout(resolve, 1000));
 		const root = leaf.view.containerEl;
 		const scroller = root.querySelector('.cm-scroller');
+		const content = root.querySelector('.cm-content');
 		if (scroller) scroller.scrollLeft = 0;
 		const lines = [...root.querySelectorAll(${source ? "'.cm-content .cm-line'" : "'.shiki-editing-codeblock-active-line-nowrap'"})].filter(el => el.textContent?.includes('LongValueName'));
+		const codeLines = ${source ? "[...root.querySelectorAll('.cm-content .cm-line.HyperMD-codeblock, .cm-content .cm-line.HyperMD-codeblock-bg')]" : '[]'};
 		const before = lines.map(el => el.getBoundingClientRect().left);
 		if (scroller) scroller.scrollLeft = 300;
 		const after = lines.map(el => el.getBoundingClientRect().left);
@@ -345,6 +347,8 @@ function blockScrollExpression(label, source) {
 			scrollerClient: scroller?.clientWidth ?? 0,
 			scrollerScrollWidth: scroller?.scrollWidth ?? 0,
 			scrollerScrollLeft: scroller?.scrollLeft ?? 0,
+			contentWidth: content?.getBoundingClientRect().width ?? 0,
+			codeLineWidths: codeLines.map(el => el.getBoundingClientRect().width),
 			lineMoved: before.map((left, index) => left - after[index]),
 			anyLineOwnScroll: lines.some(el => el.scrollLeft > 0),
 			bodyScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
@@ -362,6 +366,14 @@ function assertBlockScrollerState(state, label) {
 		state,
 	);
 	assert(!state.anyLineOwnScroll, `${label} left horizontal scroll on individual lines`, state);
+	if (label === 'Source mode') {
+		assert(state.codeLineWidths.length > 0, `${label} did not find source code block lines`, state);
+		assert(
+			state.codeLineWidths.every(width => Math.abs(width - state.contentWidth) < 2),
+			`${label} left variable-width code line backgrounds`,
+			state,
+		);
+	}
 	assert(state.bodyScrollLeft === 0, `${label} moved the document horizontally`, state);
 }
 

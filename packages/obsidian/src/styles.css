@@ -324,7 +324,7 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block .shiki-c
 
 .markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line {
 	white-space: pre !important;
-	width: max-content !important;
+	width: 100% !important;
 	min-width: 100% !important;
 }
 
