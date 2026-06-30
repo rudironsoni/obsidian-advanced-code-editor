@@ -172,7 +172,7 @@ export class LivePreviewAdapter {
 	private lastRootLivePreviewClass = false;
 	private tokenizationRequest = 0;
 	private readonly activeLineScrollHandlers = new Map<HTMLElement, EventListener>();
-	private readonly activeLineTouchHandlers = new Map<HTMLElement, ActiveLineTouchHandlers>();
+	private activeLineTouchHandlers: ActiveLineTouchHandlers | undefined;
 	private activeLineScrollSyncing = false;
 
 	private readonly gutterObserver: MutationObserver;
@@ -414,15 +414,18 @@ export class LivePreviewAdapter {
 		for (const [line, handler] of this.activeLineScrollHandlers) {
 			if (!activeLineSet.has(line)) {
 				line.removeEventListener('scroll', handler);
-				this.clearActiveLineTouchHandlers(line);
 				this.clearActiveLineWidth(line);
 				this.activeLineScrollHandlers.delete(line);
 			}
 		}
+		if (activeLines.length === 0) {
+			this.clearActiveLineTouchHandlers();
+			return;
+		}
+		this.syncActiveLineTouchHandlers();
 
 		for (const line of activeLines) {
 			this.syncActiveLineWidth(line);
-			this.syncActiveLineTouchHandlers(line);
 			if (this.activeLineScrollHandlers.has(line)) {
 				continue;
 			}
@@ -445,26 +448,38 @@ export class LivePreviewAdapter {
 		}
 	}
 
-	private syncActiveLineTouchHandlers(line: HTMLElement): void {
-		if (this.activeLineTouchHandlers.has(line)) {
+	private syncActiveLineTouchHandlers(): void {
+		if (this.activeLineTouchHandlers) {
 			return;
 		}
 
+		let activeLine: HTMLElement | undefined;
 		let startX = 0;
 		let startY = 0;
 		let startScrollLeft = 0;
 		let horizontalDrag = false;
+		const getActiveLine = (event: Event): HTMLElement | undefined => {
+			const target = event.target instanceof Element ? event.target : (event.target as Node | null)?.parentElement;
+			return target?.closest<HTMLElement>('.shiki-editing-codeblock-active-line-nowrap') ?? undefined;
+		};
 		const start = ((event: TouchEvent): void => {
 			const touch = event.touches[0];
 			if (!touch) {
 				return;
 			}
+			activeLine = getActiveLine(event) ?? document.elementFromPoint(touch.clientX, touch.clientY)?.closest<HTMLElement>('.shiki-editing-codeblock-active-line-nowrap') ?? undefined;
+			if (!activeLine) {
+				return;
+			}
 			startX = touch.clientX;
 			startY = touch.clientY;
-			startScrollLeft = line.scrollLeft;
+			startScrollLeft = activeLine.scrollLeft;
 			horizontalDrag = false;
 		}) as EventListener;
 		const move = ((event: TouchEvent): void => {
+			if (!activeLine) {
+				return;
+			}
 			const touch = event.touches[0];
 			if (!touch) {
 				return;
@@ -481,29 +496,31 @@ export class LivePreviewAdapter {
 				horizontalDrag = true;
 			}
 			event.preventDefault();
+			event.stopPropagation();
 			this.setActiveLineScrollLeft(startScrollLeft + deltaX);
 		}) as EventListener;
 		const end = (() => {
+			activeLine = undefined;
 			horizontalDrag = false;
 		}) as EventListener;
 
-		line.addEventListener('touchstart', start, { passive: true });
-		line.addEventListener('touchmove', move, { passive: false });
-		line.addEventListener('touchend', end, { passive: true });
-		line.addEventListener('touchcancel', end, { passive: true });
-		this.activeLineTouchHandlers.set(line, { start, move, end });
+		this.view.dom.addEventListener('touchstart', start, { capture: true, passive: true });
+		this.view.dom.addEventListener('touchmove', move, { capture: true, passive: false });
+		this.view.dom.addEventListener('touchend', end, { capture: true, passive: true });
+		this.view.dom.addEventListener('touchcancel', end, { capture: true, passive: true });
+		this.activeLineTouchHandlers = { start, move, end };
 	}
 
-	private clearActiveLineTouchHandlers(line: HTMLElement): void {
-		const handlers = this.activeLineTouchHandlers.get(line);
+	private clearActiveLineTouchHandlers(): void {
+		const handlers = this.activeLineTouchHandlers;
 		if (!handlers) {
 			return;
 		}
-		line.removeEventListener('touchstart', handlers.start);
-		line.removeEventListener('touchmove', handlers.move);
-		line.removeEventListener('touchend', handlers.end);
-		line.removeEventListener('touchcancel', handlers.end);
-		this.activeLineTouchHandlers.delete(line);
+		this.view.dom.removeEventListener('touchstart', handlers.start, true);
+		this.view.dom.removeEventListener('touchmove', handlers.move, true);
+		this.view.dom.removeEventListener('touchend', handlers.end, true);
+		this.view.dom.removeEventListener('touchcancel', handlers.end, true);
+		this.activeLineTouchHandlers = undefined;
 	}
 
 	private setActiveLineScrollLeft(scrollLeft: number): void {
@@ -548,9 +565,9 @@ export class LivePreviewAdapter {
 	}
 
 	private clearActiveLineScrollHandlers(): void {
+		this.clearActiveLineTouchHandlers();
 		for (const [line, handler] of this.activeLineScrollHandlers) {
 			line.removeEventListener('scroll', handler);
-			this.clearActiveLineTouchHandlers(line);
 			this.clearActiveLineWidth(line);
 		}
 		this.activeLineScrollHandlers.clear();
