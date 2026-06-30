@@ -8,6 +8,11 @@ import { getActiveTheme } from 'packages/obsidian/src/runtime/ThemeBridge';
 const LIVE_PREVIEW_ADAPTER_OWNER = '__shikiLivePreviewAdapterOwner';
 
 type LivePreviewOwnerElement = HTMLElement & { [LIVE_PREVIEW_ADAPTER_OWNER]?: LivePreviewAdapter };
+interface ActiveLineTouchHandlers {
+	start: EventListener;
+	move: EventListener;
+	end: EventListener;
+}
 
 class ShikiLivePreviewWidget extends WidgetType {
 	private readonly showLineNumbers: boolean;
@@ -167,6 +172,7 @@ export class LivePreviewAdapter {
 	private lastRootLivePreviewClass = false;
 	private tokenizationRequest = 0;
 	private readonly activeLineScrollHandlers = new Map<HTMLElement, EventListener>();
+	private readonly activeLineTouchHandlers = new Map<HTMLElement, ActiveLineTouchHandlers>();
 	private activeLineScrollSyncing = false;
 
 	private readonly gutterObserver: MutationObserver;
@@ -408,6 +414,7 @@ export class LivePreviewAdapter {
 		for (const [line, handler] of this.activeLineScrollHandlers) {
 			if (!activeLineSet.has(line)) {
 				line.removeEventListener('scroll', handler);
+				this.clearActiveLineTouchHandlers(line);
 				this.clearActiveLineWidth(line);
 				this.activeLineScrollHandlers.delete(line);
 			}
@@ -415,6 +422,7 @@ export class LivePreviewAdapter {
 
 		for (const line of activeLines) {
 			this.syncActiveLineWidth(line);
+			this.syncActiveLineTouchHandlers(line);
 			if (this.activeLineScrollHandlers.has(line)) {
 				continue;
 			}
@@ -435,6 +443,77 @@ export class LivePreviewAdapter {
 			line.addEventListener('scroll', handler, { passive: true });
 			this.activeLineScrollHandlers.set(line, handler);
 		}
+	}
+
+	private syncActiveLineTouchHandlers(line: HTMLElement): void {
+		if (this.activeLineTouchHandlers.has(line)) {
+			return;
+		}
+
+		let startX = 0;
+		let startY = 0;
+		let startScrollLeft = 0;
+		let horizontalDrag = false;
+		const start = ((event: TouchEvent): void => {
+			const touch = event.touches[0];
+			if (!touch) {
+				return;
+			}
+			startX = touch.clientX;
+			startY = touch.clientY;
+			startScrollLeft = line.scrollLeft;
+			horizontalDrag = false;
+		}) as EventListener;
+		const move = ((event: TouchEvent): void => {
+			const touch = event.touches[0];
+			if (!touch) {
+				return;
+			}
+			const deltaX = startX - touch.clientX;
+			const deltaY = startY - touch.clientY;
+			if (!horizontalDrag) {
+				if (Math.abs(deltaY) > Math.abs(deltaX)) {
+					return;
+				}
+				if (Math.abs(deltaX) < 8) {
+					return;
+				}
+				horizontalDrag = true;
+			}
+			event.preventDefault();
+			this.setActiveLineScrollLeft(startScrollLeft + deltaX);
+		}) as EventListener;
+		const end = (() => {
+			horizontalDrag = false;
+		}) as EventListener;
+
+		line.addEventListener('touchstart', start, { passive: true });
+		line.addEventListener('touchmove', move, { passive: false });
+		line.addEventListener('touchend', end, { passive: true });
+		line.addEventListener('touchcancel', end, { passive: true });
+		this.activeLineTouchHandlers.set(line, { start, move, end });
+	}
+
+	private clearActiveLineTouchHandlers(line: HTMLElement): void {
+		const handlers = this.activeLineTouchHandlers.get(line);
+		if (!handlers) {
+			return;
+		}
+		line.removeEventListener('touchstart', handlers.start);
+		line.removeEventListener('touchmove', handlers.move);
+		line.removeEventListener('touchend', handlers.end);
+		line.removeEventListener('touchcancel', handlers.end);
+		this.activeLineTouchHandlers.delete(line);
+	}
+
+	private setActiveLineScrollLeft(scrollLeft: number): void {
+		this.activeLineScrollSyncing = true;
+		for (const line of this.view.dom.querySelectorAll<HTMLElement>('.shiki-editing-codeblock-active-line-nowrap')) {
+			line.scrollLeft = scrollLeft;
+		}
+		window.requestAnimationFrame(() => {
+			this.activeLineScrollSyncing = false;
+		});
 	}
 
 	private syncActiveLineWidth(line: HTMLElement): void {
@@ -471,6 +550,7 @@ export class LivePreviewAdapter {
 	private clearActiveLineScrollHandlers(): void {
 		for (const [line, handler] of this.activeLineScrollHandlers) {
 			line.removeEventListener('scroll', handler);
+			this.clearActiveLineTouchHandlers(line);
 			this.clearActiveLineWidth(line);
 		}
 		this.activeLineScrollHandlers.clear();
