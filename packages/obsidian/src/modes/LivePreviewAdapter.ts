@@ -166,6 +166,7 @@ class ShikiLivePreviewWidget extends WidgetType {
 
 export class LivePreviewAdapter {
 	private static readonly HIDDEN_GUTTER_CLASS = 'shiki-gutter-line-hidden';
+	private static readonly EDIT_SCROLL_LEFT_BY_BLOCK_ID = new Map<string, number>();
 	decorations: DecorationSet = Decoration.none;
 	private structuralDecorations: DecorationSet = Decoration.none;
 	private editTokenDecorations: DecorationSet = Decoration.none;
@@ -200,6 +201,7 @@ export class LivePreviewAdapter {
 			sourceViewRoot[LIVE_PREVIEW_ADAPTER_OWNER]?.destroy();
 			sourceViewRoot[LIVE_PREVIEW_ADAPTER_OWNER] = this;
 		}
+		this.syncActiveEditScrollHandlers();
 	}
 
 	update(update: ViewUpdate, isLivePreview: boolean): void {
@@ -256,6 +258,7 @@ export class LivePreviewAdapter {
 		this.modeClassObserver.disconnect();
 		this.gutterObserver.disconnect();
 		this.clearActiveLineScrollHandlers();
+		this.clearActiveEditScrollHandlers();
 		this.clearLivePreviewState();
 	}
 
@@ -324,6 +327,9 @@ export class LivePreviewAdapter {
 						attributes: {
 							class: className,
 							'data-shiki-editing-block-id': block.id,
+							...(blockIsSelected && !this.plugin.loadedSettings.wrapLines
+								? { style: `--shiki-editing-scroll-left: ${LivePreviewAdapter.EDIT_SCROLL_LEFT_BY_BLOCK_ID.get(block.id) ?? 0}` }
+								: {}),
 						},
 					}),
 				);
@@ -424,13 +430,20 @@ export class LivePreviewAdapter {
 		this.getSourceViewRoot().classList.toggle('shiki-live-preview-editing-nowrap', activeLines.length > 0);
 		if (activeLines.length > 0) {
 			this.syncActiveEditScrollHandlers();
-		} else {
-			this.clearActiveEditScrollHandlers();
 		}
 
 		for (const line of activeLines) {
-			this.clearActiveLineWidth(line);
+			this.applyActiveLineScrollLeft(line);
 		}
+	}
+
+	private applyActiveLineScrollLeft(line: HTMLElement): void {
+		const blockId = line.getAttribute('data-shiki-editing-block-id');
+		if (!blockId) {
+			return;
+		}
+		const scrollLeft = LivePreviewAdapter.EDIT_SCROLL_LEFT_BY_BLOCK_ID.get(blockId) ?? 0;
+		line.style.setProperty('--shiki-editing-scroll-left', String(scrollLeft));
 	}
 
 	private syncActiveEditScrollHandlers(): void {
@@ -448,6 +461,10 @@ export class LivePreviewAdapter {
 		const writeBlockScrollLeft = (scrollLeft: number): void => {
 			const maxScrollLeft = Math.max(0, ...activeBlockLines.map(line => line.scrollWidth - line.clientWidth));
 			const nextScrollLeft = Math.max(0, Math.min(scrollLeft, maxScrollLeft));
+			const blockId = activeBlockLines[0]?.getAttribute('data-shiki-editing-block-id');
+			if (blockId) {
+				LivePreviewAdapter.EDIT_SCROLL_LEFT_BY_BLOCK_ID.set(blockId, nextScrollLeft);
+			}
 			for (const line of activeBlockLines) {
 				line.style.setProperty('--shiki-editing-scroll-left', String(nextScrollLeft));
 			}
@@ -580,7 +597,6 @@ export class LivePreviewAdapter {
 
 	private clearActiveLineScrollHandlers(): void {
 		this.getSourceViewRoot().classList.remove('shiki-live-preview-editing-nowrap');
-		this.clearActiveEditScrollHandlers();
 		for (const line of this.view.dom.querySelectorAll<HTMLElement>('.shiki-editing-codeblock-active-line-nowrap')) {
 			this.clearActiveLineWidth(line);
 		}

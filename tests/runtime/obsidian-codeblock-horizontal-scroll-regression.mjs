@@ -159,12 +159,17 @@ async function verifyLivePreviewEditing(client) {
 				lines[0].dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, pointerId: 991, pointerType: 'touch', clientX: toX, clientY: y }));
 				lines[0].dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 991, pointerType: 'touch', clientX: toX, clientY: y }));
 			}
+			const virtualScrollLeft = lines.map(line => Number.parseFloat(line.style.getPropertyValue('--shiki-editing-scroll-left')) || 0);
 			const tokenLeftAfter = lines.map(line => line.querySelector('span')?.getBoundingClientRect().left ?? null);
+			await window.app.plugins.plugins['advanced-code-block']?.updateCm6Plugin?.();
+			await new Promise(resolve => setTimeout(resolve, 250));
+			const refreshedLines = [...root.querySelectorAll('.shiki-editing-codeblock-active-line-nowrap')].filter(el => el.textContent?.includes('LongValueName'));
 			return {
 				label: 'live-preview-editing',
 				lineCount: lines.length,
 				scrollerScrollLeft: scroller?.scrollLeft ?? 0,
-				virtualScrollLeft: lines.map(line => Number.parseFloat(line.style.getPropertyValue('--shiki-editing-scroll-left')) || 0),
+				virtualScrollLeft,
+				refreshedVirtualScrollLeft: refreshedLines.map(line => Number.parseFloat(line.style.getPropertyValue('--shiki-editing-scroll-left')) || 0),
 				tokenMoved: tokenLeftBefore.map((left, index) => left !== null && tokenLeftAfter[index] !== null ? left - tokenLeftAfter[index] : 0),
 				anyLineOwnScroll: lines.some(el => el.scrollLeft > 0),
 				bodyScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
@@ -181,6 +186,11 @@ async function verifyLivePreviewEditing(client) {
 	assert(
 		state.virtualScrollLeft.every(value => Math.abs(value - state.virtualScrollLeft[0]) < 1),
 		'Live Preview editing did not sync every active row',
+		state,
+	);
+	assert(
+		state.refreshedVirtualScrollLeft.every(value => value > 0),
+		'Live Preview editing lost scroll offset after refresh',
 		state,
 	);
 	assert(
