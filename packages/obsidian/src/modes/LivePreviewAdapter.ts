@@ -20,6 +20,8 @@ interface ActiveEditScrollHandlers {
 class ShikiLivePreviewWidget extends WidgetType {
 	private readonly showLineNumbers: boolean;
 	private readonly wrapLines: boolean;
+	private readonly activeTheme: string;
+	private readonly preferThemeColors: boolean;
 
 	constructor(
 		private readonly block: CodeBlockModel,
@@ -30,6 +32,8 @@ class ShikiLivePreviewWidget extends WidgetType {
 		super();
 		this.showLineNumbers = this.plugin.loadedSettings.showLineNumbers;
 		this.wrapLines = this.plugin.loadedSettings.wrapLines;
+		this.activeTheme = getActiveTheme(this.plugin);
+		this.preferThemeColors = this.plugin.loadedSettings.preferThemeColors;
 	}
 
 	eq(other: ShikiLivePreviewWidget): boolean {
@@ -37,6 +41,8 @@ class ShikiLivePreviewWidget extends WidgetType {
 			other.block.id === this.block.id &&
 			other.showLineNumbers === this.showLineNumbers &&
 			other.wrapLines === this.wrapLines &&
+			other.activeTheme === this.activeTheme &&
+			other.preferThemeColors === this.preferThemeColors &&
 			other.editing === this.editing
 		);
 	}
