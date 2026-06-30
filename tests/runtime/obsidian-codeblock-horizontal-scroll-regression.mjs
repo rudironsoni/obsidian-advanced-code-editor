@@ -116,6 +116,7 @@ async function verifyLivePreviewViewing(client) {
 			const lineNumbers = block?.querySelector('.shiki-line-numbers');
 			const code = block?.querySelector('code');
 			const lineNumberStyle = lineNumbers ? getComputedStyle(lineNumbers) : null;
+			const codeScrollStyle = codeScroll ? getComputedStyle(codeScroll) : null;
 			const beforeLineLeft = lineNumbers?.getBoundingClientRect().left ?? null;
 			const beforeCodeLeft = code?.getBoundingClientRect().left ?? null;
 			if (body) body.scrollLeft = 260;
@@ -128,6 +129,8 @@ async function verifyLivePreviewViewing(client) {
 				bodyScrollLeft: body?.scrollLeft ?? 0,
 				codeScrollLeft: codeScroll?.scrollLeft ?? 0,
 				lineNumberBackground: lineNumberStyle?.backgroundColor ?? null,
+				lineNumberBoxShadow: lineNumberStyle?.boxShadow ?? null,
+				codeScrollPaddingLeft: codeScrollStyle ? Number.parseFloat(codeScrollStyle.paddingLeft) || 0 : null,
 				lineMoved: beforeLineLeft !== null && afterLineLeft !== null ? beforeLineLeft - afterLineLeft : 0,
 				codeMoved: beforeCodeLeft !== null && afterCodeLeft !== null ? beforeCodeLeft - afterCodeLeft : 0,
 				noteScrollLeft: scroller?.scrollLeft ?? 0,
@@ -140,6 +143,8 @@ async function verifyLivePreviewViewing(client) {
 	assert(state.bodyScrollLeft > 0, 'Live Preview viewing block body did not scroll', state);
 	assert(Math.abs(state.lineMoved) < 1, 'Live Preview viewing moved line numbers horizontally', state);
 	assert(isOpaqueColor(state.lineNumberBackground), 'Live Preview viewing line number gutter is transparent', state);
+	assert(state.lineNumberBoxShadow === 'none', 'Live Preview viewing line number gutter uses an overflow shadow strip', state);
+	assert(state.codeScrollPaddingLeft > 0, 'Live Preview viewing code column has no gutter spacer padding', state);
 	assert(state.codeMoved > 0, 'Live Preview viewing did not move code content horizontally', state);
 	assert(state.codeScrollLeft === 0, 'Live Preview viewing scrolled the inner code column instead of the block body', state);
 	assert(state.noteScrollLeft === 0, 'Live Preview viewing moved the note horizontally', state);
@@ -262,6 +267,7 @@ async function verifyReadingMode(client) {
 			const code = body?.querySelector('code');
 			const preStyle = pre ? getComputedStyle(pre) : null;
 			const lineNumberStyle = lineNumbers ? getComputedStyle(lineNumbers) : null;
+			const codeScrollStyle = codeScroll ? getComputedStyle(codeScroll) : null;
 			const visibleNativeCopyButtons = body
 				? [...body.querySelectorAll('.copy-code-button')].filter(button => getComputedStyle(button).display !== 'none')
 				: [];
@@ -284,6 +290,8 @@ async function verifyReadingMode(client) {
 				preBorderTop: preStyle ? Number.parseFloat(preStyle.borderTopWidth) || 0 : null,
 				visibleNativeCopyButtonCount: visibleNativeCopyButtons.length,
 				lineNumberBackground: lineNumberStyle?.backgroundColor ?? null,
+				lineNumberBoxShadow: lineNumberStyle?.boxShadow ?? null,
+				codeScrollPaddingLeft: codeScrollStyle ? Number.parseFloat(codeScrollStyle.paddingLeft) || 0 : null,
 				lineMoved: beforeLineLeft !== null && afterLineLeft !== null ? beforeLineLeft - afterLineLeft : 0,
 				codeMoved: beforeCodeLeft !== null && afterCodeLeft !== null ? beforeCodeLeft - afterCodeLeft : 0,
 				noteScrollLeft: scroller?.scrollLeft ?? 0,
@@ -301,6 +309,8 @@ async function verifyReadingMode(client) {
 	assert(state.visibleNativeCopyButtonCount === 0, 'Reading mode kept Obsidian native copy button inside the Shiki block body', state);
 	assert(Math.abs(state.lineMoved) < 1, 'Reading mode moved line numbers horizontally', state);
 	assert(isOpaqueColor(state.lineNumberBackground), 'Reading mode line number gutter is transparent', state);
+	assert(state.lineNumberBoxShadow === 'none', 'Reading mode line number gutter uses an overflow shadow strip', state);
+	assert(state.codeScrollPaddingLeft > 0, 'Reading mode code column has no gutter spacer padding', state);
 	assert(state.codeMoved > 0, 'Reading mode did not move code content horizontally', state);
 	assert(state.codeScrollLeft === 0, 'Reading mode scrolled the inner code column instead of the block body', state);
 	assert(state.noteScrollLeft === 0, 'Reading mode moved the note horizontally', state);

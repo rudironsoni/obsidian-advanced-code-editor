@@ -211,8 +211,7 @@ span.shiki-ul {
 	min-width: 3.5ch;
 	flex-shrink: 0;
 	border-right: 1px solid var(--background-modifier-border);
-	margin-right: 12px;
-	box-shadow: 12px 0 0 var(--background-primary);
+	margin-right: 0;
 	box-sizing: content-box;
 }
 
@@ -223,6 +222,7 @@ span.shiki-ul {
 .shiki-code-scroll {
 	flex: 0 0 auto;
 	overflow-x: visible;
+	padding-left: 12px;
 	min-width: max-content;
 }
 
