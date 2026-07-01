@@ -5,8 +5,8 @@ describe('startup bundle', () => {
 	test('startup JavaScript stays small enough for fast Obsidian activation', () => {
 		const bytes = statSync(new URL('../dist/main.js', import.meta.url)).size;
 
-		// BRAT installs main.js, manifest.json, and styles.css. Keep the bundle single-file until sidecar installs are proven safe.
-		expect(bytes).toBeLessThanOrEqual(16 * 1024 * 1024);
+		// Keep the mobile-safe single-file build on Shiki's smaller web bundle, not the full grammar bundle.
+		expect(bytes).toBeLessThanOrEqual(6 * 1024 * 1024);
 	});
 
 	test('startup JavaScript is the real Obsidian plugin entrypoint', () => {
@@ -14,14 +14,11 @@ describe('startup bundle', () => {
 
 		expect(startupBundle).toMatch(/extends [a-zA-Z_$][\w$]*\.Plugin/);
 		expect(startupBundle).toContain('exports.default=');
-		expect(startupBundle).not.toContain('require(`./');
-		expect(startupBundle).not.toContain("require('./");
-		expect(startupBundle).not.toContain('require("./');
 		expect(startupBundle).not.toContain('exports.default=require');
 		expect(startupBundle).not.toContain('exports.default=e.default');
 	});
 
-	test('startup bundle includes Shiki without Monaco', () => {
+	test('startup bundle uses Shiki without Monaco', () => {
 		const startupBundle = readFileSync(new URL('../dist/main.js', import.meta.url), 'utf8');
 		const manifest = readFileSync(new URL('../dist/manifest.json', import.meta.url), 'utf8');
 

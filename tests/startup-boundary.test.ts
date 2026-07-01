@@ -36,12 +36,12 @@ describe('startup module boundary', () => {
 		expect(source).not.toContain("from 'virtual:ec-runtime'");
 	});
 
-	test('main does not block Obsidian startup on settings storage', () => {
+	test('main does not eagerly load settings during Obsidian startup', () => {
 		const source = read('packages/obsidian/src/main.ts');
 		const onload = source.match(/async onload\(\): Promise<void> \{[\s\S]*?\n\t\}/)?.[0] ?? '';
 
 		expect(onload).not.toContain('await this.ensureSettingsLoaded()');
-		expect(onload).toContain('void this.ensureSettingsLoaded()');
+		expect(onload).not.toContain('this.ensureSettingsLoaded()');
 	});
 
 	test('async CM6 decoration producers do not dispatch directly', () => {
@@ -84,7 +84,8 @@ describe('startup module boundary', () => {
 		const metadata = read('packages/obsidian/src/runtime/LanguageMetadata.ts');
 
 		expect(highlighter).toContain('getObsidianSafeLanguageNames');
-		expect(highlighter).toContain("await import('shiki')");
+		expect(highlighter).toContain("await import('shiki/bundle/web')");
+		expect(highlighter).not.toContain("await import('shiki')");
 		expect(main).toContain('getObsidianSafeLanguageNames()');
 		expect(main).not.toContain("from 'shiki'");
 		expect(main).not.toContain('highlighter.obsidianSafeLanguageNames');
@@ -220,7 +221,7 @@ test('ShikiHighlighter does not depend on Monaco runtime', () => {
 	expect(highlighter).not.toContain('Monaco');
 	expect(highlighter).not.toContain('modern-monaco');
 	expect(highlighter).toContain('createHighlighter');
-	expect(highlighter).toContain("await import('shiki')");
+	expect(highlighter).toContain("await import('shiki/bundle/web')");
 	expect(highlighter).toContain('codeToTokens');
 });
 

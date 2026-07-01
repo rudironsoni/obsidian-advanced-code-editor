@@ -45,14 +45,6 @@ export default class ShikiPlugin extends Plugin {
 		this.sourceModeTokenizationCache = new SourceModeTokenizationCache();
 		this.activeCodeBlocks = new Map();
 		this.updateCm6Plugin = async (): Promise<void> => {};
-		void this.ensureSettingsLoaded()
-			.then(() => {
-				this.applyFontSizeClass();
-				void this.reloadHighlighter();
-			})
-			.catch(error => {
-				console.warn('Unable to load Shiki settings.', error);
-			});
 
 		this.addSettingTab(new LazyShikiSettingsTab(this));
 
@@ -167,6 +159,8 @@ export default class ShikiPlugin extends Plugin {
 		if (this.unloaded || this.cm6PluginRegistered) {
 			return;
 		}
+		await this.ensureSettingsLoaded();
+		this.applyFontSizeClass();
 
 		const { createCm6Plugin } = await import('packages/obsidian/src/codemirror/Cm6_ViewPlugin');
 		this.registerEditorExtension([createCm6Plugin(this)]);
@@ -178,6 +172,8 @@ export default class ShikiPlugin extends Plugin {
 		if (this.unloaded || this.codeBlockProcessorsRegistered) {
 			return;
 		}
+		await this.ensureSettingsLoaded();
+		this.applyFontSizeClass();
 
 		if (!this.readingViewAdapter) {
 			const { ReadingViewAdapter } = await import('packages/obsidian/src/modes/ReadingViewAdapter');
@@ -270,6 +266,9 @@ export default class ShikiPlugin extends Plugin {
 		if (this.unloaded || this.inlineCodeProcessorRegistered) {
 			return;
 		}
+		void this.ensureSettingsLoaded().then(() => {
+			this.applyFontSizeClass();
+		});
 
 		this.registerMarkdownPostProcessor(async (el, ctx) => {
 			const inlineCodes = el.findAll(':not(pre) > code');

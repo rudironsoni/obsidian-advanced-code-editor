@@ -13,12 +13,15 @@ export class ShikiHighlighter {
 	}
 
 	async init(): Promise<void> {
-		const { createHighlighter } = await import('shiki');
+		const { createHighlighter } = await import('shiki/bundle/web');
+		const csharp = (await import('@shikijs/langs/csharp')).default;
 		const themes = getConfiguredThemes(this.plugin);
-		this.highlighter = await createHighlighter({
+		this.highlighter = (await createHighlighter({
 			themes: themes.length > 0 ? themes : ['github-dark', 'github-light'],
-			langs: [],
-		});
+			langs: csharp,
+		})) as unknown as Highlighter;
+		this.loadedLanguages.add('cs');
+		this.loadedLanguages.add('csharp');
 	}
 
 	async reload(): Promise<void> {
@@ -59,6 +62,7 @@ export class ShikiHighlighter {
 	}
 
 	async getHighlightTokens(code: string, lang: string): Promise<TokensResult | undefined> {
+		await this.plugin.ensureSettingsLoaded();
 		const normalized = lang.toLowerCase();
 		if (this.plugin.loadedSettings.disabledLanguages.includes(normalized)) {
 			return undefined;
