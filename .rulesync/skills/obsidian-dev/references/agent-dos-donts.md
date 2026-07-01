@@ -7,12 +7,13 @@ Update frequency: Review periodically for AI agent-specific guidance
 # Agent do/don't
 
 ## Do
+
 - **.ref folder setup**: When user asks to add a reference, check if it already exists first. For external repos:
-  - **Clone directly** into the target folder: `../.ref/obsidian-dev/plugins/<name>/` (for plugins), `../.ref/obsidian-dev/themes/<name>/` (for themes), or `../.ref/obsidian-dev/<name>/` (for other projects)
-  - **DO NOT** create a `.ref` subfolder inside the plugins/themes folder - clone the repo directly there
-  - Then create symlink in project's `.ref/` folder pointing to the global location
-  - For local projects, symlink directly in project's `.ref/` (don't clone to global)
-  - See [ref-instructions.md](../../obsidian-ref/references/ref-instructions.md) for details.
+    - **Clone directly** into the target folder: `../.ref/obsidian-dev/plugins/<name>/` (for plugins), `../.ref/obsidian-dev/themes/<name>/` (for themes), or `../.ref/obsidian-dev/<name>/` (for other projects)
+    - **DO NOT** create a `.ref` subfolder inside the plugins/themes folder - clone the repo directly there
+    - Then create symlink in project's `.ref/` folder pointing to the global location
+    - For local projects, symlink directly in project's `.ref/` (don't clone to global)
+    - See [ref-instructions.md](../../obsidian-ref/references/ref-instructions.md) for details.
 - Add commands with stable IDs (don't rename once released).
 - Provide defaults and validation in settings.
 - Write idempotent code paths so reload/unload doesn't leak listeners or intervals.
@@ -23,6 +24,7 @@ Update frequency: Review periodically for AI agent-specific guidance
 - **Release preparation**: When user asks "is my plugin ready for release?" or similar, use [release-readiness.md](../../obsidian-ops/references/release-readiness.md) checklist. Run automated checks where possible, ask user interactively for items requiring their input (like platform testing).
 
 ## Don't
+
 - Introduce network calls without an obvious user-facing reason and documentation.
 - Ship features that require cloud services without clear disclosure and explicit opt-in.
 - Store or transmit vault contents unless essential and consented.
@@ -33,6 +35,7 @@ Update frequency: Review periodically for AI agent-specific guidance
 ## Fixing Linting Errors
 
 **DO**:
+
 - Read the error message carefully - note the exact line and column
 - Understand what the error is actually complaining about
 - Fix the root cause, not the symptom
@@ -40,6 +43,7 @@ Update frequency: Review periodically for AI agent-specific guidance
 - Verify `pnpm build` still works
 
 **DON'T**:
+
 - Add eslint-disable comments without understanding why
 - Put disable comments on the wrong line
 - Try the same fix multiple times without understanding why it failed
@@ -48,6 +52,7 @@ Update frequency: Review periodically for AI agent-specific guidance
 - Skip reading the documentation for the specific error type
 
 **When Stuck**:
+
 1. Read the error message - what line/column is it complaining about?
 2. Understand the type signature - what does the function expect?
 3. Fix the actual type mismatch, not just suppress the warning

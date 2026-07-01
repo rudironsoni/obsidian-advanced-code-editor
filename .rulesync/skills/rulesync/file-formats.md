@@ -14,37 +14,37 @@ Example:
 ---
 root: true # true that is less than or equal to one file for overview such as `AGENTS.md`, false for details such as `.agents/memories/*.md`
 localRoot: false # (optional, default: false) true for project-specific local rules. Claude Code: CLAUDE.local.md; Rovodev (Rovo Dev CLI): AGENTS.local.md; Others: append to root file
-targets: ["*"] # * = all, or specific tools
-description: "Rulesync project overview and development guidelines for unified AI rules management CLI tool"
-globs: ["**/*"] # file patterns to match (e.g., ["*.md", "*.txt"])
+targets: ['*'] # * = all, or specific tools
+description: 'Rulesync project overview and development guidelines for unified AI rules management CLI tool'
+globs: ['**/*'] # file patterns to match (e.g., ["*.md", "*.txt"])
 agentsmd: # agentsmd and codexcli specific parameters
-  # Support for using nested AGENTS.md files for subprojects in a large monorepo.
-  # This option is available only if root is false.
-  # If subprojectPath is provided, the file is located in `${subprojectPath}/AGENTS.md`.
-  # If subprojectPath is not provided and root is false, the file is located in `.agents/memories/*.md`.
-  subprojectPath: "path/to/subproject"
+    # Support for using nested AGENTS.md files for subprojects in a large monorepo.
+    # This option is available only if root is false.
+    # If subprojectPath is provided, the file is located in `${subprojectPath}/AGENTS.md`.
+    # If subprojectPath is not provided and root is false, the file is located in `.agents/memories/*.md`.
+    subprojectPath: 'path/to/subproject'
 cursor: # cursor specific parameters
-  alwaysApply: true
-  description: "Rulesync project overview and development guidelines for unified AI rules management CLI tool"
-  globs: ["*"]
+    alwaysApply: true
+    description: 'Rulesync project overview and development guidelines for unified AI rules management CLI tool'
+    globs: ['*']
 antigravity: # antigravity specific parameters
-  trigger: "always_on" # always_on, glob, manual, or model_decision
-  globs: ["**/*"] # (optional) file patterns to match when trigger is "glob"
-  description: "When to apply this rule" # (optional) used with "model_decision" trigger
+    trigger: 'always_on' # always_on, glob, manual, or model_decision
+    globs: ['**/*'] # (optional) file patterns to match when trigger is "glob"
+    description: 'When to apply this rule' # (optional) used with "model_decision" trigger
 devin: # devin (Devin Desktop, formerly Windsurf) specific parameters
-  trigger: "always_on" # always_on, glob, manual, or model_decision
-  globs: ["**/*"] # (optional) file patterns to match when trigger is "glob"
-  description: "When to apply this rule" # (optional) used with "model_decision" trigger
+    trigger: 'always_on' # always_on, glob, manual, or model_decision
+    globs: ['**/*'] # (optional) file patterns to match when trigger is "glob"
+    description: 'When to apply this rule' # (optional) used with "model_decision" trigger
 augmentcode: # augmentcode specific parameters
-  type: "always_apply" # always_apply, manual, or agent_requested
-  description: "When to apply this rule" # (optional) used with "agent_requested" type
+    type: 'always_apply' # always_apply, manual, or agent_requested
+    description: 'When to apply this rule' # (optional) used with "agent_requested" type
 kiro: # kiro specific parameters (steering inclusion)
-  inclusion: "fileMatch" # always, fileMatch, or manual
-  fileMatchPattern: ["src/components/**/*.tsx"] # (optional) glob string or array of globs, used when inclusion is "fileMatch"
+    inclusion: 'fileMatch' # always, fileMatch, or manual
+    fileMatchPattern: ['src/components/**/*.tsx'] # (optional) glob string or array of globs, used when inclusion is "fileMatch"
 takt: # takt specific parameters (optional; emitted under .takt/facets/policies/ — frontmatter is dropped on emit)
-  name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
-  extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
-  facet: "output-contracts" # (optional) "policies" (default) or "output-contracts": redirect this rule to Takt's output-structure/report-template facet
+    name: 'renamed-stem' # (optional) override the emitted filename stem (no path separators or "..")
+    extends: 'base' # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
+    facet: 'output-contracts' # (optional) "policies" (default) or "output-contracts": redirect this rule to Takt's output-structure/report-template facet
 ---
 
 # Rulesync Project Overview
@@ -68,43 +68,43 @@ Example:
 
 ```json
 {
-  "version": 1,
-  "hooks": {
-    "sessionStart": [{ "type": "command", "command": ".rulesync/hooks/session-start.sh" }],
-    "preToolUse": [{ "matcher": "Bash", "command": ".rulesync/hooks/confirm.sh" }],
-    "postToolUse": [{ "matcher": "Write|Edit", "command": ".rulesync/hooks/format.sh" }],
-    "stop": [{ "command": ".rulesync/hooks/audit.sh" }]
-  },
-  "cursor": {
-    "hooks": {
-      "afterFileEdit": [{ "command": ".cursor/hooks/format.sh" }]
-    }
-  },
-  "claudecode": {
-    "hooks": {
-      "notification": [
-        {
-          "matcher": "permission_prompt",
-          "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/notify.sh"
-        }
-      ]
-    }
-  },
-  "opencode": {
-    "hooks": {
-      "afterShellExecution": [{ "command": ".rulesync/hooks/post-shell.sh" }]
-    }
-  },
-  "copilot": {
-    "hooks": {
-      "afterError": [{ "command": ".rulesync/hooks/report-error.sh" }]
-    }
-  },
-  "geminicli": {
-    "hooks": {
-      "beforeToolSelection": [{ "command": ".rulesync/hooks/before-tool.sh" }]
-    }
-  }
+	"version": 1,
+	"hooks": {
+		"sessionStart": [{ "type": "command", "command": ".rulesync/hooks/session-start.sh" }],
+		"preToolUse": [{ "matcher": "Bash", "command": ".rulesync/hooks/confirm.sh" }],
+		"postToolUse": [{ "matcher": "Write|Edit", "command": ".rulesync/hooks/format.sh" }],
+		"stop": [{ "command": ".rulesync/hooks/audit.sh" }]
+	},
+	"cursor": {
+		"hooks": {
+			"afterFileEdit": [{ "command": ".cursor/hooks/format.sh" }]
+		}
+	},
+	"claudecode": {
+		"hooks": {
+			"notification": [
+				{
+					"matcher": "permission_prompt",
+					"command": "$CLAUDE_PROJECT_DIR/.claude/hooks/notify.sh"
+				}
+			]
+		}
+	},
+	"opencode": {
+		"hooks": {
+			"afterShellExecution": [{ "command": ".rulesync/hooks/post-shell.sh" }]
+		}
+	},
+	"copilot": {
+		"hooks": {
+			"afterError": [{ "command": ".rulesync/hooks/report-error.sh" }]
+		}
+	},
+	"geminicli": {
+		"hooks": {
+			"beforeToolSelection": [{ "command": ".rulesync/hooks/before-tool.sh" }]
+		}
+	}
 }
 ```
 
@@ -199,22 +199,22 @@ Example:
 
 ```json
 {
-  "mcpServers": {
-    "serena": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"]
-    },
-    "github": {
-      "type": "http",
-      "url": "http://localhost:3000/mcp"
-    },
-    "local-dev": {
-      "type": "local",
-      "command": "node",
-      "args": ["scripts/start-local-mcp.js"]
-    }
-  }
+	"mcpServers": {
+		"serena": {
+			"type": "stdio",
+			"command": "uvx",
+			"args": ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"]
+		},
+		"github": {
+			"type": "http",
+			"url": "http://localhost:3000/mcp"
+		},
+		"local-dev": {
+			"type": "local",
+			"command": "node",
+			"args": ["scripts/start-local-mcp.js"]
+		}
+	}
 }
 ```
 
@@ -231,23 +231,23 @@ Example:
 
 ```md
 ---
-description: "Review a pull request" # command description
-targets: ["*"] # * = all, or specific tools
+description: 'Review a pull request' # command description
+targets: ['*'] # * = all, or specific tools
 copilot: # copilot specific parameters (optional)
-  description: "Review a pull request"
-  agent: "agent" # (optional) VS Code prompt-file agent: "ask", "agent", "plan", or a custom agent name (replaces the deprecated "mode")
+    description: 'Review a pull request'
+    agent: 'agent' # (optional) VS Code prompt-file agent: "ask", "agent", "plan", or a custom agent name (replaces the deprecated "mode")
 antigravity: # antigravity specific parameters
-  trigger: "/review" # Specific trigger for workflow (renames file to review.md)
-  turbo: true # (Optional, default: true) Append // turbo for auto-execution
+    trigger: '/review' # Specific trigger for workflow (renames file to review.md)
+    turbo: true # (Optional, default: true) Append // turbo for auto-execution
 takt: # takt specific parameters (optional; emitted under .takt/facets/instructions/)
-  name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
-  extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
+    name: 'renamed-stem' # (optional) override the emitted filename stem (no path separators or "..")
+    extends: 'base' # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
 pi: # pi coding agent specific parameters (optional)
-  argument-hint: "[message]" # Hint shown in Pi's command palette
+    argument-hint: '[message]' # Hint shown in Pi's command palette
 codexcli: # Codex CLI custom-prompt specific parameters (optional)
-  argument-hint: "[message]" # Hint shown for the custom prompt's arguments
+    argument-hint: '[message]' # Hint shown for the custom prompt's arguments
 roo: # Roo Code specific parameters (optional)
-  mode: "architect" # (optional) mode slug to switch to before running the command body (e.g. "code", "architect")
+    mode: 'architect' # (optional) mode slug to switch to before running the command body (e.g. "code", "architect")
 ---
 
 target_pr = $ARGUMENTS
@@ -270,65 +270,65 @@ Example:
 ```md
 ---
 name: planner # subagent name
-targets: ["*"] # * = all, or specific tools
+targets: ['*'] # * = all, or specific tools
 description: >- # subagent description
-  This is the general-purpose planner. The user asks the agent to plan to
-  suggest a specification, implement a new feature, refactor the codebase, or
-  fix a bug. This agent can be called by the user explicitly only.
+    This is the general-purpose planner. The user asks the agent to plan to
+    suggest a specification, implement a new feature, refactor the codebase, or
+    fix a bug. This agent can be called by the user explicitly only.
 claudecode: # for claudecode-specific parameters
-  model: inherit # opus, sonnet, haiku, fable, a full model id, or inherit (default)
-  tools: ["Read", "Write"] # (optional) allowed tools (string or list)
-  disallowedTools: ["Bash"] # (optional) tools to remove (string or list)
-  permissionMode: default # (optional) default | acceptEdits | bypassPermissions | plan
-  maxTurns: 20 # (optional) maximum agentic turns
-  skills: ["skill-creator"] # (optional) Agent Skills to utilize (string or list)
-  color: cyan # (optional) UI color (e.g. red, blue, green, cyan, ...)
-  memory: project # (optional) user | project | local
-  effort: high # (optional) low | medium | high | xhigh | max
-  isolation: worktree # (optional) run the subagent in an isolated git worktree
-  background: false # (optional) run the subagent in the background
-  initialPrompt: "Start by reading the spec." # (optional) seed prompt for the subagent
-  mcpServers: {} # (optional) MCP server config (passed through verbatim)
-  hooks: {} # (optional) hook config (passed through verbatim)
+    model: inherit # opus, sonnet, haiku, fable, a full model id, or inherit (default)
+    tools: ['Read', 'Write'] # (optional) allowed tools (string or list)
+    disallowedTools: ['Bash'] # (optional) tools to remove (string or list)
+    permissionMode: default # (optional) default | acceptEdits | bypassPermissions | plan
+    maxTurns: 20 # (optional) maximum agentic turns
+    skills: ['skill-creator'] # (optional) Agent Skills to utilize (string or list)
+    color: cyan # (optional) UI color (e.g. red, blue, green, cyan, ...)
+    memory: project # (optional) user | project | local
+    effort: high # (optional) low | medium | high | xhigh | max
+    isolation: worktree # (optional) run the subagent in an isolated git worktree
+    background: false # (optional) run the subagent in the background
+    initialPrompt: 'Start by reading the spec.' # (optional) seed prompt for the subagent
+    mcpServers: {} # (optional) MCP server config (passed through verbatim)
+    hooks: {} # (optional) hook config (passed through verbatim)
 copilot: # for GitHub Copilot specific parameters
-  tools:
-    - web/fetch # agent/runSubagent is always included automatically
+    tools:
+        - web/fetch # agent/runSubagent is always included automatically
 opencode: # for OpenCode-specific parameters
-  mode: subagent # (optional, defaults to "subagent") OpenCode agent mode
-  model: anthropic/claude-sonnet-4-20250514
-  temperature: 0.1
-  tools:
-    write: false
-    edit: false
-    bash: false
-  permission:
-    bash:
-      "git diff": allow
+    mode: subagent # (optional, defaults to "subagent") OpenCode agent mode
+    model: anthropic/claude-sonnet-4-20250514
+    temperature: 0.1
+    tools:
+        write: false
+        edit: false
+        bash: false
+    permission:
+        bash:
+            'git diff': allow
 kilo: # for Kilo-specific parameters
-  mode: all # (optional, defaults to "all") use "subagent" for hidden/subagent-only agents
+    mode: all # (optional, defaults to "all") use "subagent" for hidden/subagent-only agents
 cursor: # for Cursor-specific parameters (generated to .cursor/agents/*.md)
-  model: inherit # (optional, defaults to "inherit") model id, or "inherit" to use the parent's model
-  readonly: false # (optional, defaults to false) restrict the subagent to read-only tools
-  is_background: false # (optional, defaults to false) run the subagent as a background agent
+    model: inherit # (optional, defaults to "inherit") model id, or "inherit" to use the parent's model
+    readonly: false # (optional, defaults to false) restrict the subagent to read-only tools
+    is_background: false # (optional, defaults to false) run the subagent as a background agent
 junie: # for JetBrains Junie CLI specific parameters (generated to .junie/agents/*.md; also imported from .agents/*.md)
-  tools: ["Read", "Grep", "Edit"] # allowed tools
-  disallowedTools: ["Bash", "WebSearch"] # disallowed tools
-  mcpServers: ["github"] # MCP servers the subagent may use
-  model: sonnet # model id
-  reasoningLevel: high # low | medium | high
-  maxTurns: 20 # max agentic turns
-  skills: ["kotlin", "writerside"] # Agent Skills to utilize
-  allowPromptArgument: true # whether the subagent accepts a prompt argument
+    tools: ['Read', 'Grep', 'Edit'] # allowed tools
+    disallowedTools: ['Bash', 'WebSearch'] # disallowed tools
+    mcpServers: ['github'] # MCP servers the subagent may use
+    model: sonnet # model id
+    reasoningLevel: high # low | medium | high
+    maxTurns: 20 # max agentic turns
+    skills: ['kotlin', 'writerside'] # Agent Skills to utilize
+    allowPromptArgument: true # whether the subagent accepts a prompt argument
 takt: # takt specific parameters (optional; emitted under .takt/facets/personas/)
-  name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
+    name: 'renamed-stem' # (optional) override the emitted filename stem (no path separators or "..")
 roo: # for Roo Code specific parameters (optional; aggregated into the root .roomodes file)
-  slug: planner # (optional) custom mode slug (^[a-zA-Z0-9-]+$); defaults to the sanitized file name
-  whenToUse: "When planning a task" # (optional) guidance for automated mode selection
-  customInstructions: "Be concise." # (optional) extra behavioral guidelines
-  roleDefinition: "You are the planner." # (optional) overrides the body as the mode's roleDefinition
-  groups: # (optional, defaults to ["read", "edit", "command", "mcp"]) tool access
-    - read
-    - ["edit", { fileRegex: "\\.md$", description: "Markdown files" }]
+    slug: planner # (optional) custom mode slug (^[a-zA-Z0-9-]+$); defaults to the sanitized file name
+    whenToUse: 'When planning a task' # (optional) guidance for automated mode selection
+    customInstructions: 'Be concise.' # (optional) extra behavioral guidelines
+    roleDefinition: 'You are the planner.' # (optional) overrides the body as the mode's roleDefinition
+    groups: # (optional, defaults to ["read", "edit", "command", "mcp"]) tool access
+        - read
+        - ['edit', { fileRegex: "\\.md$", description: 'Markdown files' }]
 ---
 
 You are the planner for any tasks.
@@ -377,110 +377,110 @@ Example:
 ---
 name: example-skill # skill name
 description: >- # skill description
-  A sample skill that demonstrates the skill format
-targets: ["*"] # * = all, or specific tools
+    A sample skill that demonstrates the skill format
+targets: ['*'] # * = all, or specific tools
 claudecode: # for claudecode-specific parameters
-  model: sonnet # opus, sonnet, haiku, or any string
-  allowed-tools:
-    - "Bash"
-    - "Read"
-    - "Write"
-    - "Grep"
-  disallowed-tools: # (optional) removes these tools while the skill is active (string or list)
-    - "WebFetch"
-  disable-model-invocation: true # (optional) disable model invocation for this skill
-  scheduled-task: true # (optional) emit to .claude/scheduled-tasks/<name>/SKILL.md instead of .claude/skills/<name>/SKILL.md
-  # paths (optional) limits auto-activation to matching globs. Accepts a
-  # comma-separated string, e.g. paths: "src/**/*.ts,test/**/*.ts", or a list:
-  paths:
-    - "src/**/*.ts"
-    - "test/**/*.ts"
+    model: sonnet # opus, sonnet, haiku, or any string
+    allowed-tools:
+        - 'Bash'
+        - 'Read'
+        - 'Write'
+        - 'Grep'
+    disallowed-tools: # (optional) removes these tools while the skill is active (string or list)
+        - 'WebFetch'
+    disable-model-invocation: true # (optional) disable model invocation for this skill
+    scheduled-task: true # (optional) emit to .claude/scheduled-tasks/<name>/SKILL.md instead of .claude/skills/<name>/SKILL.md
+    # paths (optional) limits auto-activation to matching globs. Accepts a
+    # comma-separated string, e.g. paths: "src/**/*.ts,test/**/*.ts", or a list:
+    paths:
+        - 'src/**/*.ts'
+        - 'test/**/*.ts'
 codexcli: # for codexcli-specific parameters
-  short-description: A brief user-facing description
-  # The following sections are emitted to the agents/openai.yaml sidecar next to SKILL.md.
-  # See https://developers.openai.com/codex/skills.md
-  interface: # (optional) UI metadata
-    display_name: Example Skill
-    short_description: A brief user-facing description
-    default_prompt: Do the thing
-  policy: # (optional) invocation policy
-    allow_implicit_invocation: false # only invoke explicitly via $skill
-  dependencies: # (optional) tool dependencies
-    tools:
-      - type: mcp
-        value: example
-        description: Example MCP tool
+    short-description: A brief user-facing description
+    # The following sections are emitted to the agents/openai.yaml sidecar next to SKILL.md.
+    # See https://developers.openai.com/codex/skills.md
+    interface: # (optional) UI metadata
+        display_name: Example Skill
+        short_description: A brief user-facing description
+        default_prompt: Do the thing
+    policy: # (optional) invocation policy
+        allow_implicit_invocation: false # only invoke explicitly via $skill
+    dependencies: # (optional) tool dependencies
+        tools:
+            - type: mcp
+              value: example
+              description: Example MCP tool
 pi: # for Pi Coding Agent-specific parameters (optional)
-  allowed-tools:
-    - "Bash"
-    - "Read"
-  disable-model-invocation: true # (optional) disable model invocation for this skill
-  license: MIT # (optional)
-  compatibility: # (optional) free-form compatibility metadata
-    pi-version: ">=0.75.0"
-  metadata: # (optional) free-form metadata
-    author: rulesync
+    allowed-tools:
+        - 'Bash'
+        - 'Read'
+    disable-model-invocation: true # (optional) disable model invocation for this skill
+    license: MIT # (optional)
+    compatibility: # (optional) free-form compatibility metadata
+        pi-version: '>=0.75.0'
+    metadata: # (optional) free-form metadata
+        author: rulesync
 replit: # for Replit Agent-specific parameters (optional; Agent Skills standard)
-  allowed-tools:
-    - "Bash"
-    - "Read"
-  license: MIT # (optional)
-  compatibility: # (optional) free-form compatibility metadata
-    agent-skills: ">=1.0.0"
-  metadata: # (optional) free-form metadata
-    author: rulesync
+    allowed-tools:
+        - 'Bash'
+        - 'Read'
+    license: MIT # (optional)
+    compatibility: # (optional) free-form compatibility metadata
+        agent-skills: '>=1.0.0'
+    metadata: # (optional) free-form metadata
+        author: rulesync
 opencode: # for OpenCode-specific parameters (optional)
-  license: MIT # (optional)
-  compatibility: # (optional) free-form compatibility metadata
-    opencode-version: ">=1.16.0"
-  metadata: # (optional) free-form metadata
-    author: rulesync
-  allowed-tools: # (optional) Anthropic-spec passthrough; OpenCode ignores unknown fields
-    - "Bash"
-    - "Read"
+    license: MIT # (optional)
+    compatibility: # (optional) free-form compatibility metadata
+        opencode-version: '>=1.16.0'
+    metadata: # (optional) free-form metadata
+        author: rulesync
+    allowed-tools: # (optional) Anthropic-spec passthrough; OpenCode ignores unknown fields
+        - 'Bash'
+        - 'Read'
 kilo: # for Kilo Code-specific parameters (optional)
-  license: MIT # (optional)
-  compatibility: # (optional) free-form compatibility metadata
-    kilo-version: ">=7.0.0"
-  metadata: # (optional) free-form metadata
-    author: rulesync
-  allowed-tools: # (optional) backward-compat passthrough; not part of Kilo's official SKILL.md frontmatter
-    - "Bash"
-    - "Read"
+    license: MIT # (optional)
+    compatibility: # (optional) free-form compatibility metadata
+        kilo-version: '>=7.0.0'
+    metadata: # (optional) free-form metadata
+        author: rulesync
+    allowed-tools: # (optional) backward-compat passthrough; not part of Kilo's official SKILL.md frontmatter
+        - 'Bash'
+        - 'Read'
 agentsskills: # for the Agent Skills standard target (optional; supports project + global ~/.agents/skills/)
-  license: MIT # (optional)
-  compatibility: "Requires Python 3.14+ and uv" # (optional) free-form string, 1–500 chars (an object is also accepted for back-compat)
-  metadata: # (optional) free-form metadata (spec-recommended place for skill versioning)
-    version: "1.0.0"
-  allowed-tools: "shell" # (optional, experimental) space-separated string or list
+    license: MIT # (optional)
+    compatibility: 'Requires Python 3.14+ and uv' # (optional) free-form string, 1–500 chars (an object is also accepted for back-compat)
+    metadata: # (optional) free-form metadata (spec-recommended place for skill versioning)
+        version: '1.0.0'
+    allowed-tools: 'shell' # (optional, experimental) space-separated string or list
 copilot: # for GitHub Copilot-specific parameters (optional)
-  license: MIT # (optional)
-  allowed-tools: "shell" # (optional) tools pre-approved without per-use confirmation
+    license: MIT # (optional)
+    allowed-tools: 'shell' # (optional) tools pre-approved without per-use confirmation
 copilotcli: # for GitHub Copilot CLI-specific parameters (optional; project .github/skills/, global ~/.copilot/skills/)
-  license: MIT # (optional)
-  allowed-tools: "shell" # (optional) tools pre-approved without per-use confirmation
+    license: MIT # (optional)
+    allowed-tools: 'shell' # (optional) tools pre-approved without per-use confirmation
 rovodev: # for Rovo Dev CLI-specific parameters (optional; Agent Skills standard)
-  allowed-tools: "grep bash" # (optional) space-separated string (a YAML list is also accepted)
-  license: MIT # (optional)
-  metadata: # (optional) free-form metadata
-    author: rulesync
+    allowed-tools: 'grep bash' # (optional) space-separated string (a YAML list is also accepted)
+    license: MIT # (optional)
+    metadata: # (optional) free-form metadata
+        author: rulesync
 zed: # for Zed-specific parameters (optional)
-  disable-model-invocation: true # (optional) prevent the model from auto-invoking this skill
+    disable-model-invocation: true # (optional) prevent the model from auto-invoking this skill
 cursor: # for Cursor-specific parameters (optional)
-  paths: # (optional) glob patterns (string or list) scoping the skill to matching files
-    - "src/**/*.ts"
-  disable-model-invocation: true # (optional) only include the skill when invoked via /skill-name
-  metadata: # (optional) free-form metadata
-    author: rulesync
+    paths: # (optional) glob patterns (string or list) scoping the skill to matching files
+        - 'src/**/*.ts'
+    disable-model-invocation: true # (optional) only include the skill when invoked via /skill-name
+    metadata: # (optional) free-form metadata
+        author: rulesync
 takt: # takt specific parameters (optional; emitted under .takt/facets/knowledge/ — frontmatter is dropped on emit)
-  name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
-  extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
+    name: 'renamed-stem' # (optional) override the emitted filename stem (no path separators or "..")
+    extends: 'base' # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
 qwencode: # for Qwen Code-specific parameters (optional; project .qwen/skills/, global ~/.qwen/skills/)
-  priority: 10 # (optional) higher values appear earlier in /skills listings
-  paths: # (optional) glob patterns (string or list) gating model discovery to matching files
-    - "src/**/*.ts"
-  user-invocable: false # (optional) hide from slash-command invocation, keep model access
-  disable-model-invocation: true # (optional) hide from the model but allow direct user invocation
+    priority: 10 # (optional) higher values appear earlier in /skills listings
+    paths: # (optional) glob patterns (string or list) gating model discovery to matching files
+        - 'src/**/*.ts'
+    user-invocable: false # (optional) hide from slash-command invocation, keep model access
+    disable-model-invocation: true # (optional) hide from the model but allow direct user invocation
 ---
 
 This is the skill body content.
@@ -509,34 +509,34 @@ Example:
 
 ```json
 {
-  "mcpServers": {
-    "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
-    "serena": {
-      "description": "Code analysis and semantic search MCP server",
-      "type": "stdio",
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/oraios/serena",
-        "serena",
-        "start-mcp-server",
-        "--context",
-        "ide-assistant",
-        "--enable-web-dashboard",
-        "false",
-        "--project",
-        "."
-      ],
-      "env": {}
-    },
-    "context7": {
-      "description": "Library documentation search server",
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"],
-      "env": {}
-    }
-  }
+	"mcpServers": {
+		"$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+		"serena": {
+			"description": "Code analysis and semantic search MCP server",
+			"type": "stdio",
+			"command": "uvx",
+			"args": [
+				"--from",
+				"git+https://github.com/oraios/serena",
+				"serena",
+				"start-mcp-server",
+				"--context",
+				"ide-assistant",
+				"--enable-web-dashboard",
+				"false",
+				"--project",
+				"."
+			],
+			"env": {}
+		},
+		"context7": {
+			"description": "Library documentation search server",
+			"type": "stdio",
+			"command": "npx",
+			"args": ["-y", "@upstash/context7-mcp"],
+			"env": {}
+		}
+	}
 }
 ```
 
@@ -546,8 +546,8 @@ Rulesync provides a JSON Schema for editor validation and autocompletion. Add th
 
 ```json
 {
-  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
-  "mcpServers": {}
+	"$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+	"mcpServers": {}
 }
 ```
 
@@ -563,15 +563,15 @@ You can control which individual tools from an MCP server are enabled or disable
 
 ```json
 {
-  "mcpServers": {
-    "serena": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"],
-      "enabledTools": ["search_symbols", "find_references"],
-      "disabledTools": ["rename_symbol"]
-    }
-  }
+	"mcpServers": {
+		"serena": {
+			"type": "stdio",
+			"command": "uvx",
+			"args": ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"],
+			"enabledTools": ["search_symbols", "find_references"],
+			"disabledTools": ["rename_symbol"]
+		}
+	}
 }
 ```
 
@@ -588,18 +588,14 @@ This is distinct from `env` (which is a literal `{name: value}` map) — `envVar
 
 ```json
 {
-  "mcpServers": {
-    "pal": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/BeehiveInnovations/pal-mcp-server.git",
-        "pal-mcp-server"
-      ],
-      "envVars": ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"]
-    }
-  }
+	"mcpServers": {
+		"pal": {
+			"type": "stdio",
+			"command": "uvx",
+			"args": ["--from", "git+https://github.com/BeehiveInnovations/pal-mcp-server.git", "pal-mcp-server"],
+			"envVars": ["OPENAI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"]
+		}
+	}
 }
 ```
 
@@ -678,12 +674,12 @@ If you would rather keep the deny list out of version control, opt into the
 ```jsonc
 // rulesync.jsonc
 {
-  "targets": ["claudecode"],
-  "features": {
-    "claudecode": {
-      "ignore": { "fileMode": "local" },
-    },
-  },
+	"targets": ["claudecode"],
+	"features": {
+		"claudecode": {
+			"ignore": { "fileMode": "local" },
+		},
+	},
 }
 ```
 
@@ -708,21 +704,21 @@ Example:
 
 ```json
 {
-  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
-  "permission": {
-    "bash": {
-      "git *": "allow",
-      "npm run *": "allow",
-      "rm -rf *": "deny",
-      "*": "ask"
-    },
-    "edit": {
-      "src/**": "allow"
-    },
-    "read": {
-      ".env": "deny"
-    }
-  }
+	"$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
+	"permission": {
+		"bash": {
+			"git *": "allow",
+			"npm run *": "allow",
+			"rm -rf *": "deny",
+			"*": "ask"
+		},
+		"edit": {
+			"src/**": "allow"
+		},
+		"read": {
+			".env": "deny"
+		}
+	}
 }
 ```
 
@@ -732,8 +728,8 @@ Rulesync provides a JSON Schema for editor validation and autocompletion. Add th
 
 ```json
 {
-  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
-  "permission": {}
+	"$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json",
+	"permission": {}
 }
 ```
 

@@ -2,12 +2,12 @@
 name: rulesync
 description: >-
   Generates and syncs AI rule configuration files (.cursorrules, CLAUDE.md,
-  copilot-instructions.md) across 20+ coding tools from a single source.
-  Use when syncing AI rules, running rulesync commands, importing or
-  generating rule files, or managing shared AI coding configurations.
-targets: ["*"]
+  copilot-instructions.md) across 20+ coding tools from a single source. Use
+  when syncing AI rules, running rulesync commands, importing or generating rule
+  files, or managing shared AI coding configurations.
+targets:
+  - '*'
 ---
-
 # Rulesync
 
 Rulesync generates and synchronizes AI rule configuration files across 20+ coding tools (Claude Code, Cursor, Copilot, Windsurf, Cline, Gemini CLI, and more) from a single set of unified rule files in `.rulesync/`.

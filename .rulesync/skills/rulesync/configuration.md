@@ -9,9 +9,9 @@ Rulesync provides a JSON Schema for editor validation and autocompletion. Add th
 ```jsonc
 // rulesync.jsonc
 {
-  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
-  "targets": ["claudecode"],
-  "features": ["rules"],
+	"$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
+	"targets": ["claudecode"],
+	"features": ["rules"],
 }
 ```
 
@@ -22,60 +22,60 @@ Example:
 ```jsonc
 // rulesync.jsonc
 {
-  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
+	"$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
 
-  // List of tools to generate configurations for. You can specify "*" to generate all tools.
-  "targets": ["cursor", "claudecode", "geminicli", "opencode", "codexcli"],
+	// List of tools to generate configurations for. You can specify "*" to generate all tools.
+	"targets": ["cursor", "claudecode", "geminicli", "opencode", "codexcli"],
 
-  // Features to generate. You can specify "*" to generate all features.
-  "features": ["rules", "ignore", "mcp", "commands", "subagents", "hooks"],
+	// Features to generate. You can specify "*" to generate all features.
+	"features": ["rules", "ignore", "mcp", "commands", "subagents", "hooks"],
 
-  // Alternatively, you can use object format to specify features per target:
-  // "features": {
-  //   "claudecode": ["rules", "commands"],
-  //   "cursor": ["rules", "mcp"],
-  // },
+	// Alternatively, you can use object format to specify features per target:
+	// "features": {
+	//   "claudecode": ["rules", "commands"],
+	//   "cursor": ["rules", "mcp"],
+	// },
 
-  // Output root directories to generate files into.
-  // Basically, you can specify `["."]` only.
-  // However, for example, if your project is a monorepo and you have to launch the AI agent at each package directory, you can specify multiple output roots.
-  //
-  // The legacy field name `baseDirs` is still accepted as a deprecated alias
-  // and will be removed in a future major release. Migrate to `outputRoots`.
-  "outputRoots": ["."],
+	// Output root directories to generate files into.
+	// Basically, you can specify `["."]` only.
+	// However, for example, if your project is a monorepo and you have to launch the AI agent at each package directory, you can specify multiple output roots.
+	//
+	// The legacy field name `baseDirs` is still accepted as a deprecated alias
+	// and will be removed in a future major release. Migrate to `outputRoots`.
+	"outputRoots": ["."],
 
-  // Delete existing files before generating
-  "delete": true,
+	// Delete existing files before generating
+	"delete": true,
 
-  // Verbose output
-  "verbose": false,
+	// Verbose output
+	"verbose": false,
 
-  // Silent mode - suppress all output (except errors)
-  "silent": false,
+	// Silent mode - suppress all output (except errors)
+	"silent": false,
 
-  // Advanced options
-  "global": false, // Generate for global(user scope) configuration files
-  "simulateCommands": false, // Generate simulated commands
-  "simulateSubagents": false, // Generate simulated subagents
-  "simulateSkills": false, // Generate simulated skills
+	// Advanced options
+	"global": false, // Generate for global(user scope) configuration files
+	"simulateCommands": false, // Generate simulated commands
+	"simulateSubagents": false, // Generate simulated subagents
+	"simulateSkills": false, // Generate simulated skills
 
-  // When true (default), `rulesync gitignore` only emits entries for the
-  // tools listed in `targets`. Set to false to emit entries for all supported
-  // tools regardless of `targets`.
-  //
-  // Note: Entries for `agentsmd` (AGENTS.md and related paths) are always
-  // appended even when `gitignoreTargetsOnly` is true and `agentsmd` is
-  // absent from `targets`. AGENTS.md is a de facto standard read by many AI
-  // tools regardless of the target set, so its gitignore entries are emitted
-  // unconditionally to prevent accidental commits of generated rule files.
-  "gitignoreTargetsOnly": true,
+	// When true (default), `rulesync gitignore` only emits entries for the
+	// tools listed in `targets`. Set to false to emit entries for all supported
+	// tools regardless of `targets`.
+	//
+	// Note: Entries for `agentsmd` (AGENTS.md and related paths) are always
+	// appended even when `gitignoreTargetsOnly` is true and `agentsmd` is
+	// absent from `targets`. AGENTS.md is a de facto standard read by many AI
+	// tools regardless of the target set, so its gitignore entries are emitted
+	// unconditionally to prevent accidental commits of generated rule files.
+	"gitignoreTargetsOnly": true,
 
-  // Declarative skill sources — installed via 'rulesync install'
-  // See the "Declarative Skill Sources" section for details.
-  // "sources": [
-  //   { "source": "owner/repo" },
-  //   { "source": "org/repo", "skills": ["specific-skill"] },
-  // ],
+	// Declarative skill sources — installed via 'rulesync install'
+	// See the "Declarative Skill Sources" section for details.
+	// "sources": [
+	//   { "source": "owner/repo" },
+	//   { "source": "org/repo", "skills": ["specific-skill"] },
+	// ],
 }
 ```
 
@@ -89,11 +89,11 @@ carries the features to generate for that tool:
 ```jsonc
 // rulesync.jsonc
 {
-  "targets": {
-    "claudecode": ["rules", "commands"],
-    "cursor": ["rules", "mcp"],
-    "copilot": ["rules", "subagents"],
-  },
+	"targets": {
+		"claudecode": ["rules", "commands"],
+		"cursor": ["rules", "mcp"],
+		"copilot": ["rules", "subagents"],
+	},
 }
 ```
 
@@ -112,10 +112,10 @@ feature for that tool:
 
 ```jsonc
 {
-  "targets": {
-    "claudecode": ["*"], // Generate all features for Claude Code
-    "cursor": ["rules"], // Only rules for Cursor
-  },
+	"targets": {
+		"claudecode": ["*"], // Generate all features for Claude Code
+		"cursor": ["rules"], // Only rules for Cursor
+	},
 }
 ```
 
@@ -127,17 +127,17 @@ maps to either `true`/`false` (enable/disable) or an options object.
 
 ```jsonc
 {
-  "gitignoreDestination": "gitignore",
-  "targets": {
-    "claudecode": {
-      "gitignoreDestination": "gitattributes",
-      "rules": { "ruleDiscoveryMode": "explicit" },
-      "ignore": {
-        "fileMode": "local",
-        "gitignoreDestination": "gitignore",
-      },
-    },
-  },
+	"gitignoreDestination": "gitignore",
+	"targets": {
+		"claudecode": {
+			"gitignoreDestination": "gitattributes",
+			"rules": { "ruleDiscoveryMode": "explicit" },
+			"ignore": {
+				"fileMode": "local",
+				"gitignoreDestination": "gitignore",
+			},
+		},
+	},
 }
 ```
 
@@ -179,9 +179,9 @@ new configs should use the `targets` object form shown above.
 ```jsonc
 // ⚠️  Deprecated — still works, logs a warning
 {
-  "features": {
-    "claudecode": { "rules": true, "ignore": { "fileMode": "local" } },
-  },
+	"features": {
+		"claudecode": { "rules": true, "ignore": { "fileMode": "local" } },
+	},
 }
 ```
 
@@ -223,11 +223,11 @@ Example usage:
 ```jsonc
 // rulesync.local.jsonc (not committed to git)
 {
-  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
-  // Override targets for local development
-  "targets": ["claudecode"],
-  // Enable verbose output for debugging
-  "verbose": true,
+	"$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
+	// Override targets for local development
+	"targets": ["claudecode"],
+	// Enable verbose output for debugging
+	"verbose": true,
 }
 ```
 
@@ -239,9 +239,9 @@ For example, both `agentsmd` and `opencode` generate `AGENTS.md`:
 
 ```jsonc
 {
-  // opencode wins because it comes last
-  "targets": ["agentsmd", "opencode"],
-  "features": ["rules"],
+	// opencode wins because it comes last
+	"targets": ["agentsmd", "opencode"],
+	"features": ["rules"],
 }
 ```
 
@@ -254,8 +254,8 @@ If you want `agentsmd`'s output instead, reverse the order:
 
 ```jsonc
 {
-  // agentsmd wins because it comes last
-  "targets": ["opencode", "agentsmd"],
-  "features": ["rules"],
+	// agentsmd wins because it comes last
+	"targets": ["opencode", "agentsmd"],
+	"features": ["rules"],
 }
 ```

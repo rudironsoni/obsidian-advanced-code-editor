@@ -60,14 +60,14 @@ Use `registerEvent()`, `addCommand()`, and other registration methods for automa
 
 ```typescript
 export default class MyPlugin extends Plugin {
-  onload() {
-    // This is automatically cleaned up on unload
-    this.registerEvent(
-      this.app.vault.on('create', (file) => {
-        // handle file creation
-      })
-    );
-  }
+	onload() {
+		// This is automatically cleaned up on unload
+		this.registerEvent(
+			this.app.vault.on('create', file => {
+				// handle file creation
+			}),
+		);
+	}
 }
 ```
 
@@ -86,29 +86,35 @@ Default hotkeys cause conflicts between plugins and may override user configurat
 ```typescript
 // Use 'callback' for unconditional commands
 this.addCommand({
-  id: 'my-command',
-  name: 'My command',
-  callback: () => { /* always runs */ }
+	id: 'my-command',
+	name: 'My command',
+	callback: () => {
+		/* always runs */
+	},
 });
 
 // Use 'checkCallback' for conditional commands
 this.addCommand({
-  id: 'conditional-command',
-  name: 'Conditional command',
-  checkCallback: (checking) => {
-    if (someCondition) {
-      if (!checking) { /* execute */ }
-      return true;
-    }
-    return false;
-  }
+	id: 'conditional-command',
+	name: 'Conditional command',
+	checkCallback: checking => {
+		if (someCondition) {
+			if (!checking) {
+				/* execute */
+			}
+			return true;
+		}
+		return false;
+	},
 });
 
 // Use 'editorCallback' for commands requiring an active editor
 this.addCommand({
-  id: 'editor-command',
-  name: 'Editor command',
-  editorCallback: (editor, view) => { /* has editor context */ }
+	id: 'editor-command',
+	name: 'Editor command',
+	editorCallback: (editor, view) => {
+		/* has editor context */
+	},
 });
 ```
 
@@ -123,7 +129,7 @@ import { MarkdownView } from 'obsidian';
 
 const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 if (view) {
-  // Safe to use view
+	// Safe to use view
 }
 ```
 
@@ -132,7 +138,7 @@ For the active editor:
 ```typescript
 const editor = this.app.workspace.activeEditor?.editor;
 if (editor) {
-  // Safe to use editor
+	// Safe to use editor
 }
 ```
 
@@ -140,16 +146,16 @@ if (editor) {
 
 ```typescript
 // DON'T do this - can cause memory leaks
-this.registerView(MY_VIEW_TYPE, () => this.view = new MyCustomView());
+this.registerView(MY_VIEW_TYPE, () => (this.view = new MyCustomView()));
 
 // DO this instead
-this.registerView(MY_VIEW_TYPE, (leaf) => new MyCustomView(leaf));
+this.registerView(MY_VIEW_TYPE, leaf => new MyCustomView(leaf));
 
 // Access views when needed
 for (const leaf of this.app.workspace.getLeavesOfType(MY_VIEW_TYPE)) {
-  if (leaf.view instanceof MyCustomView) {
-    // use the view
-  }
+	if (leaf.view instanceof MyCustomView) {
+		// use the view
+	}
 }
 ```
 
@@ -158,6 +164,7 @@ for (const leaf of this.app.workspace.getLeavesOfType(MY_VIEW_TYPE)) {
 ### Prefer Vault API over Adapter API
 
 The Vault API (`app.vault`) has advantages over the Adapter API (`app.vault.adapter`):
+
 - **Performance**: Caching layer speeds up reads for known files
 - **Safety**: Serial file operations prevent race conditions
 
@@ -168,8 +175,8 @@ The Vault API (`app.vault`) has advantages over the Adapter API (`app.vault.adap
 await this.app.vault.modify(file, newContent);
 
 // DO this instead - atomic and conflict-safe
-await this.app.vault.process(file, (content) => {
-  return content.replace('old', 'new');
+await this.app.vault.process(file, content => {
+	return content.replace('old', 'new');
 });
 ```
 
@@ -178,8 +185,8 @@ await this.app.vault.process(file, (content) => {
 Don't parse YAML manually. This method is atomic and ensures consistent formatting:
 
 ```typescript
-await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-  frontmatter['my-property'] = 'value';
+await this.app.fileManager.processFrontMatter(file, frontmatter => {
+	frontmatter['my-property'] = 'value';
 });
 ```
 
@@ -218,8 +225,8 @@ When editing the active note, use the Editor interface to preserve cursor positi
 ```typescript
 const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 if (view) {
-  const editor = view.editor;
-  editor.replaceRange('new text', { line: 0, ch: 0 });
+	const editor = view.editor;
+	editor.replaceRange('new text', { line: 0, ch: 0 });
 }
 ```
 
@@ -268,8 +275,8 @@ Then in `styles.css`:
 
 ```css
 .my-plugin-warning {
-  color: var(--text-normal);
-  background-color: var(--background-modifier-error);
+	color: var(--text-normal);
+	background-color: var(--background-modifier-error);
 }
 ```
 
@@ -282,12 +289,12 @@ Then in `styles.css`:
 ```typescript
 // Prefer this
 async function fetchData(): Promise<string | null> {
-  try {
-    const res = await requestUrl('https://example.com');
-    return res.text;
-  } catch (e) {
-    console.error(e);
-    return null;
-  }
+	try {
+		const res = await requestUrl('https://example.com');
+		return res.text;
+	} catch (e) {
+		console.error(e);
+		return null;
+	}
 }
 ```

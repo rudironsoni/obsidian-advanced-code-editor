@@ -1,23 +1,14 @@
 {
   "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
   "mcpServers": {
-    "obsidian-cli": {
+    "electron-devtools": {
       "type": "stdio",
       "command": "npx",
       "args": [
         "-y",
-        "github:Storks/obsidian-mcp"
+        "native-devtools-mcp"
       ],
       "env": {}
-    },
-		"electron-devtools": {
-			"type": "stdio",
-			"command": "npx",
-			"args": [
-				"-y",
-				"native-devtools-mcp"
-			],
-			"env": {}
-		}
-	}
+    }
+  }
 }
