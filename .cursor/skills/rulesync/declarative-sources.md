@@ -8,37 +8,37 @@ Add a `sources` array to your `rulesync.jsonc`:
 
 ```jsonc
 {
-  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
-  "targets": ["copilot", "claudecode"],
-  "features": ["rules", "skills"],
-  "sources": [
-    // Fetch all skills from a GitHub repository (default transport)
-    { "source": "owner/repo" },
+	"$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
+	"targets": ["copilot", "claudecode"],
+	"features": ["rules", "skills"],
+	"sources": [
+		// Fetch all skills from a GitHub repository (default transport)
+		{ "source": "owner/repo" },
 
-    // Fetch only specific skills by name
-    { "source": "anthropics/skills", "skills": ["skill-creator"] },
+		// Fetch only specific skills by name
+		{ "source": "anthropics/skills", "skills": ["skill-creator"] },
 
-    // With ref pinning and subdirectory path (same syntax as fetch command)
-    { "source": "owner/repo@v1.0.0:path/to/skills" },
+		// With ref pinning and subdirectory path (same syntax as fetch command)
+		{ "source": "owner/repo@v1.0.0:path/to/skills" },
 
-    // Git transport — works with any git remote (Azure DevOps, Bitbucket, etc.)
-    {
-      "source": "https://dev.azure.com/org/project/_git/repo",
-      "transport": "git",
-      "ref": "main",
-      "path": "exports/skills",
-    },
+		// Git transport — works with any git remote (Azure DevOps, Bitbucket, etc.)
+		{
+			"source": "https://dev.azure.com/org/project/_git/repo",
+			"transport": "git",
+			"ref": "main",
+			"path": "exports/skills",
+		},
 
-    // Git transport with a local repository
-    { "source": "file:///path/to/local/repo", "transport": "git" },
+		// Git transport with a local repository
+		{ "source": "file:///path/to/local/repo", "transport": "git" },
 
-    // Git transport against a single-skill repo whose SKILL.md is at the root
-    {
-      "source": "https://github.com/feature-sliced/skills",
-      "transport": "git",
-      "path": ".",
-    },
-  ],
+		// Git transport against a single-skill repo whose SKILL.md is at the root
+		{
+			"source": "https://github.com/feature-sliced/skills",
+			"transport": "git",
+			"path": ".",
+		},
+	],
 }
 ```
 
@@ -62,8 +62,8 @@ When `rulesync install` runs and `sources` is configured:
 2. **Remote skill listing** — The `skills/` directory (or the path specified in the source URL) is listed from the remote repository.
 3. **Filtering** — If `skills` is specified, only matching skill directories are fetched.
 4. **Precedence rules**:
-   - **Local skills always win** — Skills in `.rulesync/skills/` (not in `.curated/`) take precedence; a remote skill with the same name is skipped.
-   - **First-declared source wins** — If two sources provide a skill with the same name, the one declared first in the `sources` array is used.
+    - **Local skills always win** — Skills in `.rulesync/skills/` (not in `.curated/`) take precedence; a remote skill with the same name is skipped.
+    - **First-declared source wins** — If two sources provide a skill with the same name, the one declared first in the `sources` array is used.
 5. **Output** — Fetched skills are written to `.rulesync/skills/.curated/<skill-name>/`. This directory is automatically added to `.gitignore` by `rulesync gitignore`.
 
 ## Install Modes
@@ -118,20 +118,20 @@ Example `rulesync.jsonc`:
 
 ```jsonc
 {
-  "targets": ["claudecode"],
-  "features": ["rules"],
-  "sources": [
-    // Default: agent=github-copilot, scope=project -> .agents/skills/git-commit/
-    { "source": "acme/skills", "skills": ["git-commit"] },
+	"targets": ["claudecode"],
+	"features": ["rules"],
+	"sources": [
+		// Default: agent=github-copilot, scope=project -> .agents/skills/git-commit/
+		{ "source": "acme/skills", "skills": ["git-commit"] },
 
-    // Same source, deployed for Claude Code at user scope -> ~/.claude/skills/git-commit/
-    {
-      "source": "acme/skills",
-      "skills": ["git-commit"],
-      "agent": "claude-code",
-      "scope": "user",
-    },
-  ],
+		// Same source, deployed for Claude Code at user scope -> ~/.claude/skills/git-commit/
+		{
+			"source": "acme/skills",
+			"skills": ["git-commit"],
+			"agent": "claude-code",
+			"scope": "user",
+		},
+	],
 }
 ```
 
@@ -171,18 +171,18 @@ The lockfile at `rulesync.lock` (at the project root) records the resolved commi
 
 ```json
 {
-  "lockfileVersion": 1,
-  "sources": {
-    "owner/skill-repo": {
-      "requestedRef": "main",
-      "resolvedRef": "abc123def456...",
-      "resolvedAt": "2025-01-15T12:00:00.000Z",
-      "skills": {
-        "my-skill": { "integrity": "sha256-abcdef..." },
-        "another-skill": { "integrity": "sha256-123456..." }
-      }
-    }
-  }
+	"lockfileVersion": 1,
+	"sources": {
+		"owner/skill-repo": {
+			"requestedRef": "main",
+			"resolvedRef": "abc123def456...",
+			"resolvedAt": "2025-01-15T12:00:00.000Z",
+			"skills": {
+				"my-skill": { "integrity": "sha256-abcdef..." },
+				"another-skill": { "integrity": "sha256-123456..." }
+			}
+		}
+	}
 }
 ```
 

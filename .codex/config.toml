@@ -8,4 +8,5 @@ args = [ "-y", "native-devtools-mcp" ]
 [features]
 hooks = true
 
-[permissions.rulesync]
+[permissions.rulesync.filesystem]
+":minimal" = "read"

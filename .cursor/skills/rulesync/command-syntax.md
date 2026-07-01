@@ -37,8 +37,8 @@ Given the following rulesync command:
 
 ```md
 ---
-targets: ["geminicli"]
-description: "Summarize git diff"
+targets: ['geminicli']
+description: 'Summarize git diff'
 ---
 
 Summarize the diff:
@@ -63,8 +63,8 @@ Focus on {{args}}.
 
 - If you author a command with explicit tool-specific syntax (e.g. you write `{{args}}` directly in a rulesync command body), rulesync does **not** re-translate the already-tool-native form. Stick to the universal placeholders to keep commands portable across tools.
 - The translation is purely textual and is applied to the entire body. It does not skip fenced or inline code blocks, so ` ```js\n$ARGUMENTS\n``` ` in a rulesync body will still be rewritten when generating Gemini CLI output. There is **no escape syntax** for the universal placeholders — backslashes are not consumed by the regex, so `\$ARGUMENTS` becomes `\{{args}}`, not a literal `$ARGUMENTS`. If you need a literal `$ARGUMENTS` or `` !`cmd` `` in the emitted Gemini CLI prompt, your options are:
-  1. Hand-author the Gemini-native body via the per-tool `geminicli.prompt` override (see below) — this skips translation entirely for Gemini CLI.
-  2. Drop `geminicli` from the command's `targets:` so no Gemini CLI file is generated.
+    1. Hand-author the Gemini-native body via the per-tool `geminicli.prompt` override (see below) — this skips translation entirely for Gemini CLI.
+    2. Drop `geminicli` from the command's `targets:` so no Gemini CLI file is generated.
 
 - The shell expansion regex matches a single backtick-delimited segment without embedded backticks or newlines (`` !`...` ``). Multi-line shell snippets are not supported, and a backtick inside the command body is not allowed — for that case, hand-author the Gemini-native form via `geminicli.prompt`.
 - Gemini CLI accepts both `{{args}}` and `{{ args }}` (with whitespace). rulesync canonicalizes the imported form to `$ARGUMENTS`.
@@ -76,10 +76,10 @@ If you need to bypass the translation entirely — for example, to embed a liter
 
 ```md
 ---
-targets: ["geminicli"]
-description: "Hand-authored prompt"
+targets: ['geminicli']
+description: 'Hand-authored prompt'
 geminicli:
-  prompt: "Run !{echo `hello`}."
+    prompt: 'Run !{echo `hello`}.'
 ---
 
 Body content here is ignored only for the Gemini CLI output when geminicli.prompt is set.

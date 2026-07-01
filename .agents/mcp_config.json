@@ -5,7 +5,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "github:sh3ll3x3c/native-devtools-mcp"
+        "native-devtools-mcp"
       ],
       "env": {}
     }

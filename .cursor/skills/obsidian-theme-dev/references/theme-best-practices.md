@@ -1,25 +1,27 @@
 # Theme Development Best Practices
 
 ## CSS Organization
+
 - Group related styles together (Editor, UI, Sidebar, etc.)
 - Use comments to separate major sections
 - Keep specificity low for easy customization
 
 ## Obsidian CSS Variables
+
 Always prefer Obsidian's built-in CSS variables over hardcoded values:
 
 ```css
 /* Good */
 .theme-dark {
-  --my-accent: var(--interactive-accent);
-  background-color: var(--background-primary);
-  color: var(--text-normal);
+	--my-accent: var(--interactive-accent);
+	background-color: var(--background-primary);
+	color: var(--text-normal);
 }
 
 /* Avoid */
 .theme-dark {
-  background-color: #2d2d30;
-  color: #cccccc;
+	background-color: #2d2d30;
+	color: #cccccc;
 }
 ```
 
@@ -103,29 +105,29 @@ Use Obsidian's platform classes rather than just media queries:
 ```css
 /* Mobile-first approach */
 .my-component {
-  width: 100%;
+	width: 100%;
 }
 
 /* Desktop override - NOTE: there is no .is-desktop class */
 body:not(.is-mobile) .my-component {
-  width: 50%;
+	width: 50%;
 }
 
 /* Mobile-specific */
 .is-mobile .my-component {
-  padding: var(--size-4-2);
+	padding: var(--size-4-2);
 }
 
 /* Tablet vs phone */
 .is-tablet .my-component {
-  width: 80%;
+	width: 80%;
 }
 
 /* Traditional media query (also valid) */
 @media (min-width: 768px) {
-  .my-component {
-    width: 50%;
-  }
+	.my-component {
+		width: 50%;
+	}
 }
 ```
 
@@ -138,24 +140,25 @@ Obsidian uses `.theme-dark` and `.theme-light` classes:
 ```css
 /* Support both themes */
 .theme-dark .my-element {
-  background: var(--background-primary);
+	background: var(--background-primary);
 }
 
 .theme-light .my-element {
-  background: var(--background-secondary);
+	background: var(--background-secondary);
 }
 
 /* Or use CSS variables that auto-adapt */
 .my-element {
-  /* These variables already differ between themes */
-  background: var(--background-primary);
-  color: var(--text-normal);
+	/* These variables already differ between themes */
+	background: var(--background-primary);
+	color: var(--text-normal);
 }
 ```
 
 ## Working with Plugin Styles
 
 If styling elements from plugins:
+
 - Check if the plugin exposes CSS classes you can target
 - Avoid `!important` - it prevents users from overriding with snippets (see `theme-coding-conventions.md` for when unavoidable)
 - Document which plugins your theme specifically supports/styles
@@ -168,8 +171,8 @@ Obsidian exposes 400+ CSS variables. To find the right variable for a specific e
 2. Go to **Sources → Page → top → obsidian.md → app.css**
 3. Search for variables: `Ctrl+F` / `Cmd+F` and type `  --` (two spaces + double dash) to find definitions
 4. To find what variable styles a specific element:
-   - Click the inspect cursor icon (top-left of Dev Tools)
-   - Click the element in Obsidian
-   - Check the **Styles** tab to see applied CSS variables
+    - Click the inspect cursor icon (top-left of Dev Tools)
+    - Click the element in Obsidian
+    - Check the **Styles** tab to see applied CSS variables
 
 Example: To find the ribbon background variable, search for `  --ribbon-` in app.css, or inspect the ribbon element directly.

@@ -45,14 +45,14 @@ Add the Rulesync MCP server to your `.rulesync/mcp.json`:
 
 ```json
 {
-  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
-  "mcpServers": {
-    "rulesync-mcp": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "rulesync", "mcp"],
-      "env": {}
-    }
-  }
+	"$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json",
+	"mcpServers": {
+		"rulesync-mcp": {
+			"type": "stdio",
+			"command": "npx",
+			"args": ["-y", "rulesync", "mcp"],
+			"env": {}
+		}
+	}
 }
 ```
