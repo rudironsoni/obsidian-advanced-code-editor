@@ -819,6 +819,23 @@ async function verifyScroll(client, mode, settings, state) {
 	});
 	assert((afterHorizontalInside.page.noteScrollLeft ?? 0) === 0, `${mode}: note scroller moved horizontally`, { afterHorizontalInside, settings });
 
+	await openMode(client, mode);
+	await positionBlockForGestures(client, mode, settings);
+	const beforeLeftEdge = await getRenderState(client, mode, settings);
+	const leftEdgeY = Math.max(80, Math.min(Math.round(beforeLeftEdge.shiki.firstRect.top + 120), beforeLeftEdge.mobile.innerHeight - 140));
+	const leftEdgeStartX = Math.max(12, Math.min(Math.round(beforeLeftEdge.shiki.firstRect.left + 120), beforeLeftEdge.mobile.innerWidth - 30));
+	const leftEdgeEndX = Math.max(8, Math.round(beforeLeftEdge.shiki.firstRect.left + 24));
+	await dispatchTouchSwipe(client, leftEdgeStartX, leftEdgeY, leftEdgeEndX, leftEdgeY);
+	const afterLeftEdge = await getRenderState(client, mode, settings);
+	if (!settings.wrap) {
+		assert(
+			(afterLeftEdge.shiki.scrollLeft ?? 0) > (beforeLeftEdge.shiki.scrollLeft ?? 0),
+			`${mode}: horizontal touch from the block gutter did not scroll Shiki horizontally`,
+			{ beforeLeftEdge, afterLeftEdge, settings, leftEdgeStartX, leftEdgeEndX, leftEdgeY },
+		);
+	}
+	assert((afterLeftEdge.page.noteScrollLeft ?? 0) === 0, `${mode}: block-gutter horizontal touch moved the note`, { afterLeftEdge, settings });
+
 	const outsideX = Math.max(12, Math.round(before.shiki.firstRect.left - 36));
 	const outsideY = Math.max(80, Math.min(Math.round(before.shiki.firstRect.top + 40), before.mobile.innerHeight - 140));
 	await delay(900);

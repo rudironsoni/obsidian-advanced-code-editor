@@ -185,13 +185,13 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 	const scrollSyncPlugin = ViewPlugin.fromClass(
 		class LivePreviewScrollSyncPlugin {
 			private syncing = false;
-			private touchRow: HTMLElement | undefined;
+			private touchBlockId: string | undefined;
 			private touchStartX = 0;
 			private touchStartY = 0;
 			private touchStartScrollLeft = 0;
 			private touchHorizontal = false;
 			private pointerId: number | undefined;
-			private pointerRow: HTMLElement | undefined;
+			private pointerBlockId: string | undefined;
 			private pointerStartX = 0;
 			private pointerStartY = 0;
 			private pointerStartScrollLeft = 0;
@@ -263,21 +263,21 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 				if (event.pointerType !== 'touch' && event.pointerType !== 'pen') {
 					return;
 				}
-				const row = this.codeRowFromTarget(event.target, event.clientX, event.clientY);
-				if (!row) {
+				const target = this.scrollTargetFromEvent(event.target, event.clientX, event.clientY);
+				if (!target) {
 					this.resetPointer();
 					return;
 				}
 				this.pointerId = event.pointerId;
-				this.pointerRow = row;
+				this.pointerBlockId = target.blockId;
 				this.pointerStartX = event.clientX;
 				this.pointerStartY = event.clientY;
-				this.pointerStartScrollLeft = row.scrollLeft;
+				this.pointerStartScrollLeft = target.scrollLeft;
 				this.pointerHorizontal = false;
 			};
 
 			private readonly onPointerMove = (event: PointerEvent): void => {
-				if (this.pointerId !== event.pointerId || !this.pointerRow) {
+				if (this.pointerId !== event.pointerId || !this.pointerBlockId) {
 					return;
 				}
 				const deltaX = event.clientX - this.pointerStartX;
@@ -291,11 +291,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 				if (event.cancelable) {
 					event.preventDefault();
 				}
-				const blockId = this.pointerRow.dataset.shikiBlockId;
-				if (!blockId) {
-					return;
-				}
-				this.syncBlockRows(blockId, this.pointerStartScrollLeft - deltaX);
+				this.syncBlockRows(this.pointerBlockId, this.pointerStartScrollLeft - deltaX);
 			};
 
 			private readonly onPointerEnd = (event: PointerEvent): void => {
@@ -306,20 +302,20 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 
 			private readonly onTouchStart = (event: TouchEvent): void => {
 				const touch = event.changedTouches[0];
-				const row = touch ? this.codeRowFromTarget(event.target, touch.clientX, touch.clientY) : undefined;
-				if (!row || !touch) {
+				const target = touch ? this.scrollTargetFromEvent(event.target, touch.clientX, touch.clientY) : undefined;
+				if (!target || !touch) {
 					this.resetTouch();
 					return;
 				}
-				this.touchRow = row;
+				this.touchBlockId = target.blockId;
 				this.touchStartX = touch.clientX;
 				this.touchStartY = touch.clientY;
-				this.touchStartScrollLeft = row.scrollLeft;
+				this.touchStartScrollLeft = target.scrollLeft;
 				this.touchHorizontal = false;
 			};
 
 			private readonly onTouchMove = (event: TouchEvent): void => {
-				if (!this.touchRow) {
+				if (!this.touchBlockId) {
 					return;
 				}
 				const touch = event.changedTouches[0];
@@ -337,11 +333,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 				if (event.cancelable) {
 					event.preventDefault();
 				}
-				const blockId = this.touchRow.dataset.shikiBlockId;
-				if (!blockId) {
-					return;
-				}
-				this.syncBlockRows(blockId, this.touchStartScrollLeft - deltaX);
+				this.syncBlockRows(this.touchBlockId, this.touchStartScrollLeft - deltaX);
 			};
 
 			private readonly onTouchEnd = (): void => {
@@ -361,26 +353,42 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 			}
 
 			private resetTouch(): void {
-				this.touchRow = undefined;
+				this.touchBlockId = undefined;
 				this.touchHorizontal = false;
 			}
 
 			private resetPointer(): void {
 				this.pointerId = undefined;
-				this.pointerRow = undefined;
+				this.pointerBlockId = undefined;
 				this.pointerHorizontal = false;
 			}
 
-			private codeRowFromTarget(target: EventTarget | null, clientX?: number, clientY?: number): HTMLElement | undefined {
-				const targetRow = target instanceof Element ? target.closest<HTMLElement>('.cm-line.shiki-live-preview-code-line') ?? undefined : undefined;
-				if (targetRow && this.view.dom.contains(targetRow)) {
-					return targetRow;
+			private scrollTargetFromEvent(target: EventTarget | null, clientX?: number, clientY?: number): { blockId: string; scrollLeft: number } | undefined {
+				const targetBlockId = this.blockIdFromElement(target instanceof Element ? target : undefined);
+				if (targetBlockId) {
+					return { blockId: targetBlockId, scrollLeft: this.blockScrollLeft(targetBlockId) };
 				}
 				if (clientX === undefined || clientY === undefined) {
 					return undefined;
 				}
-				const pointRow = this.view.root.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('.cm-line.shiki-live-preview-code-line') ?? undefined;
-				return pointRow && this.view.dom.contains(pointRow) ? pointRow : undefined;
+				const pointBlockId = this.blockIdFromElement(this.view.root.elementFromPoint(clientX, clientY) ?? undefined);
+				return pointBlockId ? { blockId: pointBlockId, scrollLeft: this.blockScrollLeft(pointBlockId) } : undefined;
+			}
+
+			private blockIdFromElement(element: Element | undefined): string | undefined {
+				if (!element || !this.view.dom.contains(element)) {
+					return undefined;
+				}
+				const blockElement = element.closest<HTMLElement>('[data-shiki-block-id]');
+				const blockId = blockElement?.dataset.shikiBlockId;
+				if (blockId && this.codeRowsForBlock(blockId).length > 0) {
+					return blockId;
+				}
+				return undefined;
+			}
+
+			private blockScrollLeft(blockId: string): number {
+				return this.codeRowsForBlock(blockId)[0]?.scrollLeft ?? scrollLeftByBlock.get(blockId) ?? 0;
 			}
 
 			private applyStoredScrolls(): void {
