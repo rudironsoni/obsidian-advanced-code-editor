@@ -109,6 +109,7 @@ class ShikiLivePreviewBlockWidget extends WidgetType {
 		const right = header.createDiv({ cls: 'shiki-header-right' });
 		const copyBtn = right.createEl('button', { cls: 'shiki-copy-button', text: 'Copy' });
 		this.bindCopyButton(copyBtn);
+		this.renderFenceLine(container, 'opening');
 
 		const body = container.createDiv({ cls: 'shiki-block-body' });
 		this.bindBodyScroll(body, container);
@@ -135,6 +136,7 @@ class ShikiLivePreviewBlockWidget extends WidgetType {
 		this.bindEditor(editor);
 		this.renderCachedTokens(code, container);
 		void this.renderTokens(code, container);
+		this.renderFenceLine(container, 'closing');
 
 		this.bindContainerClick(container, editor);
 
@@ -152,6 +154,11 @@ class ShikiLivePreviewBlockWidget extends WidgetType {
 		if (copyBtn) this.bindCopyButton(copyBtn);
 
 		const body = container.querySelector<HTMLElement>('.shiki-block-body');
+		if (!container.querySelector('.shiki-live-preview-opening-fence') || !container.querySelector('.shiki-live-preview-closing-fence')) {
+			this.renderContainer(container, true);
+			return;
+		}
+		this.updateFenceLines(container);
 		const lineNumbers = container.querySelector<HTMLElement>('.shiki-line-numbers');
 		if (lineNumbers) this.updateLineNumbers(lineNumbers);
 		const pre = container.querySelector('pre');
@@ -182,6 +189,7 @@ class ShikiLivePreviewBlockWidget extends WidgetType {
 		if (!noteLineNumbers) {
 			noteLineNumbers = document.createElement('div');
 			noteLineNumbers.className = 'shiki-note-line-numbers';
+			noteLineNumbers.setAttribute('aria-hidden', 'true');
 			container.prepend(noteLineNumbers);
 		}
 		const openingLine = this.block.openingFenceLine;
@@ -191,11 +199,32 @@ class ShikiLivePreviewBlockWidget extends WidgetType {
 			return;
 		}
 		const expectedCount = closingLine - openingLine + 1;
-		if (noteLineNumbers.children.length === expectedCount && noteLineNumbers.firstElementChild?.textContent === String(openingLine)) return;
+		if (noteLineNumbers.querySelectorAll('span').length === expectedCount && noteLineNumbers.querySelector('span')?.textContent === String(openingLine)) return;
 		noteLineNumbers.empty();
+		noteLineNumbers.createDiv({ cls: 'shiki-note-line-number-header-spacer' });
 		for (let lineNumber = openingLine; lineNumber <= closingLine; lineNumber++) {
 			noteLineNumbers.createSpan({ text: String(lineNumber) });
 		}
+	}
+
+	private renderFenceLine(container: HTMLElement, kind: 'opening' | 'closing'): void {
+		container.createDiv({
+			cls: `shiki-live-preview-fence shiki-live-preview-${kind}-fence`,
+			text: kind === 'opening' ? this.openingFenceText() : (this.block.openingFence ?? '```'),
+		});
+	}
+
+	private updateFenceLines(container: HTMLElement): void {
+		const opening = container.querySelector<HTMLElement>('.shiki-live-preview-opening-fence');
+		const closing = container.querySelector<HTMLElement>('.shiki-live-preview-closing-fence');
+		if (opening) opening.textContent = this.openingFenceText();
+		if (closing) closing.textContent = this.block.openingFence ?? '```';
+	}
+
+	private openingFenceText(): string {
+		const fence = this.block.openingFence ?? '```';
+		const meta = this.block.meta.trim();
+		return `${fence}${this.block.language}${meta ? ` ${meta}` : ''}`;
 	}
 
 	private bindCopyButton(copyBtn: HTMLButtonElement): void {

@@ -130,16 +130,18 @@ span.shiki-ul {
 .markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-block .shiki-note-line-numbers {
 	position: absolute;
 	top: 0;
-	right: calc(100% + 3.2em);
-	z-index: 1;
+	right: calc(100% + 24px);
+	z-index: 2;
 	display: flex;
 	flex-direction: column;
 	align-items: flex-end;
-	width: 4ch;
+	width: 20px;
+	background: var(--background-primary);
 	color: var(--text-faint);
 	font-family: var(--font-monospace);
 	font-size: var(--code-size);
 	line-height: var(--line-height-normal);
+	white-space: normal;
 	user-select: none;
 	pointer-events: none;
 }
@@ -147,6 +149,11 @@ span.shiki-ul {
 .markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-block .shiki-note-line-numbers span {
 	display: block;
 	min-height: var(--line-height-normal);
+}
+
+.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-block .shiki-note-line-number-header-spacer {
+	flex: 0 0 37px;
+	height: 37px;
 }
 
 .shiki-live-preview-block.is-editing {
@@ -161,16 +168,6 @@ span.shiki-ul {
 	display: none !important;
 }
 
-/* Force nowrap on the widget itself so it doesn't inherit CM6 line wrapping */
-.shiki-live-preview-block:not(.wrap-lines) {
-	white-space: pre;
-}
-
-.shiki-live-preview-block.wrap-lines {
-	white-space: pre-wrap;
-	word-break: break-word;
-}
-
 .shiki-block-header {
 	display: flex;
 	justify-content: space-between;
@@ -181,6 +178,7 @@ span.shiki-ul {
 	border-bottom: 1px solid var(--background-modifier-border);
 	background: var(--background-modifier-form-field);
 	border-radius: var(--code-radius) var(--code-radius) 0 0;
+	white-space: normal;
 }
 
 .shiki-header-left {
@@ -200,8 +198,11 @@ span.shiki-ul {
 	background: transparent;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-s);
+	height: auto;
+	min-height: 0;
 	padding: 2px 8px;
 	font-size: var(--font-ui-smaller);
+	line-height: 18px;
 	color: var(--text-muted);
 	cursor: pointer;
 	transition: background-color 0.2s ease;
@@ -209,6 +210,24 @@ span.shiki-ul {
 
 .shiki-copy-button:hover {
 	background: var(--background-modifier-hover);
+}
+
+.shiki-live-preview-fence {
+	padding: 0 var(--code-padding);
+	background: var(--shiki-code-background);
+	color: var(--text-faint);
+	font-family: var(--font-monospace);
+	font-size: var(--code-size);
+	line-height: var(--line-height-normal);
+	white-space: pre;
+}
+
+.shiki-live-preview-opening-fence {
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.shiki-live-preview-closing-fence {
+	border-top: 1px solid var(--background-modifier-border);
 }
 
 .shiki-block-body {

@@ -167,6 +167,8 @@ async function verifyLivePreviewViewing(client) {
 			const body = block?.querySelector('.shiki-block-body');
 			const codeScroll = block?.querySelector('.shiki-code-scroll');
 			const code = block?.querySelector('code');
+			const openingFence = block?.querySelector('.shiki-live-preview-opening-fence');
+			const closingFence = block?.querySelector('.shiki-live-preview-closing-fence');
 			const tokenColor = token => {
 				const span = [...(block?.querySelectorAll('.shiki-code-line [style*="color:"]') ?? [])].find(el => el.textContent === token);
 				return span ? getComputedStyle(span).color : null;
@@ -196,6 +198,9 @@ async function verifyLivePreviewViewing(client) {
 				codeScrollLeft: codeScroll?.scrollLeft ?? 0,
 				lineNumberCount: lineNumbers?.querySelectorAll('span').length ?? 0,
 				lineNumberValues: [...(lineNumbers?.querySelectorAll('span') ?? [])].map(el => el.textContent),
+				openingFenceText: openingFence?.textContent ?? null,
+				closingFenceText: closingFence?.textContent ?? null,
+				headerBeforeOpeningFence: !!block && !!openingFence && !!block.querySelector('.shiki-block-header') && [...block.children].indexOf(block.querySelector('.shiki-block-header')) < [...block.children].indexOf(openingFence),
 				noteLineNumberCount: noteLineNumbers?.querySelectorAll('span').length ?? 0,
 				noteLineNumberValues: [...(noteLineNumbers?.querySelectorAll('span') ?? [])].map(el => el.textContent),
 				noteLineNumberDisplay: noteLineNumberStyle?.display ?? null,
@@ -220,6 +225,9 @@ async function verifyLivePreviewViewing(client) {
 	assert(state.codeScrollLeft === 0, 'Live Preview viewing scrolled an inner per-line/code scroll container', state);
 	assert(state.lineNumberCount === 2, 'Live Preview viewing internal line numbers include fence lines or omit code lines', state);
 	assert(JSON.stringify(state.lineNumberValues) === JSON.stringify(['1', '2']), 'Live Preview viewing internal line numbers do not count only code content lines', state);
+	assert(state.openingFenceText === '```ts', 'Live Preview viewing did not show the opening fence with language below the header', state);
+	assert(state.closingFenceText === '```', 'Live Preview viewing did not show the closing fence', state);
+	assert(state.headerBeforeOpeningFence, 'Live Preview viewing did not render the header above the opening fence', state);
 	assert(state.noteLineNumberCount === 4, 'Live Preview viewing did not render note line numbers for the full fenced range', state);
 	assert(JSON.stringify(state.noteLineNumberValues) === JSON.stringify(['3', '4', '5', '6']), 'Live Preview viewing note line numbers do not match the fenced document range', state);
 	assert(state.noteLineNumberDisplay === 'flex', 'Live Preview viewing note line number rail is not visible', state);
