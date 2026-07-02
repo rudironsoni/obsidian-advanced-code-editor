@@ -490,13 +490,18 @@ async function openMode(client, mode) {
 
 async function waitForRendering(client, mode, settings = {}) {
 	const started = Date.now();
+	const timeoutMs = mode === 'reading' ? 30000 : 15000;
+	let refreshedReadingView = false;
 	let state = null;
-	while (Date.now() - started < 15000) {
+	while (Date.now() - started < timeoutMs) {
 		state = await getRenderState(client, mode, settings);
 		if (mode === 'source') {
 			if (state.source.shikiBlocks === 0 && state.source.cmText.length > 500) {
 				return state;
 			}
+		} else if (mode === 'reading' && !refreshedReadingView && state.shiki.blocks >= 1 && state.shiki.tokens === 0) {
+			refreshedReadingView = true;
+			await openMode(client, mode);
 		} else if (
 			state.shiki.blocks >= 1 &&
 			state.shiki.tokens > 0 &&
