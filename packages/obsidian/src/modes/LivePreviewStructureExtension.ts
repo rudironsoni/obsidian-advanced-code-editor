@@ -108,10 +108,8 @@ class ShikiLivePreviewHorizontalScrollWidget extends WidgetType {
 		const ownerDocument = scroller.ownerDocument;
 		const spacer = scroller.createDiv({ cls: 'shiki-live-preview-horizontal-scroll-spacer' });
 		const rowSelector = `.cm-line[data-shiki-scroll-key="${CSS.escape(this.scrollKey)}"]`;
-		const offsetStyle = ownerDocument.createElement('style');
-		offsetStyle.dataset.shikiBlockId = this.block.id;
-		ownerDocument.head.appendChild(offsetStyle);
 		let rows: HTMLElement[] = [];
+		const mutationObserver = new MutationObserver(() => syncCurrentRows());
 		let documentPointerId: number | null = null;
 		let documentStartX = 0;
 		let documentStartY = 0;
@@ -124,7 +122,6 @@ class ShikiLivePreviewHorizontalScrollWidget extends WidgetType {
 		let touchHorizontal = false;
 		const sync = (): void => {
 			ShikiLivePreviewHorizontalScrollWidget.scrollLeftByBlock.set(this.scrollKey, scroller.scrollLeft);
-			offsetStyle.textContent = `${rowSelector}{--shiki-live-preview-scroll-left:${scroller.scrollLeft}px;}`;
 			for (const row of rows) {
 				row.style.setProperty('--shiki-live-preview-scroll-left', `${scroller.scrollLeft}px`);
 			}
@@ -222,7 +219,7 @@ class ShikiLivePreviewHorizontalScrollWidget extends WidgetType {
 			ownerDocument.removeEventListener('touchend', onDocumentTouchEnd, true);
 			ownerDocument.removeEventListener('touchcancel', onDocumentTouchEnd, true);
 			ownerDocument.removeEventListener('wheel', onDocumentWheel, true);
-			offsetStyle.remove();
+			mutationObserver?.disconnect();
 		};
 		const resize = (): void => {
 			rows = [...scroller.ownerDocument.querySelectorAll<HTMLElement>(rowSelector)];
@@ -235,6 +232,10 @@ class ShikiLivePreviewHorizontalScrollWidget extends WidgetType {
 			scroller.scrollLeft = ShikiLivePreviewHorizontalScrollWidget.scrollLeftByBlock.get(this.scrollKey) ?? scroller.scrollLeft;
 			sync();
 		};
+		const sourceRoot = scroller.closest('.markdown-source-view.mod-cm6');
+		if (sourceRoot) {
+			mutationObserver.observe(sourceRoot, { childList: true, subtree: true });
+		}
 		scroller.onscroll = sync;
 		scroller.onwheel = (event): void => {
 			if (Math.abs(event.deltaX) <= Math.abs(event.deltaY) || scroller.scrollWidth <= scroller.clientWidth) return;
