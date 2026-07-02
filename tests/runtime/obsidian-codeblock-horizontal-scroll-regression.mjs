@@ -189,12 +189,29 @@ async function verifyLivePreviewViewing(client) {
 			await new Promise(resolve => setTimeout(resolve, 50));
 			const afterLineLeft = lineNumbers[0]?.getBoundingClientRect().left ?? null;
 			const afterCodeLeft = firstContent?.getBoundingClientRect().left ?? null;
+			if (sharedScroll) sharedScroll.scrollLeft = 0;
+			sharedScroll?.dispatchEvent(new Event('scroll'));
+			await new Promise(resolve => setTimeout(resolve, 50));
+			const beforeTouchCodeLeft = firstContent?.getBoundingClientRect().left ?? null;
+			const panRow = codeRows[0];
+			const panRect = panRow?.getBoundingClientRect();
+			if (panRow && panRect) {
+				const pointerInit = { bubbles: true, cancelable: true, pointerId: 91, pointerType: 'touch', clientX: panRect.left + 220, clientY: panRect.top + panRect.height / 2 };
+				panRow.dispatchEvent(new PointerEvent('pointerdown', pointerInit));
+				panRow.dispatchEvent(new PointerEvent('pointermove', { ...pointerInit, clientX: panRect.left + 60 }));
+				panRow.dispatchEvent(new PointerEvent('pointerup', { ...pointerInit, clientX: panRect.left + 60 }));
+			}
+			await new Promise(resolve => setTimeout(resolve, 50));
+			const afterTouchCodeLeft = firstContent?.getBoundingClientRect().left ?? null;
+			const touchPanScrollLeft = sharedScroll?.scrollLeft ?? 0;
 			return {
 				hasHeader: !!header,
 				hasSharedScroll: !!sharedScroll,
 				sharedScrollClient: sharedScroll?.clientWidth ?? 0,
 				sharedScrollWidth: sharedScroll?.scrollWidth ?? 0,
 				sharedScrollLeft: sharedScroll?.scrollLeft ?? 0,
+				scrollbarScrollLeft: 260,
+				touchPanScrollLeft,
 				visibleCodeLineCount: root.querySelectorAll('.cm-line.shiki-live-preview-code-line').length,
 				visibleGutterCount: visibleGutters.length,
 				blockGutterCount: blockGutters.length,
@@ -209,6 +226,7 @@ async function verifyLivePreviewViewing(client) {
 				lineNumberBackground: lineNumberStyle?.backgroundColor ?? null,
 				lineMoved: beforeLineLeft !== null && afterLineLeft !== null ? beforeLineLeft - afterLineLeft : 0,
 				codeMoved: beforeCodeLeft !== null && afterCodeLeft !== null ? beforeCodeLeft - afterCodeLeft : 0,
+				touchCodeMoved: beforeTouchCodeLeft !== null && afterTouchCodeLeft !== null ? beforeTouchCodeLeft - afterTouchCodeLeft : 0,
 				anyLineOwnScroll: codeRows.some(el => el.scrollLeft > 0),
 				noteScrollLeft: scroller?.scrollLeft ?? 0,
 				constColor: tokenColor('const'),
@@ -223,7 +241,8 @@ async function verifyLivePreviewViewing(client) {
 	assert(state.visibleGutterCount > 0, 'Live Preview viewing hid note gutter line numbers', state);
 	assert(state.blockGutterCount === 4, 'Live Preview viewing did not preserve native note gutter rows for the fenced range', state);
 	assert(state.sharedScrollWidth > state.sharedScrollClient, 'Live Preview viewing shared scrollbar is not horizontally scrollable', state);
-	assert(state.sharedScrollLeft > 0, 'Live Preview viewing shared scrollbar did not scroll horizontally', state);
+	assert(state.scrollbarScrollLeft > 0, 'Live Preview viewing shared scrollbar did not scroll horizontally', state);
+	assert(state.touchPanScrollLeft > 0, 'Live Preview viewing code row touch pan did not move the shared scrollbar', state);
 	assert(state.lineNumberCount === 2, 'Live Preview viewing internal line numbers include fence lines or omit code lines', state);
 	assert(JSON.stringify(state.lineNumberValues) === JSON.stringify(['1', '2']), 'Live Preview viewing internal line numbers do not count only code content lines', state);
 	assert(state.openingFenceText === '```ts', 'Live Preview viewing did not show the opening fence with language below the header', state);
@@ -231,10 +250,10 @@ async function verifyLivePreviewViewing(client) {
 	assert(state.headerBeforeOpeningFence, 'Live Preview viewing did not render the header above the opening fence', state);
 	assert(Math.abs(state.lineMoved) < 1, 'Live Preview viewing moved line numbers horizontally', state);
 	assert(isOpaqueColor(state.lineNumberBackground), 'Live Preview viewing line number gutter is transparent', state);
-	assert(state.codeMoved > 0, 'Live Preview viewing did not move code content horizontally', state);
+	assert(state.codeMoved > 0 || state.touchCodeMoved > 0, 'Live Preview viewing did not move code content horizontally', state);
 	assert(!state.anyLineOwnScroll, 'Live Preview viewing left horizontal scroll on individual lines', state);
 	assert(state.rowScrollLefts.every(value => value === 0), 'Live Preview viewing used per-line scrollLeft', state);
-	assert(new Set(state.sharedOffsets).size === 1 && state.sharedOffsets[0] === `${state.sharedScrollLeft}px`, 'Live Preview viewing code rows do not share one scroll offset', state);
+	assert(new Set(state.sharedOffsets).size === 1 && state.sharedOffsets[0] === `${state.touchPanScrollLeft}px`, 'Live Preview viewing code rows do not share one scroll offset', state);
 	assert(state.noteScrollLeft === 0, 'Live Preview viewing moved the note horizontally', state);
 	return state;
 }

@@ -90,6 +90,7 @@ class ShikiLivePreviewFenceWidget extends WidgetType {
 class ShikiLivePreviewHorizontalScrollWidget extends WidgetType {
 	private static readonly scrollLeftByBlock = new Map<string, number>();
 	private readonly scrollKey: string;
+	private cleanupDocumentPan: (() => void) | undefined;
 
 	constructor(private readonly block: CodeBlockModel) {
 		super();
@@ -104,16 +105,70 @@ class ShikiLivePreviewHorizontalScrollWidget extends WidgetType {
 		const scroller = document.createElement('div');
 		scroller.className = 'shiki-live-preview-horizontal-scroll';
 		scroller.dataset.shikiBlockId = this.block.id;
+		const ownerDocument = scroller.ownerDocument;
 		const spacer = scroller.createDiv({ cls: 'shiki-live-preview-horizontal-scroll-spacer' });
-		const rowSelector = `.cm-line[data-shiki-block-id="${CSS.escape(this.block.id)}"]`;
+		const escapedBlockId = CSS.escape(this.block.id);
+		const rowSelector = `.cm-line[data-shiki-block-id="${escapedBlockId}"]`;
+		const offsetStyle = ownerDocument.createElement('style');
+		offsetStyle.dataset.shikiBlockId = this.block.id;
+		ownerDocument.head.appendChild(offsetStyle);
+		let rows: HTMLElement[] = [];
+		let documentPointerId: number | null = null;
+		let documentStartX = 0;
+		let documentStartY = 0;
+		let documentStartScrollLeft = 0;
+		let documentHorizontal = false;
 		const sync = (): void => {
 			ShikiLivePreviewHorizontalScrollWidget.scrollLeftByBlock.set(this.scrollKey, scroller.scrollLeft);
-			const rows = [...scroller.ownerDocument.querySelectorAll<HTMLElement>(rowSelector)];
+			offsetStyle.textContent = `${rowSelector}{--shiki-live-preview-scroll-left:${scroller.scrollLeft}px;}`;
 			for (const row of rows) {
 				row.style.setProperty('--shiki-live-preview-scroll-left', `${scroller.scrollLeft}px`);
 			}
 		};
+		const syncCurrentRows = (): void => {
+			rows = [...scroller.ownerDocument.querySelectorAll<HTMLElement>(rowSelector)];
+			sync();
+		};
+		const onDocumentPointerDown = (event: PointerEvent): void => {
+			if (event.pointerType === 'mouse' && event.button !== 0) return;
+			if (scroller.scrollWidth <= scroller.clientWidth) return;
+			if (!(event.target instanceof Element) || !event.target.closest(rowSelector)) return;
+			documentPointerId = event.pointerId;
+			documentStartX = event.clientX;
+			documentStartY = event.clientY;
+			documentStartScrollLeft = scroller.scrollLeft;
+			documentHorizontal = false;
+		};
+		const onDocumentPointerMove = (event: PointerEvent): void => {
+			if (documentPointerId !== event.pointerId) return;
+			const deltaX = event.clientX - documentStartX;
+			const deltaY = event.clientY - documentStartY;
+			if (!documentHorizontal && Math.abs(deltaX) > 6 && Math.abs(deltaX) > Math.abs(deltaY)) {
+				documentHorizontal = true;
+			}
+			if (!documentHorizontal) return;
+			if (event.cancelable) event.preventDefault();
+			scroller.scrollLeft = Math.max(0, documentStartScrollLeft - deltaX);
+			syncCurrentRows();
+		};
+		const onDocumentPointerEnd = (event: PointerEvent): void => {
+			if (documentPointerId !== event.pointerId) return;
+			documentPointerId = null;
+			documentHorizontal = false;
+		};
+		ownerDocument.addEventListener('pointerdown', onDocumentPointerDown, true);
+		ownerDocument.addEventListener('pointermove', onDocumentPointerMove, true);
+		ownerDocument.addEventListener('pointerup', onDocumentPointerEnd, true);
+		ownerDocument.addEventListener('pointercancel', onDocumentPointerEnd, true);
+		this.cleanupDocumentPan = (): void => {
+			ownerDocument.removeEventListener('pointerdown', onDocumentPointerDown, true);
+			ownerDocument.removeEventListener('pointermove', onDocumentPointerMove, true);
+			ownerDocument.removeEventListener('pointerup', onDocumentPointerEnd, true);
+			ownerDocument.removeEventListener('pointercancel', onDocumentPointerEnd, true);
+			offsetStyle.remove();
+		};
 		const resize = (): void => {
+			rows = [...scroller.ownerDocument.querySelectorAll<HTMLElement>(rowSelector)];
 			const contents = [...scroller.ownerDocument.querySelectorAll<HTMLElement>(`${rowSelector} .shiki-live-preview-scroll-content`)];
 			let width = scroller.clientWidth;
 			for (const content of contents) {
@@ -131,6 +186,11 @@ class ShikiLivePreviewHorizontalScrollWidget extends WidgetType {
 		};
 		requestAnimationFrame(resize);
 		return scroller;
+	}
+
+	destroy(): void {
+		this.cleanupDocumentPan?.();
+		this.cleanupDocumentPan = undefined;
 	}
 
 	ignoreEvent(): boolean {
