@@ -835,6 +835,24 @@ async function verifyScroll(client, mode, settings, state) {
 		);
 	}
 	assert((afterLeftEdge.page.noteScrollLeft ?? 0) === 0, `${mode}: block-gutter horizontal touch moved the note`, { afterLeftEdge, settings });
+	if (mode === 'live-preview') {
+		await openMode(client, mode);
+		await positionBlockForGestures(client, mode, settings);
+		const beforeOutsideBlockEdge = await getRenderState(client, mode, settings);
+		const outsideBlockEdgeY = Math.max(80, Math.min(Math.round(beforeOutsideBlockEdge.shiki.firstRect.top + 120), beforeOutsideBlockEdge.mobile.innerHeight - 140));
+		const outsideBlockEdgeStartX = Math.max(8, Math.round(beforeOutsideBlockEdge.shiki.firstRect.left - 24));
+		const outsideBlockEdgeEndX = Math.max(4, Math.round(beforeOutsideBlockEdge.shiki.firstRect.left - 96));
+		await dispatchTouchSwipe(client, outsideBlockEdgeStartX, outsideBlockEdgeY, outsideBlockEdgeEndX, outsideBlockEdgeY);
+		const afterOutsideBlockEdge = await getRenderState(client, mode, settings);
+		if (!settings.wrap) {
+			assert(
+				(afterOutsideBlockEdge.shiki.scrollLeft ?? 0) > (beforeOutsideBlockEdge.shiki.scrollLeft ?? 0),
+				`${mode}: horizontal touch near the block edge did not scroll Shiki horizontally`,
+				{ beforeOutsideBlockEdge, afterOutsideBlockEdge, settings, outsideBlockEdgeStartX, outsideBlockEdgeEndX, outsideBlockEdgeY },
+			);
+		}
+		assert((afterOutsideBlockEdge.page.noteScrollLeft ?? 0) === 0, `${mode}: near-edge horizontal touch moved the note`, { afterOutsideBlockEdge, settings });
+	}
 
 	const outsideX = Math.max(12, Math.round(before.shiki.firstRect.left - 36));
 	const outsideY = Math.max(80, Math.min(Math.round(before.shiki.firstRect.top + 40), before.mobile.innerHeight - 140));

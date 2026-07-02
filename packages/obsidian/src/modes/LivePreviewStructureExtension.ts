@@ -291,6 +291,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 				if (event.cancelable) {
 					event.preventDefault();
 				}
+				event.stopPropagation();
 				this.syncBlockRows(this.pointerBlockId, this.pointerStartScrollLeft - deltaX);
 			};
 
@@ -333,6 +334,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 				if (event.cancelable) {
 					event.preventDefault();
 				}
+				event.stopPropagation();
 				this.syncBlockRows(this.touchBlockId, this.touchStartScrollLeft - deltaX);
 			};
 
@@ -372,7 +374,11 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 					return undefined;
 				}
 				const pointBlockId = this.blockIdFromElement(this.view.root.elementFromPoint(clientX, clientY) ?? undefined);
-				return pointBlockId ? { blockId: pointBlockId, scrollLeft: this.blockScrollLeft(pointBlockId) } : undefined;
+				if (pointBlockId) {
+					return { blockId: pointBlockId, scrollLeft: this.blockScrollLeft(pointBlockId) };
+				}
+				const coordinateBlockId = this.blockIdFromPoint(clientX, clientY);
+				return coordinateBlockId ? { blockId: coordinateBlockId, scrollLeft: this.blockScrollLeft(coordinateBlockId) } : undefined;
 			}
 
 			private blockIdFromElement(element: Element | undefined): string | undefined {
@@ -389,6 +395,34 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 
 			private blockScrollLeft(blockId: string): number {
 				return this.codeRowsForBlock(blockId)[0]?.scrollLeft ?? scrollLeftByBlock.get(blockId) ?? 0;
+			}
+
+			private blockIdFromPoint(clientX: number, clientY: number): string | undefined {
+				const blockIds = new Set<string>();
+				for (const element of this.view.dom.querySelectorAll<HTMLElement>('[data-shiki-block-id]')) {
+					const blockId = element.dataset.shikiBlockId;
+					if (blockId) {
+						blockIds.add(blockId);
+					}
+				}
+
+				for (const blockId of blockIds) {
+					const elements = [...this.view.dom.querySelectorAll<HTMLElement>(`[data-shiki-block-id="${CSS.escape(blockId)}"]`)];
+					const rects = elements
+						.map(element => element.getBoundingClientRect())
+						.filter(rect => rect.width > 0 && rect.height > 0);
+					if (rects.length === 0 || this.codeRowsForBlock(blockId).length === 0) {
+						continue;
+					}
+					const left = Math.min(...rects.map(rect => rect.left));
+					const right = Math.max(...rects.map(rect => rect.right));
+					const top = Math.min(...rects.map(rect => rect.top));
+					const bottom = Math.max(...rects.map(rect => rect.bottom));
+					if (clientX >= left - 48 && clientX <= right + 4 && clientY >= top && clientY <= bottom) {
+						return blockId;
+					}
+				}
+				return undefined;
 			}
 
 			private applyStoredScrolls(): void {
