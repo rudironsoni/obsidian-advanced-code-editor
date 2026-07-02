@@ -94,7 +94,7 @@ class ShikiLivePreviewHorizontalScrollWidget extends WidgetType {
 
 	constructor(private readonly block: CodeBlockModel) {
 		super();
-		this.scrollKey = `${block.sourcePath}:${block.openingFenceLine ?? ''}:${block.closingFenceLine ?? ''}`;
+		this.scrollKey = livePreviewScrollKey(block);
 	}
 
 	eq(other: ShikiLivePreviewHorizontalScrollWidget): boolean {
@@ -104,11 +104,10 @@ class ShikiLivePreviewHorizontalScrollWidget extends WidgetType {
 	toDOM(): HTMLElement {
 		const scroller = document.createElement('div');
 		scroller.className = 'shiki-live-preview-horizontal-scroll';
-		scroller.dataset.shikiBlockId = this.block.id;
+		scroller.dataset.shikiScrollKey = this.scrollKey;
 		const ownerDocument = scroller.ownerDocument;
 		const spacer = scroller.createDiv({ cls: 'shiki-live-preview-horizontal-scroll-spacer' });
-		const escapedBlockId = CSS.escape(this.block.id);
-		const rowSelector = `.cm-line[data-shiki-block-id="${escapedBlockId}"]`;
+		const rowSelector = `.cm-line[data-shiki-scroll-key="${CSS.escape(this.scrollKey)}"]`;
 		const offsetStyle = ownerDocument.createElement('style');
 		offsetStyle.dataset.shikiBlockId = this.block.id;
 		ownerDocument.head.appendChild(offsetStyle);
@@ -262,6 +261,10 @@ function openingFenceText(block: CodeBlockModel): string {
 	return `${fence}${block.language}${meta ? ` ${meta}` : ''}`;
 }
 
+function livePreviewScrollKey(block: CodeBlockModel): string {
+	return `${block.sourcePath}:${block.openingFenceLine ?? ''}:${block.closingFenceLine ?? ''}`;
+}
+
 export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extension {
 	const parser = new CodeBlockParser();
 
@@ -291,6 +294,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 				closingFenceLine: parsedBlock.closingFenceLine,
 			});
 			plugin.codeBlockRegistry.upsert(block);
+			const scrollKey = livePreviewScrollKey(block);
 
 			if (block.fenceFrom === undefined || block.codeFrom === undefined || block.codeTo === undefined) {
 				continue;
@@ -314,6 +318,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 						attributes: {
 							class: className,
 							'data-shiki-block-id': block.id,
+							'data-shiki-scroll-key': scrollKey,
 							'data-shiki-editing-block-id': block.id,
 						},
 					}),
