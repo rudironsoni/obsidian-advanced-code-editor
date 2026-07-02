@@ -268,12 +268,27 @@ async function waitForSettings(client, settings) {
 }
 
 async function setViewport(client, viewport) {
-	await client.send('Emulation.setDeviceMetricsOverride', {
-		width: viewport.width,
-		height: viewport.height,
-		deviceScaleFactor: viewport.deviceScaleFactor,
-		mobile: viewport.mobile,
-	});
+	if (viewport.mobile) {
+		await client.send('Emulation.setDeviceMetricsOverride', {
+			width: viewport.width,
+			height: viewport.height,
+			deviceScaleFactor: viewport.deviceScaleFactor,
+			mobile: true,
+		});
+	} else {
+		await client.send('Emulation.clearDeviceMetricsOverride').catch(() => undefined);
+		await evaluate(
+			client,
+			`(() => {
+				const win = globalThis.electronWindow;
+				win?.show?.();
+				win?.restore?.();
+				win?.setBounds?.({ x: 100, y: 100, width: ${JSON.stringify(viewport.width)}, height: ${JSON.stringify(viewport.height)} });
+				win?.focus?.();
+				return true;
+			})()`,
+		);
+	}
 	await waitFor(client, 'Boolean(globalThis.app?.workspace && globalThis.app?.vault)', 'Timed out waiting for Obsidian app global');
 	await evaluate(client, `globalThis.app?.emulateMobile?.(${JSON.stringify(viewport.mobile)}); true`);
 	await waitFor(
@@ -368,25 +383,25 @@ async function collectState(client) {
 			const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
 			const plugin = globalThis.app?.plugins?.plugins?.['advanced-code-block'];
 			const settings = plugin ? { showLineNumbers: plugin.loadedSettings?.showLineNumbers, wrapLines: plugin.loadedSettings?.wrapLines } : null;
-			const blocks = [...root.querySelectorAll('.shiki-live-preview-block')];
-			const block = blocks[0] ?? null;
 			const headers = [...root.querySelectorAll('.shiki-live-preview-header')];
 			const header = headers[0] ?? null;
-			const body = block?.querySelector('.shiki-block-body') ?? null;
 			const codeLines = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line')];
-			const tokenSpans = settings?.wrapLines ? [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line [style*="color:"]')] : [...(block?.querySelectorAll('[style*="color:"]') ?? [])];
-			const lineNumbers = settings?.wrapLines ? [...root.querySelectorAll('.shiki-live-preview-line-number')] : [...(block?.querySelectorAll('.shiki-line-numbers span') ?? [])];
+			const fenceLines = [...root.querySelectorAll('.cm-line.shiki-live-preview-fence-line')];
+			const fenceWidgets = [...root.querySelectorAll('.cm-line.shiki-live-preview-fence-line .shiki-live-preview-fence-text')];
+			const tokenSpans = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line [style*="color:"]')];
+			const lineNumbers = [...root.querySelectorAll('.shiki-live-preview-line-number')];
 			const visibleGutters = [...root.querySelectorAll('.cm-lineNumbers .cm-gutterElement')].filter(element => getComputedStyle(element).visibility !== 'hidden');
-			const host = block ?? header;
+			const host = header;
 			if (host && !window.__shikiRedrawVerifierHostIds.has(host)) {
 				window.__shikiRedrawVerifierHostIds.set(host, window.__shikiRedrawVerifierNextHostId++);
 			}
-			const blockRect = (block ?? header)?.getBoundingClientRect?.() ?? null;
+			const blockRect = header?.getBoundingClientRect?.() ?? null;
 			const visibleCodeRows = codeLines.filter(row => {
 				const rect = row.getBoundingClientRect();
 				const style = getComputedStyle(row);
 				return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden'
 			});
+			const codeOverflow = codeLines.some(row => row.scrollWidth > row.clientWidth + 1);
 			const noteScrollers = [...root.querySelectorAll('.view-content, .cm-scroller, .cm-editor, .markdown-source-view')].map(element => ({
 				className: element.className,
 				scrollLeft: element.scrollLeft,
@@ -395,7 +410,7 @@ async function collectState(client) {
 			return {
 				activeFile: globalThis.app?.workspace?.getActiveFile?.()?.path ?? null,
 				isMobile: globalThis.app?.isMobile ?? false,
-				blocks: settings?.wrapLines ? headers.length : blocks.length,
+				blocks: headers.length,
 				blockId: host ? window.__shikiRedrawVerifierHostIds.get(host) : null,
 				blockRect: blockRect ? {
 					left: blockRect.left,
@@ -406,11 +421,13 @@ async function collectState(client) {
 				} : null,
 				tokenSpans: tokenSpans.length,
 				hasLineNumbers: lineNumbers.length > 0,
-				hasHeader: settings?.wrapLines ? headers.length > 0 : !!block?.querySelector('.shiki-block-header'),
-				hasScrollContainer: !!body && body.scrollWidth > body.clientWidth + 1,
+				hasHeader: headers.length > 0,
+				fenceLines: fenceLines.length,
+				fenceWidgets: fenceWidgets.map(widget => ({ text: widget.textContent, color: getComputedStyle(widget).color })),
+				hasScrollContainer: codeOverflow,
 				visibleRawRows: visibleCodeRows.length,
 				visibleGutters: visibleGutters.length,
-				blockScrollLeft: body?.scrollLeft ?? 0,
+				blockScrollLeft: Math.max(0, ...codeLines.map(row => row.scrollLeft ?? 0)),
 				settings,
 				noteScrollLeft: Math.max(0, ...noteScrollers.map(scroller => scroller.scrollLeft ?? 0)),
 				noteScrollTop: Math.max(0, ...noteScrollers.map(scroller => scroller.scrollTop ?? 0)),
@@ -425,18 +442,17 @@ function assertShikiReady(state, context) {
 	assert(state.blocks === 1, `${context}: expected exactly one Shiki live preview surface`, state);
 	assert(state.blockRect?.width > 20 && state.blockRect?.height > 20, `${context}: Shiki block has invalid geometry`, state);
 	assert(state.tokenSpans > 0, `${context}: Shiki block rendered no token spans`, state);
+	assert(state.visibleRawRows > 0, `${context}: native CodeMirror code rows are not visible`, state);
+	assert(state.fenceLines === 2, `${context}: expected native opening and closing fence rows`, state);
+	assert(state.fenceWidgets?.length === 2, `${context}: expected raw opening and closing fence widgets`, state);
+	assert(state.fenceWidgets[0]?.text === '```ts' && state.fenceWidgets[1]?.text === '```', `${context}: raw fence text is incorrect`, state);
 	if (state.settings?.showLineNumbers === true) {
 		assert(state.hasLineNumbers, `${context}: Shiki block missing line numbers`, state);
 	} else if (state.settings?.showLineNumbers === false) {
 		assert(!state.hasLineNumbers, `${context}: Shiki block unexpectedly rendered line numbers`, state);
 	}
 	assert(state.hasHeader, `${context}: Shiki Live Preview missing header`, state);
-	if (state.settings?.wrapLines === false) {
-		assert(state.hasScrollContainer, `${context}: Shiki block body is not horizontally scrollable`, state);
-		assert(state.visibleRawRows === 0, `${context}: native CodeMirror code rows are visible in nowrap viewing mode`, state);
-	} else {
-		assert(state.visibleRawRows > 0, `${context}: native CodeMirror code rows are not visible in wrap viewing mode`, state);
-	}
+	assert(state.settings?.wrapLines === true || state.hasScrollContainer, `${context}: nowrap code rows do not expose horizontal overflow`, state);
 	assert(state.visibleGutters > 0, `${context}: native CodeMirror line gutters are not visible`, state);
 	assert(state.noteScrollLeft === 0, `${context}: note scroller moved horizontally`, state);
 }
@@ -483,29 +499,23 @@ async function verifyScroll(client, settings, context) {
 		return true;
 	})()`);
 	await delay(300);
-	if (before.isMobile) {
-		await evaluate(client, `(() => { const body = document.querySelector('.workspace-leaf.mod-active .shiki-live-preview-block .shiki-block-body'); if (body) body.scrollLeft = 280; return true; })()`);
-	} else {
-		await evaluate(
-			client,
-			`(() => {
+	await evaluate(
+		client,
+		`(() => {
 			const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
-			const body = root.querySelector('.shiki-live-preview-block .shiki-block-body');
-			if (body) body.scrollLeft = 280;
-			for (const element of root.querySelectorAll('.view-content, .cm-scroller, .cm-editor, .markdown-source-view')) {
+			for (const element of root.querySelectorAll('.view-content, .cm-scroller, .cm-editor, .markdown-source-view, .cm-line.shiki-live-preview-code-line')) {
 				element.scrollLeft = 0;
 			}
 			return true;
 		})()`,
-		);
-	}
+	);
 	await delay(300);
 	const afterHorizontal = await collectState(client);
 	assertShikiReady(afterHorizontal, `${context} after horizontal scroll`);
 	assert(afterHorizontal.noteScrollLeft === 0, `${context}: note moved horizontally during code scroll`, { before, after: afterHorizontal, settings });
+	assert(afterHorizontal.blockScrollLeft === 0, `${context}: individual native code rows were horizontally panned`, { before, after: afterHorizontal, settings });
 	if (!settings.wrap) {
-		const scrollLeft = afterHorizontal.blockScrollLeft;
-		assert(scrollLeft > 0, `${context}: Shiki block body did not scroll horizontally with wrap off`, { before, after: afterHorizontal, settings });
+		assert(afterHorizontal.hasScrollContainer, `${context}: nowrap code rows do not expose horizontal overflow`, { before, after: afterHorizontal, settings });
 	}
 	await evaluate(
 		client,

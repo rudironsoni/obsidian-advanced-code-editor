@@ -117,23 +117,21 @@ describe('startup module boundary', () => {
 		expect(livePreview).toContain('codeTo: block.range.charTo');
 	});
 
-	test('live preview uses one whole-block scroll surface for nowrap viewing and editing', () => {
+	test('live preview preserves native CodeMirror rows and gutters', () => {
 		const livePreview = read('packages/obsidian/src/modes/LivePreviewAdapter.ts');
 		const structure = read('packages/obsidian/src/modes/LivePreviewStructureExtension.ts');
 		expect(livePreview).not.toContain('new ShikiLivePreviewWidget');
 		expect(structure).not.toContain('BlockWrapper');
 		expect(structure).not.toContain('blockWrappers');
-		expect(structure).toContain('ShikiLivePreviewBlockWidget');
+		expect(structure).not.toContain('ShikiLivePreviewBlockWidget');
 		expect(structure).toContain('Decoration.replace');
-		expect(structure).toContain('shiki-live-preview-block');
-		expect(structure).toContain('shiki-block-body');
-		expect(structure).toContain('shiki-code-scroll');
-		expect(structure).toContain('shiki-live-preview-editor');
-		expect(structure).toContain('replaceCode');
-		expect(structure).toContain('getCurrentCodeRange');
+		expect(structure).toContain('shiki-live-preview-code-line');
+		expect(structure).toContain('shiki-live-preview-fence-line');
+		expect(structure).toContain('ShikiLivePreviewFenceWidget');
 		expect(structure).toContain('ShikiLivePreviewHeaderWidget');
 		expect(structure).toContain('ShikiLivePreviewLineNumberWidget');
 		expect(structure).not.toContain('isBlockSelected');
+		expect(structure).not.toContain('shiki-note-line-numbers');
 		expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged && !update.selectionSet)');
 		expect(livePreview).toContain('retokenizeBlocks');
 		expect(livePreview).toContain('this.plugin.highlighter.getTokenStyle(token)');
@@ -244,7 +242,8 @@ test('styles contain Shiki block styles and no Monaco styles', () => {
 	expect(styles).toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-scroller');
 	expect(styles).toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line');
 	expect(styles).not.toContain('--shiki-editing-scroll-left');
-	expect(styles).not.toContain('transform: translateX');
+	expect(styles).toContain('--shiki-live-preview-scroll-left');
+	expect(styles).toContain('.shiki-live-preview-horizontal-scroll');
 	expect(styles).toContain('overflow-x: visible');
 	expect(styles).toContain('body.shiki-use-editor-font-size .shiki-live-preview-block .shiki-block-body');
 	expect(styles).toContain('font-size: var(--font-text-size);');
