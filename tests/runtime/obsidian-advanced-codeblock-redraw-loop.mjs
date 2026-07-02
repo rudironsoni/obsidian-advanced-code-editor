@@ -352,20 +352,24 @@ async function openMode(client, mode) {
 		})()`,
 	);
 	await waitForMode(client, mode);
-	await evaluate(client, `(() => {
+	await evaluate(
+		client,
+		`(() => {
 		void Promise.resolve(globalThis.app?.plugins?.plugins?.['advanced-code-block']?.updateCm6Plugin?.()).catch(() => undefined);
 		return true;
-	})()`);
+	})()`,
+	);
 	await delay(300);
 }
 
 async function waitForMode(client, mode) {
 	const expectedFile = JSON.stringify(NOTE_PATH);
-	const modeExpression = mode === 'reading'
-		? `Boolean(document.querySelector('.workspace-leaf.mod-active .markdown-preview-view'))`
-		: mode === 'live-preview'
-			? `Boolean(document.querySelector('.workspace-leaf.mod-active .markdown-source-view.mod-cm6.is-live-preview'))`
-			: `Boolean(document.querySelector('.workspace-leaf.mod-active .markdown-source-view.mod-cm6:not(.is-live-preview)'))`;
+	const modeExpression =
+		mode === 'reading'
+			? `Boolean(document.querySelector('.workspace-leaf.mod-active .markdown-preview-view'))`
+			: mode === 'live-preview'
+				? `Boolean(document.querySelector('.workspace-leaf.mod-active .markdown-source-view.mod-cm6.is-live-preview'))`
+				: `Boolean(document.querySelector('.workspace-leaf.mod-active .markdown-source-view.mod-cm6:not(.is-live-preview)'))`;
 	return waitFor(
 		client,
 		`globalThis.app?.workspace?.getActiveFile?.()?.path === ${expectedFile} && ${modeExpression}`,
@@ -497,10 +501,13 @@ async function assertStable(client, context) {
 async function verifyScroll(client, settings, context) {
 	await waitForSettings(client, settings);
 	const before = await waitForShikiReady(client, `${context} before scroll`);
-	await evaluate(client, `(() => {
+	await evaluate(
+		client,
+		`(() => {
 		void Promise.resolve(globalThis.app?.plugins?.plugins?.['advanced-code-block']?.updateCm6Plugin?.()).catch(() => undefined);
 		return true;
-	})()`);
+	})()`,
+	);
 	await delay(300);
 	const wheelTarget = await evaluate(
 		client,
@@ -534,8 +541,16 @@ async function verifyScroll(client, settings, context) {
 	assertShikiReady(afterHorizontal, `${context} after horizontal scroll`);
 	assert(afterHorizontal.noteScrollLeft === 0, `${context}: note moved horizontally during code scroll`, { before, after: afterHorizontal, settings });
 	if (!settings.wrap) {
-		assert(afterHorizontal.hasScrollContainer, `${context}: nowrap code rows do not expose horizontal overflow`, { before, after: afterHorizontal, settings });
-		assert(afterHorizontal.cmScrollerScrollLeft === 0, `${context}: native CodeMirror scroller moved horizontally`, { before, after: afterHorizontal, settings });
+		assert(afterHorizontal.hasScrollContainer, `${context}: nowrap code rows do not expose horizontal overflow`, {
+			before,
+			after: afterHorizontal,
+			settings,
+		});
+		assert(afterHorizontal.cmScrollerScrollLeft === 0, `${context}: native CodeMirror scroller moved horizontally`, {
+			before,
+			after: afterHorizontal,
+			settings,
+		});
 		assert(afterHorizontal.blockScrollLeft > 0, `${context}: code rows did not move horizontally`, { before, after: afterHorizontal, settings });
 	}
 	await evaluate(
@@ -552,7 +567,10 @@ async function verifyScroll(client, settings, context) {
 	await delay(300);
 	const afterVertical = await collectState(client);
 	assertShikiReady(afterVertical, `${context} after vertical scroll`);
-	assert(afterVertical.noteScrollTop > 0 || before.noteScrollTop > 0, `${context}: note did not move vertically during vertical scroll`, { before, after: afterVertical });
+	assert(afterVertical.noteScrollTop > 0 || before.noteScrollTop > 0, `${context}: note did not move vertically during vertical scroll`, {
+		before,
+		after: afterVertical,
+	});
 }
 
 async function captureScreenshot(client, filename) {

@@ -21,7 +21,7 @@
 		"sourceMap": true,
 		"lib": ["DOM", "ESNext"],
 		"allowSyntheticDefaultImports": true,
-		"types": ["bun", "vite/client"],
+		"types": ["bun", "vite/client", "@wdio/globals/types", "@wdio/cucumber-framework", "wdio-obsidian-service"],
 		"noEmit": true
 	},
 	"include": ["packages/*/src/**/*.ts", "packages/*/src/**/*.d.ts", "tests/**/*.ts"]

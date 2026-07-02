@@ -400,7 +400,9 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 	padding-right: 12px;
 	border-right: 1px solid var(--background-modifier-border);
 	background-color: var(--shiki-code-background);
-	box-shadow: -24px 0 0 var(--shiki-code-background), 12px 0 0 var(--shiki-code-background);
+	box-shadow:
+		-24px 0 0 var(--shiki-code-background),
+		12px 0 0 var(--shiki-code-background);
 	color: var(--text-faint);
 	font-family: var(--font-monospace);
 	font-size: var(--code-size);

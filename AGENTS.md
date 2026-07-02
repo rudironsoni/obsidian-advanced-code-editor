@@ -73,11 +73,23 @@ This is an Obsidian plugin. Do not claim UI or runtime bugs are fixed from unit 
 - `packages/obsidian/src/codeblocks/*` owns parsing, block identity, and block models.
 
 ### Required Verification Ladder
+Dependency install:
+
+```bash
+rtk bun install
+```
+
 For normal code changes:
 
 ```bash
 rtk bun run typecheck
-rtk bun test
+rtk bun run test:unit
+```
+
+For built artifact and temporary-vault install checks:
+
+```bash
+rtk bun run test:integration
 ```
 
 For architecture, source/live-preview, Monaco, or startup changes:
@@ -95,12 +107,53 @@ rtk bun run verify:obsidian-live-preview-redraw-loop
 rtk bun run verify:obsidian-monaco-mobile-rendering
 ```
 
+For desktop real-Obsidian E2E:
+
+```bash
+rtk bun run test:bdd:desktop
+```
+
+For mobile-emulated real-Obsidian E2E:
+
+```bash
+rtk bun run test:bdd:mobile
+```
+
 For release-level confidence:
 
 ```bash
 rtk bun run check
 rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-advanced-codeblock-integration
 ```
+
+### Harness Layers
+- `bun run test:unit` runs pure Bun tests for parser, rendering helpers, startup boundaries, architecture boundaries, and other non-Obsidian logic.
+- `bun run test:integration` builds `dist/`, runs artifact assertions against the generated bundle, installs `main.js`, `manifest.json`, and `styles.css` into a temporary vault layout, enables the plugin in `community-plugins.json`, and removes the vault afterward.
+- `bun run test:bdd` runs desktop and mobile-emulated BDD scenarios in one grouped WebdriverIO worker so one Obsidian session is reused.
+- `bun run test:bdd:desktop` builds release artifacts and runs WebdriverIO Cucumber with `wdio-obsidian-service`, excluding `@mobile`.
+- `bun run test:bdd:mobile` builds release artifacts and runs only the `@mobile` WebdriverIO Cucumber scenarios. Prefer `bun run test:bdd` when validating both desktop and mobile so the same Obsidian session is reused.
+- `bun run test:e2e` and `bun run test:e2e:mobile` are compatibility aliases for the desktop and mobile BDD commands.
+- `bun run test:e2e:cdp` and `bun run test:e2e:mobile:cdp` keep the older custom CDP verifiers available for project-specific Live Preview, scrolling, and regression checks.
+- `bun run ci` runs the non-GUI CI gate: formatting check, production build, lint, unit tests, artifact integration, startup benches, and temporary-vault integration.
+- Android or iOS real-device automation is not part of this harness. Mobile coverage here is desktop Obsidian mobile emulation only.
+
+### BDD and MCP Conventions
+- Feature files live in `tests/bdd/features/`. Keep them product-readable and free of selectors, sleeps, and setup noise.
+- Step definitions live in `tests/bdd/steps/`. Put reusable Obsidian interactions in `tests/bdd/pages/`.
+- Keep related `.feature` files grouped in `wdio.conf.mts` so WDIO does not spawn a fresh Obsidian session per feature file.
+- Mobile-emulated scenarios toggle `app.emulateMobile(true)` in steps and reset it in Cucumber teardown. Do not add a second Obsidian launch just to test mobile emulation.
+- Failure screenshots go to `tests/runtime-session/wdio-artifacts/`.
+- `.mcp.json` exposes `wdio-mcp` through `npx -y @wdio/mcp` so MCP-aware agents can use WebdriverIO for interactive diagnostics.
+
+### Runtime Harness Troubleshooting
+- Local Obsidian defaults to `/Applications/Obsidian.app/Contents/MacOS/Obsidian`. Override with `OBSIDIAN_APP` when needed.
+- WDIO Obsidian version can be overridden with `OBSIDIAN_WDIO_APP_VERSION`; installer version can be overridden with `OBSIDIAN_WDIO_INSTALLER_VERSION`.
+- CDP defaults to port `9230`. If a user vault owns that port, stop it or choose an explicit verifier vault/user-data pair with `OBSIDIAN_VERIFY_VAULT` and `OBSIDIAN_VERIFY_USER_DATA`.
+- Runtime reports should go under `planning/test-reports/` or an explicit env-var report directory. Do not scatter screenshots or JSON summaries at the repo root.
+- WDIO and `wdio-obsidian-service` are the default automated desktop and mobile-emulated E2E entrypoints. Keep the custom CDP verifiers for deeper project-specific Live Preview, scrolling, and regression checks.
+- Do not spawn a second Obsidian instance.
+- Reuse the existing CDP port and `tests/obsidian-test-vault/` test vault for custom CDP verifier debugging.
+- If a runtime check is skipped, report it explicitly.
 
 ### Live Preview Redraw-Loop Success Criteria
 A fix is not complete unless the runtime verifier proves:

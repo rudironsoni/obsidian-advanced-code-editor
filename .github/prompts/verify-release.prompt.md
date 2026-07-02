@@ -1,6 +1,7 @@
 ---
 description: Run full release verification pipeline
 ---
+
 Run the complete release verification pipeline for `shiki-highlighter`.
 
 ## Phase 1: Local Gate

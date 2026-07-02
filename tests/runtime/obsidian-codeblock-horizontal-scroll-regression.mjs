@@ -87,11 +87,12 @@ async function requestMode(client, mode, source = false) {
 		})()`,
 		`request ${mode}`,
 	);
-	const selector = mode === 'preview'
-		? '.markdown-preview-view'
-		: source
-			? '.markdown-source-view.mod-cm6:not(.is-live-preview)'
-			: '.markdown-source-view.mod-cm6.is-live-preview';
+	const selector =
+		mode === 'preview'
+			? '.markdown-preview-view'
+			: source
+				? '.markdown-source-view.mod-cm6:not(.is-live-preview)'
+				: '.markdown-source-view.mod-cm6.is-live-preview';
 	await waitFor(
 		client,
 		`window.app.workspace.getActiveFile()?.path === ${JSON.stringify(NOTE_PATH)} && Boolean(window.app.workspace.activeLeaf?.view?.containerEl?.querySelector(${JSON.stringify(selector)}))`,
@@ -262,17 +263,29 @@ async function verifyLivePreviewViewing(client) {
 	assert(state.scrollbarScrollLeft > 0, 'Live Preview viewing shared scrollbar did not scroll horizontally', state);
 	assert(state.noteScrollLeft === 0, 'Live Preview viewing moved the whole editor horizontally', state);
 	assert(state.lineNumberCount === 2, 'Live Preview viewing internal line numbers include fence lines or omit code lines', state);
-	assert(JSON.stringify(state.lineNumberValues) === JSON.stringify(['1', '2']), 'Live Preview viewing internal line numbers do not count only code content lines', state);
+	assert(
+		JSON.stringify(state.lineNumberValues) === JSON.stringify(['1', '2']),
+		'Live Preview viewing internal line numbers do not count only code content lines',
+		state,
+	);
 	assert(state.openingFenceText === '```ts', 'Live Preview viewing did not show the opening fence with language below the header', state);
 	assert(state.closingFenceText === '```', 'Live Preview viewing did not show the closing fence', state);
 	assert(state.headerBeforeOpeningFence, 'Live Preview viewing did not render the header above the opening fence', state);
 	assert(Math.abs(state.lineMoved) < Math.abs(state.codeMoved), 'Live Preview viewing did not pin line numbers while code moved horizontally', state);
 	assert(isOpaqueColor(state.lineNumberBackground), 'Live Preview viewing line number gutter is transparent', state);
 	assert(state.codeMoved > 0, 'Live Preview viewing did not move code content horizontally', state);
-	assert(new Set(state.rowScrollLefts).size === 1 && state.rowScrollLefts[0] === state.scrollbarScrollLeft, 'Live Preview viewing did not sync horizontal scroll across code rows', state);
+	assert(
+		new Set(state.rowScrollLefts).size === 1 && state.rowScrollLefts[0] === state.scrollbarScrollLeft,
+		'Live Preview viewing did not sync horizontal scroll across code rows',
+		state,
+	);
 	assert(state.wheelScrollLeft > 0, 'Live Preview viewing horizontal wheel did not scroll code rows', state);
 	assert(state.wheelNoteScrollLeft === 0, 'Live Preview viewing horizontal wheel moved the whole editor', state);
-	assert(new Set(state.wheelRowScrollLefts).size === 1 && state.wheelRowScrollLefts[0] === state.wheelScrollLeft, 'Live Preview viewing horizontal wheel did not sync across code rows', state);
+	assert(
+		new Set(state.wheelRowScrollLefts).size === 1 && state.wheelRowScrollLefts[0] === state.wheelScrollLeft,
+		'Live Preview viewing horizontal wheel did not sync across code rows',
+		state,
+	);
 	return state;
 }
 
@@ -385,7 +398,11 @@ async function verifyLivePreviewEditing(client) {
 	assert(state.nativeLineCount === 2, 'Live Preview editing did not preserve native code rows', state);
 	assert(!state.hasFakeScroll, 'Live Preview editing still rendered the synthetic scrollbar', state);
 	assert(state.scrollerScrollLeft === 0, 'Live Preview editing moved the whole editor horizontally', state);
-	assert(new Set(state.rowScrollLefts).size === 1 && state.rowScrollLefts[0] > 0, 'Live Preview editing did not preserve synced code-row horizontal scroll', state);
+	assert(
+		new Set(state.rowScrollLefts).size === 1 && state.rowScrollLefts[0] > 0,
+		'Live Preview editing did not preserve synced code-row horizontal scroll',
+		state,
+	);
 	assert(state.tokenCount > 0, 'Live Preview editing block is not Shiki-tokenized', state);
 	assert(state.virtualScrollRows === 0, 'Live Preview editing still uses virtual per-line horizontal scrolling', state);
 	assert(state.documentScrollLeft === 0, 'Live Preview editing moved the document horizontally', state);
@@ -537,7 +554,11 @@ function blockScrollExpression(label, source) {
 }
 
 function assertColorParity(livePreview, sourceMode, readingMode) {
-	assert(livePreview.constColor && sourceMode.constColor && readingMode.constColor, 'Missing const token color in one or more modes', { livePreview, sourceMode, readingMode });
+	assert(livePreview.constColor && sourceMode.constColor && readingMode.constColor, 'Missing const token color in one or more modes', {
+		livePreview,
+		sourceMode,
+		readingMode,
+	});
 	assert(livePreview.identifierColor && sourceMode.identifierColor && readingMode.identifierColor, 'Missing identifier token color in one or more modes', {
 		livePreview,
 		sourceMode,

@@ -128,7 +128,11 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 				continue;
 			}
 
-			decorations.add(block.fenceFrom, block.fenceFrom, Decoration.widget({ widget: new ShikiLivePreviewHeaderWidget(block, plugin), block: true, side: -1 }));
+			decorations.add(
+				block.fenceFrom,
+				block.fenceFrom,
+				Decoration.widget({ widget: new ShikiLivePreviewHeaderWidget(block, plugin), block: true, side: -1 }),
+			);
 
 			for (let lineNumber = parsedBlock.openingFenceLine; lineNumber <= parsedBlock.closingFenceLine; lineNumber++) {
 				const line = state.doc.line(lineNumber);
@@ -155,7 +159,9 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 					decorations.add(
 						line.from,
 						line.to,
-						Decoration.replace({ widget: new ShikiLivePreviewFenceWidget(isOpeningFence ? openingFenceText(block) : (block.openingFence ?? '```')) }),
+						Decoration.replace({
+							widget: new ShikiLivePreviewFenceWidget(isOpeningFence ? openingFenceText(block) : (block.openingFence ?? '```')),
+						}),
 					);
 				}
 
@@ -177,9 +183,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 		update(_value, transaction) {
 			return buildState(transaction.state);
 		},
-		provide: field => [
-			EditorView.decorations.from(field, value => value.decorations),
-		],
+		provide: field => [EditorView.decorations.from(field, value => value.decorations)],
 	});
 
 	const scrollSyncPlugin = ViewPlugin.fromClass(
@@ -449,9 +453,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 
 				for (const blockId of blockIds) {
 					const elements = [...this.view.dom.querySelectorAll<HTMLElement>(`[data-shiki-block-id="${CSS.escape(blockId)}"]`)];
-					const rects = elements
-						.map(element => element.getBoundingClientRect())
-						.filter(rect => rect.width > 0 && rect.height > 0);
+					const rects = elements.map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
 					if (rects.length === 0 || this.codeRowsForBlock(blockId).length === 0) {
 						continue;
 					}

@@ -1,6 +1,7 @@
 ---
 description: 'Test Obsidian plugin on desktop, mobile, or both'
 ---
+
 target = $ARGUMENTS
 
 If target is not provided, default to "both".
