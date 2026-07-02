@@ -401,12 +401,14 @@ async function collectState(client) {
 				const style = getComputedStyle(row);
 				return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden'
 			});
-			const codeOverflow = codeLines.some(row => row.scrollWidth > row.clientWidth + 1);
-			const noteScrollers = [...root.querySelectorAll('.view-content, .cm-scroller, .cm-editor, .markdown-source-view')].map(element => ({
+			const cmScroller = root.querySelector('.cm-scroller');
+			const codeOverflow = codeLines.some(row => row.scrollWidth > row.clientWidth + 1) || (cmScroller ? cmScroller.scrollWidth > cmScroller.clientWidth + 1 : false);
+			const noteScrollers = [...root.querySelectorAll('.view-content, .cm-editor, .markdown-source-view')].map(element => ({
 				className: element.className,
 				scrollLeft: element.scrollLeft,
 				scrollTop: element.scrollTop,
 			}));
+			const verticalScrollers = cmScroller ? [...noteScrollers, { className: cmScroller.className, scrollLeft: cmScroller.scrollLeft, scrollTop: cmScroller.scrollTop }] : noteScrollers;
 			return {
 				activeFile: globalThis.app?.workspace?.getActiveFile?.()?.path ?? null,
 				isMobile: globalThis.app?.isMobile ?? false,
@@ -428,9 +430,10 @@ async function collectState(client) {
 				visibleRawRows: visibleCodeRows.length,
 				visibleGutters: visibleGutters.length,
 				blockScrollLeft: Math.max(0, ...codeLines.map(row => row.scrollLeft ?? 0)),
+				cmScrollerScrollLeft: cmScroller?.scrollLeft ?? 0,
 				settings,
 				noteScrollLeft: Math.max(0, ...noteScrollers.map(scroller => scroller.scrollLeft ?? 0)),
-				noteScrollTop: Math.max(0, ...noteScrollers.map(scroller => scroller.scrollTop ?? 0)),
+				noteScrollTop: Math.max(0, ...verticalScrollers.map(scroller => scroller.scrollTop ?? 0)),
 				bodyClass: document.body.className,
 			};
 		})()`,
@@ -506,6 +509,10 @@ async function verifyScroll(client, settings, context) {
 			for (const element of root.querySelectorAll('.view-content, .cm-scroller, .cm-editor, .markdown-source-view, .cm-line.shiki-live-preview-code-line')) {
 				element.scrollLeft = 0;
 			}
+			if (${JSON.stringify(!settings.wrap)}) {
+				const cmScroller = root.querySelector('.cm-scroller');
+				if (cmScroller) cmScroller.scrollLeft = Math.min(260, cmScroller.scrollWidth - cmScroller.clientWidth);
+			}
 			return true;
 		})()`,
 	);
@@ -516,6 +523,7 @@ async function verifyScroll(client, settings, context) {
 	assert(afterHorizontal.blockScrollLeft === 0, `${context}: individual native code rows were horizontally panned`, { before, after: afterHorizontal, settings });
 	if (!settings.wrap) {
 		assert(afterHorizontal.hasScrollContainer, `${context}: nowrap code rows do not expose horizontal overflow`, { before, after: afterHorizontal, settings });
+		assert(afterHorizontal.cmScrollerScrollLeft > 0, `${context}: native CodeMirror scroller did not move horizontally`, { before, after: afterHorizontal, settings });
 	}
 	await evaluate(
 		client,

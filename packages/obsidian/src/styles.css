@@ -335,43 +335,27 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 }
 
 .markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-live-preview-code-line {
-	--shiki-live-preview-scroll-left: 0px;
 	display: block;
 	background: var(--shiki-code-background);
 	font-family: var(--font-monospace);
 	font-size: var(--code-size);
 	line-height: var(--line-height-normal);
 	white-space: pre !important;
-	width: 100% !important;
+	width: max-content !important;
 	min-width: 100% !important;
-	max-width: 100% !important;
+	max-width: none !important;
 	box-sizing: border-box;
-	overflow-x: hidden;
-	overflow-y: hidden;
-	contain: paint;
+	overflow-x: visible;
+	overflow-y: visible;
+	contain: none;
 	overscroll-behavior-x: contain;
-	touch-action: pan-y;
+	touch-action: pan-x pan-y;
 }
 
-.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-live-preview-code-line-nowrap .shiki-live-preview-scroll-content {
-	display: inline-block;
-	min-width: max-content;
-	white-space: pre;
-	transform: translateX(calc(-1 * var(--shiki-live-preview-scroll-left, 0px)));
-}
-
-.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-horizontal-scroll {
+.markdown-source-view.mod-cm6.is-live-preview .cm-scroller {
 	overflow-x: auto;
-	overflow-y: hidden;
-	width: 100%;
-	height: 14px;
-	background: var(--shiki-code-background);
 	overscroll-behavior-x: contain;
 	-webkit-overflow-scrolling: touch;
-}
-
-.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-horizontal-scroll-spacer {
-	height: 1px;
 }
 
 .markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-live-preview-code-line-wrap {
@@ -394,7 +378,8 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 	position: sticky;
 	left: 0;
 	z-index: 3;
-	display: inline-block;
+	display: inline-flex;
+	justify-content: flex-end;
 	min-width: 3.5ch;
 	margin-right: 12px;
 	padding-right: 12px;
