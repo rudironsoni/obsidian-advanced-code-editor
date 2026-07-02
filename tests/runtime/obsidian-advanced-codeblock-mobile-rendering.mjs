@@ -536,16 +536,16 @@ async function getRenderState(client, mode, settings = {}) {
 				const right = Math.max(...rects.map(rect => rect.right));
 				const top = Math.min(...rects.map(rect => rect.top));
 				const bottom = Math.max(...rects.map(rect => rect.bottom));
-				const cmScroller = (renderRoot ?? active).querySelector('.cm-scroller');
+				const firstCodeLine = codeLines[0];
 				return [{
 					candidate: headers[0],
 					rect: { left, right, top, bottom, width: right - left, height: bottom - top },
 					lineNumbers: (renderRoot ?? active).querySelectorAll('.shiki-live-preview-line-number').length,
 					textLength: codeLines.map(line => line.textContent ?? '').join('\\n').trim().length,
 					scrollInfo: {
-						width: cmScroller?.scrollWidth ?? null,
-						clientWidth: cmScroller?.clientWidth ?? null,
-						scrollLeft: cmScroller?.scrollLeft ?? null,
+						width: firstCodeLine?.scrollWidth ?? null,
+						clientWidth: firstCodeLine?.clientWidth ?? null,
+						scrollLeft: firstCodeLine?.scrollLeft ?? null,
 					},
 				}];
 			};
@@ -597,7 +597,7 @@ async function getRenderState(client, mode, settings = {}) {
 				}
 			}
 			const blockRect = blockItem?.rect ?? block?.getBoundingClientRect?.();
-			const scrollContainer = isReading ? block?.querySelector('.shiki-block-body') : sourceRoot?.querySelector('.cm-scroller');
+			const scrollContainer = isReading ? block?.querySelector('.shiki-block-body') : sourceRoot?.querySelector('.cm-line.shiki-live-preview-code-line');
 			const header = isReading ? block?.querySelector('.shiki-block-header') : block;
 			const tokenRoot = isReading ? block : sourceRoot;
 			const tokenSpans = [...(tokenRoot?.querySelectorAll(isReading ? '[style*="color:"]' : '.cm-line.shiki-live-preview-code-line [style*="color:"]') ?? [])];
@@ -622,7 +622,8 @@ async function getRenderState(client, mode, settings = {}) {
 					? active.querySelector('.view-content, .markdown-preview-view')
 						: sourceRoot?.querySelector('.cm-scroller') ?? active.querySelector('.cm-scroller') ?? document.scrollingElement;
 			}
-			const noteScrollLeft = ${JSON.stringify(mode)} === 'live-preview' ? 0 : (noteScroller?.scrollLeft ?? null);
+			const livePreviewEditorScroller = sourceRoot?.querySelector('.cm-scroller');
+			const pageScrollProbe = ${JSON.stringify(mode)} === 'live-preview' ? livePreviewEditorScroller : noteScroller;
 			return {
 				mode: ${JSON.stringify(mode)},
 				mobile: {
@@ -636,10 +637,10 @@ async function getRenderState(client, mode, settings = {}) {
 				page: {
 					bodyClientWidth: document.documentElement.clientWidth,
 					bodyScrollWidth: document.documentElement.scrollWidth,
-					noteClientWidth: noteScroller?.clientWidth ?? null,
-					noteScrollWidth: noteScroller?.scrollWidth ?? null,
+					noteClientWidth: pageScrollProbe?.clientWidth ?? null,
+					noteScrollWidth: pageScrollProbe?.scrollWidth ?? null,
 					noteScrollTop: noteScroller?.scrollTop ?? null,
-					noteScrollLeft,
+					noteScrollLeft: pageScrollProbe?.scrollLeft ?? null,
 				},
 				source: {
 					className: sourceRoot?.className ?? null,
@@ -780,6 +781,21 @@ async function verifyScroll(client, mode, settings, state) {
 		return null;
 	}
 	await positionBlockForGestures(client, mode, settings);
+	await evaluate(
+		client,
+		`(() => {
+			const active = window.app?.workspace?.activeLeaf?.view?.contentEl ?? document.querySelector('.workspace-leaf.mod-active') ?? document;
+			if (${JSON.stringify(mode)} === 'reading') {
+				for (const element of active.querySelectorAll('.shiki-block-body')) element.scrollLeft = 0;
+			} else {
+				for (const element of active.querySelectorAll('.cm-line.shiki-live-preview-code-line')) element.scrollLeft = 0;
+			}
+			const cmScroller = active.querySelector('.cm-scroller');
+			if (cmScroller) cmScroller.scrollLeft = 0;
+			return true;
+		})()`,
+	);
+	await delay(100);
 	const before = await getRenderState(client, mode, settings);
 	const inside = blockPoint(before);
 

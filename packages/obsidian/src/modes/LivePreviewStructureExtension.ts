@@ -1,5 +1,5 @@
 import { RangeSetBuilder, StateField, type EditorState, type Extension } from '@codemirror/state';
-import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view';
+import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
@@ -95,6 +95,7 @@ function openingFenceText(block: CodeBlockModel): string {
 
 export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extension {
 	const parser = new CodeBlockParser();
+	const scrollLeftByBlock = new Map<string, number>();
 
 	const buildState = (state: EditorState): LivePreviewStructureState => {
 		if (!isLivePreviewActive(plugin)) {
@@ -181,7 +182,222 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 		],
 	});
 
-	return structureField;
+	const scrollSyncPlugin = ViewPlugin.fromClass(
+		class LivePreviewScrollSyncPlugin {
+			private syncing = false;
+			private touchRow: HTMLElement | undefined;
+			private touchStartX = 0;
+			private touchStartY = 0;
+			private touchStartScrollLeft = 0;
+			private touchHorizontal = false;
+			private pointerId: number | undefined;
+			private pointerRow: HTMLElement | undefined;
+			private pointerStartX = 0;
+			private pointerStartY = 0;
+			private pointerStartScrollLeft = 0;
+			private pointerHorizontal = false;
+
+			constructor(private readonly view: EditorView) {
+				this.view.scrollDOM.addEventListener('scroll', this.onScroll, true);
+				this.view.scrollDOM.addEventListener('pointerdown', this.onPointerDown, true);
+				this.view.scrollDOM.addEventListener('pointermove', this.onPointerMove, true);
+				this.view.scrollDOM.addEventListener('pointerup', this.onPointerEnd, true);
+				this.view.scrollDOM.addEventListener('pointercancel', this.onPointerEnd, true);
+				this.view.scrollDOM.addEventListener('touchstart', this.onTouchStart, { capture: true, passive: false });
+				this.view.scrollDOM.addEventListener('touchmove', this.onTouchMove, { capture: true, passive: false });
+				this.view.scrollDOM.addEventListener('touchend', this.onTouchEnd, true);
+				this.view.scrollDOM.addEventListener('touchcancel', this.onTouchEnd, true);
+				this.view.dom.ownerDocument.addEventListener('pointerdown', this.onPointerDown, true);
+				this.view.dom.ownerDocument.addEventListener('pointermove', this.onPointerMove, true);
+				this.view.dom.ownerDocument.addEventListener('pointerup', this.onPointerEnd, true);
+				this.view.dom.ownerDocument.addEventListener('pointercancel', this.onPointerEnd, true);
+				this.view.dom.ownerDocument.addEventListener('touchstart', this.onTouchStart, { capture: true, passive: false });
+				this.view.dom.ownerDocument.addEventListener('touchmove', this.onTouchMove, { capture: true, passive: false });
+				this.view.dom.ownerDocument.addEventListener('touchend', this.onTouchEnd, true);
+				this.view.dom.ownerDocument.addEventListener('touchcancel', this.onTouchEnd, true);
+				this.applyStoredScrolls();
+			}
+
+			update(update: ViewUpdate): void {
+				if (update.docChanged || update.viewportChanged) {
+					this.applyStoredScrolls();
+				}
+			}
+
+			destroy(): void {
+				this.view.scrollDOM.removeEventListener('scroll', this.onScroll, true);
+				this.view.scrollDOM.removeEventListener('pointerdown', this.onPointerDown, true);
+				this.view.scrollDOM.removeEventListener('pointermove', this.onPointerMove, true);
+				this.view.scrollDOM.removeEventListener('pointerup', this.onPointerEnd, true);
+				this.view.scrollDOM.removeEventListener('pointercancel', this.onPointerEnd, true);
+				this.view.scrollDOM.removeEventListener('touchstart', this.onTouchStart, true);
+				this.view.scrollDOM.removeEventListener('touchmove', this.onTouchMove, true);
+				this.view.scrollDOM.removeEventListener('touchend', this.onTouchEnd, true);
+				this.view.scrollDOM.removeEventListener('touchcancel', this.onTouchEnd, true);
+				this.view.dom.ownerDocument.removeEventListener('pointerdown', this.onPointerDown, true);
+				this.view.dom.ownerDocument.removeEventListener('pointermove', this.onPointerMove, true);
+				this.view.dom.ownerDocument.removeEventListener('pointerup', this.onPointerEnd, true);
+				this.view.dom.ownerDocument.removeEventListener('pointercancel', this.onPointerEnd, true);
+				this.view.dom.ownerDocument.removeEventListener('touchstart', this.onTouchStart, true);
+				this.view.dom.ownerDocument.removeEventListener('touchmove', this.onTouchMove, true);
+				this.view.dom.ownerDocument.removeEventListener('touchend', this.onTouchEnd, true);
+				this.view.dom.ownerDocument.removeEventListener('touchcancel', this.onTouchEnd, true);
+			}
+
+			private readonly onScroll = (event: Event): void => {
+				if (this.syncing) {
+					return;
+				}
+				const source = event.target;
+				if (!(source instanceof HTMLElement) || !source.classList.contains('shiki-live-preview-code-line')) {
+					return;
+				}
+				const blockId = source.dataset.shikiBlockId;
+				if (!blockId) {
+					return;
+				}
+				this.syncBlockRows(blockId, source.scrollLeft);
+			};
+
+			private readonly onPointerDown = (event: PointerEvent): void => {
+				if (event.pointerType !== 'touch' && event.pointerType !== 'pen') {
+					return;
+				}
+				const row = this.codeRowFromTarget(event.target, event.clientX, event.clientY);
+				if (!row) {
+					this.resetPointer();
+					return;
+				}
+				this.pointerId = event.pointerId;
+				this.pointerRow = row;
+				this.pointerStartX = event.clientX;
+				this.pointerStartY = event.clientY;
+				this.pointerStartScrollLeft = row.scrollLeft;
+				this.pointerHorizontal = false;
+			};
+
+			private readonly onPointerMove = (event: PointerEvent): void => {
+				if (this.pointerId !== event.pointerId || !this.pointerRow) {
+					return;
+				}
+				const deltaX = event.clientX - this.pointerStartX;
+				const deltaY = event.clientY - this.pointerStartY;
+				if (!this.pointerHorizontal && Math.abs(deltaX) > 6 && Math.abs(deltaX) > Math.abs(deltaY)) {
+					this.pointerHorizontal = true;
+				}
+				if (!this.pointerHorizontal) {
+					return;
+				}
+				if (event.cancelable) {
+					event.preventDefault();
+				}
+				const blockId = this.pointerRow.dataset.shikiBlockId;
+				if (!blockId) {
+					return;
+				}
+				this.syncBlockRows(blockId, this.pointerStartScrollLeft - deltaX);
+			};
+
+			private readonly onPointerEnd = (event: PointerEvent): void => {
+				if (this.pointerId === event.pointerId) {
+					this.resetPointer();
+				}
+			};
+
+			private readonly onTouchStart = (event: TouchEvent): void => {
+				const touch = event.changedTouches[0];
+				const row = touch ? this.codeRowFromTarget(event.target, touch.clientX, touch.clientY) : undefined;
+				if (!row || !touch) {
+					this.resetTouch();
+					return;
+				}
+				this.touchRow = row;
+				this.touchStartX = touch.clientX;
+				this.touchStartY = touch.clientY;
+				this.touchStartScrollLeft = row.scrollLeft;
+				this.touchHorizontal = false;
+			};
+
+			private readonly onTouchMove = (event: TouchEvent): void => {
+				if (!this.touchRow) {
+					return;
+				}
+				const touch = event.changedTouches[0];
+				if (!touch) {
+					return;
+				}
+				const deltaX = touch.clientX - this.touchStartX;
+				const deltaY = touch.clientY - this.touchStartY;
+				if (!this.touchHorizontal && Math.abs(deltaX) > 6 && Math.abs(deltaX) > Math.abs(deltaY)) {
+					this.touchHorizontal = true;
+				}
+				if (!this.touchHorizontal) {
+					return;
+				}
+				if (event.cancelable) {
+					event.preventDefault();
+				}
+				const blockId = this.touchRow.dataset.shikiBlockId;
+				if (!blockId) {
+					return;
+				}
+				this.syncBlockRows(blockId, this.touchStartScrollLeft - deltaX);
+			};
+
+			private readonly onTouchEnd = (): void => {
+				this.resetTouch();
+			};
+
+			private syncBlockRows(blockId: string, scrollLeft: number): void {
+				scrollLeftByBlock.set(blockId, scrollLeft);
+				this.syncing = true;
+				try {
+					for (const row of this.codeRowsForBlock(blockId)) {
+						row.scrollLeft = scrollLeft;
+					}
+				} finally {
+					this.syncing = false;
+				}
+			}
+
+			private resetTouch(): void {
+				this.touchRow = undefined;
+				this.touchHorizontal = false;
+			}
+
+			private resetPointer(): void {
+				this.pointerId = undefined;
+				this.pointerRow = undefined;
+				this.pointerHorizontal = false;
+			}
+
+			private codeRowFromTarget(target: EventTarget | null, clientX?: number, clientY?: number): HTMLElement | undefined {
+				const targetRow = target instanceof Element ? target.closest<HTMLElement>('.cm-line.shiki-live-preview-code-line') ?? undefined : undefined;
+				if (targetRow && this.view.dom.contains(targetRow)) {
+					return targetRow;
+				}
+				if (clientX === undefined || clientY === undefined) {
+					return undefined;
+				}
+				const pointRow = this.view.root.elementFromPoint(clientX, clientY)?.closest<HTMLElement>('.cm-line.shiki-live-preview-code-line') ?? undefined;
+				return pointRow && this.view.dom.contains(pointRow) ? pointRow : undefined;
+			}
+
+			private applyStoredScrolls(): void {
+				for (const [blockId, scrollLeft] of scrollLeftByBlock) {
+					for (const row of this.codeRowsForBlock(blockId)) {
+						row.scrollLeft = scrollLeft;
+					}
+				}
+			}
+
+			private codeRowsForBlock(blockId: string): HTMLElement[] {
+				return [...this.view.dom.querySelectorAll<HTMLElement>(`.cm-line.shiki-live-preview-code-line[data-shiki-block-id="${CSS.escape(blockId)}"]`)];
+			}
+		},
+	);
+
+	return [structureField, scrollSyncPlugin];
 }
 
 function isLivePreviewActive(plugin: ShikiPlugin): boolean {

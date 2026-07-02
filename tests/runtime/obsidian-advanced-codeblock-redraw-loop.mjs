@@ -402,7 +402,7 @@ async function collectState(client) {
 				return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden'
 			});
 			const cmScroller = root.querySelector('.cm-scroller');
-			const codeOverflow = codeLines.some(row => row.scrollWidth > row.clientWidth + 1) || (cmScroller ? cmScroller.scrollWidth > cmScroller.clientWidth + 1 : false);
+			const codeOverflow = codeLines.some(row => row.scrollWidth > row.clientWidth + 1);
 			const noteScrollers = [...root.querySelectorAll('.view-content, .cm-editor, .markdown-source-view')].map(element => ({
 				className: element.className,
 				scrollLeft: element.scrollLeft,
@@ -510,8 +510,13 @@ async function verifyScroll(client, settings, context) {
 				element.scrollLeft = 0;
 			}
 			if (${JSON.stringify(!settings.wrap)}) {
-				const cmScroller = root.querySelector('.cm-scroller');
-				if (cmScroller) cmScroller.scrollLeft = Math.min(260, cmScroller.scrollWidth - cmScroller.clientWidth);
+				for (const codeLine of root.querySelectorAll('.cm-line.shiki-live-preview-code-line')) {
+					const maxScrollLeft = codeLine.scrollWidth - codeLine.clientWidth;
+					if (maxScrollLeft > 0) {
+						codeLine.scrollLeft = Math.min(260, maxScrollLeft);
+						codeLine.dispatchEvent(new Event('scroll', { bubbles: true }));
+					}
+				}
 			}
 			return true;
 		})()`,
@@ -520,10 +525,10 @@ async function verifyScroll(client, settings, context) {
 	const afterHorizontal = await collectState(client);
 	assertShikiReady(afterHorizontal, `${context} after horizontal scroll`);
 	assert(afterHorizontal.noteScrollLeft === 0, `${context}: note moved horizontally during code scroll`, { before, after: afterHorizontal, settings });
-	assert(afterHorizontal.blockScrollLeft === 0, `${context}: individual native code rows were horizontally panned`, { before, after: afterHorizontal, settings });
 	if (!settings.wrap) {
 		assert(afterHorizontal.hasScrollContainer, `${context}: nowrap code rows do not expose horizontal overflow`, { before, after: afterHorizontal, settings });
-		assert(afterHorizontal.cmScrollerScrollLeft > 0, `${context}: native CodeMirror scroller did not move horizontally`, { before, after: afterHorizontal, settings });
+		assert(afterHorizontal.cmScrollerScrollLeft === 0, `${context}: native CodeMirror scroller moved horizontally`, { before, after: afterHorizontal, settings });
+		assert(afterHorizontal.blockScrollLeft > 0, `${context}: code rows did not move horizontally`, { before, after: afterHorizontal, settings });
 	}
 	await evaluate(
 		client,

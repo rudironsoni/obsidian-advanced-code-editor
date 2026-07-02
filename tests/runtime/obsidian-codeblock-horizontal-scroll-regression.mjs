@@ -157,6 +157,13 @@ async function verifyLivePreviewViewing(client) {
 		client,
 		`(async () => {
 			const leaf = window.app.workspace.activeLeaf;
+			const plugin = window.app.plugins.plugins['advanced-code-block'];
+			if (plugin) {
+				plugin.settings.wrapLines = false;
+				plugin.settings.showLineNumbers = true;
+				plugin.loadedSettings = structuredClone(plugin.settings);
+				await plugin.updateCm6Plugin?.();
+			}
 			await new Promise(resolve => setTimeout(resolve, 1000));
 			const root = leaf.view.containerEl;
 			const isMobile = window.app.isMobile === true;
@@ -167,7 +174,7 @@ async function verifyLivePreviewViewing(client) {
 			const openingFence = root.querySelector('.cm-line.shiki-live-preview-opening-fence-line');
 			const closingFence = root.querySelector('.cm-line.shiki-live-preview-closing-fence-line');
 			const codeRows = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line')];
-			const firstContent = codeRows[0];
+			const firstContent = codeRows[0]?.querySelector('[style*="color:"]');
 			const tokenColor = token => {
 				const span = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line [style*="color:"]')].find(el => el.textContent === token);
 				return span ? getComputedStyle(span).color : null;
@@ -183,32 +190,37 @@ async function verifyLivePreviewViewing(client) {
 				: [];
 			const lineNumberStyle = lineNumbers[0] ? getComputedStyle(lineNumbers[0]) : null;
 			if (scroller) scroller.scrollLeft = 0;
+			for (const row of codeRows) row.scrollLeft = 0;
 			await new Promise(resolve => setTimeout(resolve, 50));
 			const beforeLineLeft = lineNumbers[0]?.getBoundingClientRect().left ?? null;
 			const beforeCodeLeft = firstContent?.getBoundingClientRect().left ?? null;
-			if (scroller) {
-				scroller.scrollLeft = 260;
-				scroller.dispatchEvent(new Event('scroll'));
+			if (codeRows[0]) {
+				codeRows[0].scrollLeft = 260;
+				codeRows[0].dispatchEvent(new Event('scroll', { bubbles: true }));
 			}
 			await new Promise(resolve => setTimeout(resolve, 50));
 			const afterLineLeft = lineNumbers[0]?.getBoundingClientRect().left ?? null;
 			const afterCodeLeft = firstContent?.getBoundingClientRect().left ?? null;
-			const afterScrollLeft = scroller?.scrollLeft ?? 0;
+			const afterScrollLeft = codeRows[0]?.scrollLeft ?? 0;
+			const noteScrollLeft = scroller?.scrollLeft ?? 0;
+			const afterRowScrollLefts = codeRows.map(el => el.scrollLeft);
 			if (scroller) scroller.scrollLeft = 0;
-			scroller?.dispatchEvent(new Event('scroll'));
+			for (const row of codeRows) row.scrollLeft = 0;
+			codeRows[0]?.dispatchEvent(new Event('scroll', { bubbles: true }));
 			await new Promise(resolve => setTimeout(resolve, 50));
 			return {
 				hasHeader: !!header,
 				hasFakeScroll: !!fakeScroll,
-				sharedScrollClient: scroller?.clientWidth ?? 0,
-				sharedScrollWidth: scroller?.scrollWidth ?? 0,
+				sharedScrollClient: codeRows[0]?.clientWidth ?? 0,
+				sharedScrollWidth: codeRows[0]?.scrollWidth ?? 0,
 				sharedScrollLeft: afterScrollLeft,
 				scrollbarScrollLeft: afterScrollLeft,
+				noteScrollLeft,
 				visibleCodeLineCount: root.querySelectorAll('.cm-line.shiki-live-preview-code-line').length,
 				visibleGutterCount: visibleGutters.length,
 				blockGutterCount: blockGutters.length,
 				blockGutterValues: blockGutters.map(el => el.textContent),
-				rowScrollLefts: codeRows.map(el => el.scrollLeft),
+				rowScrollLefts: afterRowScrollLefts,
 				lineNumberCount: lineNumbers.length,
 				lineNumberValues: lineNumbers.map(el => el.textContent),
 				openingFenceText: openingFence?.querySelector('.shiki-live-preview-fence-text')?.textContent ?? null,
@@ -229,8 +241,9 @@ async function verifyLivePreviewViewing(client) {
 	assert(state.visibleCodeLineCount === 2, 'Live Preview viewing did not preserve native CodeMirror code rows', state);
 	assert(state.visibleGutterCount > 0, 'Live Preview viewing hid note gutter line numbers', state);
 	assert(state.blockGutterCount >= 4, 'Live Preview viewing did not preserve native note gutter rows for the fenced range', state);
-	assert(state.sharedScrollWidth > state.sharedScrollClient, 'Live Preview viewing CodeMirror scroller is not horizontally scrollable', state);
+	assert(state.sharedScrollWidth > state.sharedScrollClient, 'Live Preview viewing code rows are not horizontally scrollable', state);
 	assert(state.scrollbarScrollLeft > 0, 'Live Preview viewing shared scrollbar did not scroll horizontally', state);
+	assert(state.noteScrollLeft === 0, 'Live Preview viewing moved the whole editor horizontally', state);
 	assert(state.lineNumberCount === 2, 'Live Preview viewing internal line numbers include fence lines or omit code lines', state);
 	assert(JSON.stringify(state.lineNumberValues) === JSON.stringify(['1', '2']), 'Live Preview viewing internal line numbers do not count only code content lines', state);
 	assert(state.openingFenceText === '```ts', 'Live Preview viewing did not show the opening fence with language below the header', state);
@@ -239,8 +252,7 @@ async function verifyLivePreviewViewing(client) {
 	assert(Math.abs(state.lineMoved) < Math.abs(state.codeMoved), 'Live Preview viewing did not pin line numbers while code moved horizontally', state);
 	assert(isOpaqueColor(state.lineNumberBackground), 'Live Preview viewing line number gutter is transparent', state);
 	assert(state.codeMoved > 0, 'Live Preview viewing did not move code content horizontally', state);
-	assert(!state.anyLineOwnScroll, 'Live Preview viewing left horizontal scroll on individual lines', state);
-	assert(state.rowScrollLefts.every(value => value === 0), 'Live Preview viewing used per-line scrollLeft', state);
+	assert(new Set(state.rowScrollLefts).size === 1 && state.rowScrollLefts[0] === state.scrollbarScrollLeft, 'Live Preview viewing did not sync horizontal scroll across code rows', state);
 	return state;
 }
 
@@ -251,16 +263,23 @@ async function verifyLivePreviewEditing(client) {
 		`(async () => {
 			const leaf = window.app.workspace.activeLeaf;
 			const isMobile = window.app.isMobile === true;
-			void Promise.resolve(window.app.plugins.plugins['advanced-code-block']?.updateCm6Plugin?.()).catch(() => undefined);
+			const plugin = window.app.plugins.plugins['advanced-code-block'];
+			if (plugin) {
+				plugin.settings.wrapLines = false;
+				plugin.settings.showLineNumbers = true;
+				plugin.loadedSettings = structuredClone(plugin.settings);
+				await plugin.updateCm6Plugin?.();
+			}
 			await new Promise(resolve => setTimeout(resolve, 1000));
 			const root = leaf.view.containerEl;
 			const scroller = root.querySelector('.cm-scroller');
 			if (scroller) scroller.scrollLeft = 0;
 			const header = root.querySelector('.shiki-live-preview-header');
 			const fakeScroll = root.querySelector('.shiki-live-preview-horizontal-scroll');
-			if (scroller) {
-				scroller.scrollLeft = 260;
-				scroller.dispatchEvent(new Event('scroll'));
+			const initialCodeLine = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line')].find(el => el.textContent?.includes('insanelyLongValueName'));
+			if (initialCodeLine) {
+				initialCodeLine.scrollLeft = 260;
+				initialCodeLine.dispatchEvent(new Event('scroll', { bubbles: true }));
 			}
 			await new Promise(resolve => setTimeout(resolve, 50));
 			const beforeTop = header?.getBoundingClientRect().top ?? null;
@@ -284,7 +303,8 @@ async function verifyLivePreviewEditing(client) {
 					const currentHeader = root.querySelector('.shiki-live-preview-header');
 					samples.push({
 						sameHeader: currentHeader === firstHeader,
-						sharedScrollLeft: root.querySelector('.cm-scroller')?.scrollLeft ?? null,
+						sharedScrollLeft: root.querySelector('.cm-line.shiki-live-preview-code-line')?.scrollLeft ?? null,
+						noteScrollLeft: root.querySelector('.cm-scroller')?.scrollLeft ?? null,
 						nativeLineCount: root.querySelectorAll('.cm-line.shiki-live-preview-code-line').length,
 					});
 					if (sampling) setTimeout(tick, 16);
@@ -300,9 +320,10 @@ async function verifyLivePreviewEditing(client) {
 			const cursor = leaf.view.editor.getCursor();
 			const editedLine = leaf.view.editor.getLine(cursor.line);
 			const nativeLines = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line')].filter(el => el.textContent?.includes('LongValueName'));
-			const tokenCount = root.querySelectorAll('.cm-line.shiki-live-preview-code-line [style*="color:"]').length;
-			const contentAfterEdit = leaf.view.editor.getValue();
-			await new Promise(resolve => setTimeout(resolve, 250));
+				const tokenCount = root.querySelectorAll('.cm-line.shiki-live-preview-code-line [style*="color:"]').length;
+				const contentAfterEdit = leaf.view.editor.getValue();
+				const rowScrollLefts = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line')].map(el => el.scrollLeft);
+				await new Promise(resolve => setTimeout(resolve, 250));
 			return {
 				label: 'live-preview-editing',
 				isMobile,
@@ -316,13 +337,14 @@ async function verifyLivePreviewEditing(client) {
 				editedLine,
 				nativeLineCount: nativeLines.length,
 				scrollerScrollLeft: scroller?.scrollLeft ?? 0,
+				rowScrollLefts,
 				tokenCount,
 				virtualScrollRows: root.querySelectorAll('.shiki-editing-codeblock-active-line-nowrap, .shiki-live-preview-code-line-nowrap[style*="--shiki-editing-scroll-left"]').length,
 				anyLineOwnScroll: nativeLines.some(el => el.scrollLeft > 0),
 				documentScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
 				topDelta: beforeTop !== null && updatedHeader ? Math.abs(updatedHeader.getBoundingClientRect().top - beforeTop) : null,
 				heightDelta: beforeHeight !== null && updatedHeader ? Math.abs(updatedHeader.getBoundingClientRect().height - beforeHeight) : null,
-				unstableSampleCount: samples.filter(sample => sample.nativeLineCount !== 2 || Math.abs((sample.sharedScrollLeft ?? 0) - 260) > 1).length,
+				unstableSampleCount: samples.filter(sample => sample.nativeLineCount !== 2 || Math.abs((sample.sharedScrollLeft ?? 0) - 260) > 1 || sample.noteScrollLeft !== 0).length,
 				recreatedHeaderSampleCount: samples.filter(sample => !sample.sameHeader).length,
 				wrongNativeLineCountSampleCount: samples.filter(sample => sample.nativeLineCount !== 2).length,
 				scrollResetSampleCount: samples.filter(sample => Math.abs((sample.sharedScrollLeft ?? 0) - 260) > 1).length,
@@ -342,10 +364,10 @@ async function verifyLivePreviewEditing(client) {
 	assert(state.editedLine.includes('__EDIT__'), 'Live Preview editing did not write into the visible clicked code line', state);
 	assert(state.nativeLineCount === 2, 'Live Preview editing did not preserve native code rows', state);
 	assert(!state.hasFakeScroll, 'Live Preview editing still rendered the synthetic scrollbar', state);
-	assert(state.scrollerScrollLeft > 0, 'Live Preview editing did not preserve CodeMirror horizontal scroll', state);
+	assert(state.scrollerScrollLeft === 0, 'Live Preview editing moved the whole editor horizontally', state);
+	assert(new Set(state.rowScrollLefts).size === 1 && state.rowScrollLefts[0] > 0, 'Live Preview editing did not preserve synced code-row horizontal scroll', state);
 	assert(state.tokenCount > 0, 'Live Preview editing block is not Shiki-tokenized', state);
 	assert(state.virtualScrollRows === 0, 'Live Preview editing still uses virtual per-line horizontal scrolling', state);
-	assert(!state.anyLineOwnScroll, 'Live Preview editing left horizontal scroll on individual lines', state);
 	assert(state.documentScrollLeft === 0, 'Live Preview editing moved the document horizontally', state);
 	assert(state.topDelta !== null && state.topDelta < 2, 'Live Preview editing moved the block vertically during input', state);
 	assert(state.heightDelta !== null && state.heightDelta < 2, 'Live Preview editing changed the block height during input', state);
