@@ -125,6 +125,9 @@ class ShikiLivePreviewBlockWidget extends WidgetType {
 		const editor = scroll.createEl('textarea', { cls: 'shiki-live-preview-editor' });
 		editor.value = this.block.code;
 		editor.spellcheck = false;
+		editor.autocapitalize = 'off';
+		editor.autocomplete = 'off';
+		editor.setAttribute('autocorrect', 'off');
 		editor.setAttribute('aria-label', `${this.block.language || 'code'} code block editor`);
 		this.syncEditorSize(editor, pre);
 		this.bindEditor(editor);
@@ -464,6 +467,13 @@ class ShikiLivePreviewBlockWidget extends WidgetType {
 
 	private syncEditorSize(editor: HTMLTextAreaElement, pre: Element): void {
 		const rect = pre.getBoundingClientRect();
+		const preStyle = getComputedStyle(pre);
+		editor.style.font = preStyle.font;
+		editor.style.fontFamily = preStyle.fontFamily;
+		editor.style.fontSize = preStyle.fontSize;
+		editor.style.lineHeight = preStyle.lineHeight;
+		editor.style.letterSpacing = preStyle.letterSpacing;
+		editor.style.tabSize = preStyle.tabSize;
 		editor.style.width = `${Math.max(pre.scrollWidth, rect.width)}px`;
 		editor.style.height = `${Math.max(pre.scrollHeight, rect.height)}px`;
 	}

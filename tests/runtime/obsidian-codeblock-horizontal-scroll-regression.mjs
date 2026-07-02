@@ -275,6 +275,9 @@ async function verifyLivePreviewEditing(client) {
 			const updatedBlock = root.querySelector('.shiki-live-preview-block');
 			const updatedBody = updatedBlock?.querySelector('.shiki-block-body');
 			const updatedEditor = updatedBlock?.querySelector('.shiki-live-preview-editor');
+			const updatedPre = updatedBlock?.querySelector('pre');
+			const editorStyle = updatedEditor ? getComputedStyle(updatedEditor) : null;
+			const preStyle = updatedPre ? getComputedStyle(updatedPre) : null;
 			const cursor = leaf.view.editor.getCursor();
 			const nativeLines = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line')].filter(el => el.textContent?.includes('LongValueName'));
 			const tokenCount = updatedBlock?.querySelectorAll('.shiki-code-line [style*="color:"]').length ?? 0;
@@ -299,6 +302,11 @@ async function verifyLivePreviewEditing(client) {
 				scrollerScrollLeft: scroller?.scrollLeft ?? 0,
 				bodyScrollLeft: updatedBody?.scrollLeft ?? 0,
 				pointerPanScrollLeft: updatedBody?.scrollLeft ?? 0,
+				editorFont: editorStyle?.font ?? null,
+				preFont: preStyle?.font ?? null,
+				editorBorderLeftWidth: editorStyle ? Number.parseFloat(editorStyle.borderLeftWidth) || 0 : null,
+				editorBorderRadius: editorStyle ? Number.parseFloat(editorStyle.borderTopLeftRadius) || 0 : null,
+				editorBoxShadow: editorStyle?.boxShadow ?? null,
 				tokenCount,
 				virtualScrollRows: root.querySelectorAll('.shiki-editing-codeblock-active-line-nowrap, .shiki-live-preview-code-line-nowrap[style*="--shiki-editing-scroll-left"]').length,
 				anyLineOwnScroll: nativeLines.some(el => el.scrollLeft > 0),
@@ -320,6 +328,10 @@ async function verifyLivePreviewEditing(client) {
 	assert(state.scrollerScrollLeft === 0, 'Live Preview editing moved the whole editor horizontally', state);
 	assert(state.bodyScrollLeft > 0, 'Live Preview editing did not preserve whole-block horizontal scroll', state);
 	assert(state.pointerPanScrollLeft > 0, 'Live Preview editing touch pan did not move the whole-block scroller', state);
+	assert(state.editorFont === state.preFont, 'Live Preview editing overlay font does not match rendered Shiki code font', state);
+	assert(state.editorBorderLeftWidth === 0, 'Live Preview editing overlay leaked a native textarea border', state);
+	assert(state.editorBorderRadius === 0, 'Live Preview editing overlay leaked native mobile rounded corners', state);
+	assert(state.editorBoxShadow === 'none', 'Live Preview editing overlay leaked native textarea shadow', state);
 	assert(state.tokenCount > 0, 'Live Preview editing block is not Shiki-tokenized', state);
 	assert(state.virtualScrollRows === 0, 'Live Preview editing still uses virtual per-line horizontal scrolling', state);
 	assert(!state.anyLineOwnScroll, 'Live Preview editing left horizontal scroll on individual lines', state);

@@ -271,23 +271,28 @@ span.shiki-ul {
 	top: 0;
 	left: 12px;
 	display: block;
-	margin: 0;
-	padding: 0;
-	border: 0;
-	outline: 0;
+	box-sizing: border-box;
+	margin: 0 !important;
+	padding: 0 !important;
+	border: 0 !important;
+	border-radius: 0 !important;
+	outline: 0 !important;
 	resize: none;
-	overflow: hidden;
-	background: transparent;
-	color: transparent;
-	-webkit-text-fill-color: transparent;
+	overflow: hidden !important;
+	background: transparent !important;
+	color: transparent !important;
+	-webkit-text-fill-color: transparent !important;
 	caret-color: var(--text-normal);
-	font: inherit;
-	line-height: inherit;
+	font-family: var(--font-monospace) !important;
+	font-size: var(--code-size) !important;
+	font-variant-ligatures: inherit;
+	line-height: var(--line-height-normal) !important;
 	white-space: pre;
 	tab-size: inherit;
 	touch-action: pan-y;
-	box-shadow: none;
-	appearance: none;
+	box-shadow: none !important;
+	appearance: none !important;
+	-webkit-appearance: none !important;
 }
 
 /* Match Obsidian's code block font size when editor font sizing is enabled. */
