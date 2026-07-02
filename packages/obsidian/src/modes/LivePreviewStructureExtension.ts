@@ -199,6 +199,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 
 			constructor(private readonly view: EditorView) {
 				this.view.scrollDOM.addEventListener('scroll', this.onScroll, true);
+				this.view.scrollDOM.addEventListener('wheel', this.onWheel, { capture: true, passive: false });
 				this.view.scrollDOM.addEventListener('pointerdown', this.onPointerDown, true);
 				this.view.scrollDOM.addEventListener('pointermove', this.onPointerMove, true);
 				this.view.scrollDOM.addEventListener('pointerup', this.onPointerEnd, true);
@@ -215,6 +216,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 				this.view.dom.ownerDocument.addEventListener('touchmove', this.onTouchMove, { capture: true, passive: false });
 				this.view.dom.ownerDocument.addEventListener('touchend', this.onTouchEnd, true);
 				this.view.dom.ownerDocument.addEventListener('touchcancel', this.onTouchEnd, true);
+				this.view.dom.ownerDocument.addEventListener('wheel', this.onWheel, { capture: true, passive: false });
 				this.applyStoredScrolls();
 			}
 
@@ -226,6 +228,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 
 			destroy(): void {
 				this.view.scrollDOM.removeEventListener('scroll', this.onScroll, true);
+				this.view.scrollDOM.removeEventListener('wheel', this.onWheel, true);
 				this.view.scrollDOM.removeEventListener('pointerdown', this.onPointerDown, true);
 				this.view.scrollDOM.removeEventListener('pointermove', this.onPointerMove, true);
 				this.view.scrollDOM.removeEventListener('pointerup', this.onPointerEnd, true);
@@ -242,6 +245,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 				this.view.dom.ownerDocument.removeEventListener('touchmove', this.onTouchMove, true);
 				this.view.dom.ownerDocument.removeEventListener('touchend', this.onTouchEnd, true);
 				this.view.dom.ownerDocument.removeEventListener('touchcancel', this.onTouchEnd, true);
+				this.view.dom.ownerDocument.removeEventListener('wheel', this.onWheel, true);
 			}
 
 			private readonly onScroll = (event: Event): void => {
@@ -257,6 +261,27 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 					return;
 				}
 				this.syncBlockRows(blockId, source.scrollLeft);
+			};
+
+			private readonly onWheel = (event: WheelEvent): void => {
+				const target = this.scrollTargetFromEvent(event.target, event.clientX, event.clientY);
+				if (!target) {
+					return;
+				}
+				const horizontalDelta = Math.abs(event.deltaX) > 0 ? event.deltaX : event.shiftKey ? event.deltaY : 0;
+				if (horizontalDelta === 0) {
+					return;
+				}
+				const normalizedDelta = this.normalizeWheelDelta(horizontalDelta, event.deltaMode, target.blockId);
+				const nextScrollLeft = this.clampBlockScrollLeft(target.blockId, target.scrollLeft + normalizedDelta);
+				if (nextScrollLeft === target.scrollLeft) {
+					return;
+				}
+				if (event.cancelable) {
+					event.preventDefault();
+				}
+				event.stopPropagation();
+				this.syncBlockRows(target.blockId, nextScrollLeft);
 			};
 
 			private readonly onPointerDown = (event: PointerEvent): void => {
@@ -343,11 +368,12 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 			};
 
 			private syncBlockRows(blockId: string, scrollLeft: number): void {
-				scrollLeftByBlock.set(blockId, scrollLeft);
+				const nextScrollLeft = this.clampBlockScrollLeft(blockId, scrollLeft);
+				scrollLeftByBlock.set(blockId, nextScrollLeft);
 				this.syncing = true;
 				try {
 					for (const row of this.codeRowsForBlock(blockId)) {
-						row.scrollLeft = scrollLeft;
+						row.scrollLeft = nextScrollLeft;
 					}
 				} finally {
 					this.syncing = false;
@@ -394,7 +420,22 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 			}
 
 			private blockScrollLeft(blockId: string): number {
-				return this.codeRowsForBlock(blockId)[0]?.scrollLeft ?? scrollLeftByBlock.get(blockId) ?? 0;
+				return Math.max(0, ...this.codeRowsForBlock(blockId).map(row => row.scrollLeft), scrollLeftByBlock.get(blockId) ?? 0);
+			}
+
+			private clampBlockScrollLeft(blockId: string, scrollLeft: number): number {
+				const maxScrollLeft = Math.max(0, ...this.codeRowsForBlock(blockId).map(row => row.scrollWidth - row.clientWidth));
+				return Math.max(0, Math.min(scrollLeft, maxScrollLeft));
+			}
+
+			private normalizeWheelDelta(delta: number, deltaMode: number, blockId: string): number {
+				if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
+					return delta * 16;
+				}
+				if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+					return delta * (this.codeRowsForBlock(blockId)[0]?.clientWidth ?? 1);
+				}
+				return delta;
 			}
 
 			private blockIdFromPoint(clientX: number, clientY: number): string | undefined {

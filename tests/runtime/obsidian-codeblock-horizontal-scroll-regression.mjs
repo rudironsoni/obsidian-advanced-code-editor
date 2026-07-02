@@ -208,6 +208,20 @@ async function verifyLivePreviewViewing(client) {
 			for (const row of codeRows) row.scrollLeft = 0;
 			codeRows[0]?.dispatchEvent(new Event('scroll', { bubbles: true }));
 			await new Promise(resolve => setTimeout(resolve, 50));
+			const wheelRect = codeRows[0]?.getBoundingClientRect();
+			const wheelTarget = wheelRect ? document.elementFromPoint(wheelRect.left + 80, wheelRect.top + Math.min(10, wheelRect.height / 2)) : null;
+			wheelTarget?.dispatchEvent(new WheelEvent('wheel', {
+				bubbles: true,
+				cancelable: true,
+				clientX: wheelRect ? wheelRect.left + 80 : 0,
+				clientY: wheelRect ? wheelRect.top + Math.min(10, wheelRect.height / 2) : 0,
+				deltaX: 260,
+				deltaY: 0,
+			}));
+			await new Promise(resolve => setTimeout(resolve, 50));
+			const wheelScrollLeft = codeRows[0]?.scrollLeft ?? 0;
+			const wheelRowScrollLefts = codeRows.map(el => el.scrollLeft);
+			const wheelNoteScrollLeft = scroller?.scrollLeft ?? 0;
 			return {
 				hasHeader: !!header,
 				hasFakeScroll: !!fakeScroll,
@@ -221,6 +235,9 @@ async function verifyLivePreviewViewing(client) {
 				blockGutterCount: blockGutters.length,
 				blockGutterValues: blockGutters.map(el => el.textContent),
 				rowScrollLefts: afterRowScrollLefts,
+				wheelScrollLeft,
+				wheelRowScrollLefts,
+				wheelNoteScrollLeft,
 				lineNumberCount: lineNumbers.length,
 				lineNumberValues: lineNumbers.map(el => el.textContent),
 				openingFenceText: openingFence?.querySelector('.shiki-live-preview-fence-text')?.textContent ?? null,
@@ -253,6 +270,9 @@ async function verifyLivePreviewViewing(client) {
 	assert(isOpaqueColor(state.lineNumberBackground), 'Live Preview viewing line number gutter is transparent', state);
 	assert(state.codeMoved > 0, 'Live Preview viewing did not move code content horizontally', state);
 	assert(new Set(state.rowScrollLefts).size === 1 && state.rowScrollLefts[0] === state.scrollbarScrollLeft, 'Live Preview viewing did not sync horizontal scroll across code rows', state);
+	assert(state.wheelScrollLeft > 0, 'Live Preview viewing horizontal wheel did not scroll code rows', state);
+	assert(state.wheelNoteScrollLeft === 0, 'Live Preview viewing horizontal wheel moved the whole editor', state);
+	assert(new Set(state.wheelRowScrollLefts).size === 1 && state.wheelRowScrollLefts[0] === state.wheelScrollLeft, 'Live Preview viewing horizontal wheel did not sync across code rows', state);
 	return state;
 }
 

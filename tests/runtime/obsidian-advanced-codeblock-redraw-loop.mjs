@@ -502,7 +502,7 @@ async function verifyScroll(client, settings, context) {
 		return true;
 	})()`);
 	await delay(300);
-	await evaluate(
+	const wheelTarget = await evaluate(
 		client,
 		`(() => {
 			const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
@@ -510,17 +510,25 @@ async function verifyScroll(client, settings, context) {
 				element.scrollLeft = 0;
 			}
 			if (${JSON.stringify(!settings.wrap)}) {
-				for (const codeLine of root.querySelectorAll('.cm-line.shiki-live-preview-code-line')) {
-					const maxScrollLeft = codeLine.scrollWidth - codeLine.clientWidth;
-					if (maxScrollLeft > 0) {
-						codeLine.scrollLeft = Math.min(260, maxScrollLeft);
-						codeLine.dispatchEvent(new Event('scroll', { bubbles: true }));
-					}
+				const codeLines = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line')];
+				const item = codeLines
+					.map(row => ({ row, overflow: row.scrollWidth - row.clientWidth }))
+					.sort((first, second) => second.overflow - first.overflow)[0];
+				const codeLine = item?.row;
+				if (codeLine && item.overflow > 0) {
+					const rect = codeLine.getBoundingClientRect();
+					const clientX = rect.left + Math.min(120, Math.max(8, rect.width / 2));
+					const clientY = rect.top + Math.min(10, Math.max(2, rect.height / 2));
+					return { clientX, clientY, overflow: item.overflow };
 				}
 			}
-			return true;
+			return null;
 		})()`,
 	);
+	if (wheelTarget) {
+		await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: wheelTarget.clientX, y: wheelTarget.clientY, button: 'none' });
+		await client.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: wheelTarget.clientX, y: wheelTarget.clientY, deltaX: 260, deltaY: 0 });
+	}
 	await delay(300);
 	const afterHorizontal = await collectState(client);
 	assertShikiReady(afterHorizontal, `${context} after horizontal scroll`);

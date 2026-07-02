@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 
 import { mkdir, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 const DEFAULT_PORT = 9230;
 const PORT = Number(process.env.OBSIDIAN_DEBUG_PORT ?? DEFAULT_PORT);
 const REPORT_DIR = process.env.OBSIDIAN_MOBILE_RENDER_REPORT_DIR ?? path.join('planning', 'test-reports', 'runtime', 'mobile-rendering');
+const OBSIDIAN_APP_NAME = process.env.OBSIDIAN_APP_NAME ?? 'Obsidian';
 const NOTE_PATH = 'codex-shiki-mobile-rendering.md';
 const MOBILE_VIEWPORTS = [
 	{ name: 'iphone-390x844', width: 390, height: 844, deviceScaleFactor: 3 },
@@ -18,6 +21,9 @@ const SETTINGS_MATRIX = [
 	{ wrap: true, lineNumbers: false },
 	{ wrap: true, lineNumbers: true },
 ];
+
+let originalWindowBounds = null;
+const execFileAsync = promisify(execFile);
 
 async function delay(ms) {
 	await new Promise(resolve => setTimeout(resolve, ms));
@@ -310,14 +316,18 @@ async function ensureFixtureOpenInMobile(client) {
 }
 
 async function setMobileViewport(client, viewport) {
-	await client.send('Emulation.setDeviceMetricsOverride', {
+	const windowForTarget = await getRealWindowBounds();
+	if (!originalWindowBounds) {
+		originalWindowBounds = windowForTarget;
+	}
+	await setRealWindowBounds({
+		left: originalWindowBounds?.left ?? 0,
+		top: originalWindowBounds?.top ?? 0,
 		width: viewport.width,
 		height: viewport.height,
-		deviceScaleFactor: viewport.deviceScaleFactor,
-		mobile: true,
-		screenWidth: viewport.width,
-		screenHeight: viewport.height,
 	});
+	await client.send('Emulation.clearDeviceMetricsOverride').catch(() => undefined);
+	await client.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 }).catch(() => undefined);
 	await Promise.race([
 		client.send('Runtime.evaluate', {
 			expression: `window.app?.emulateMobile?.(true);`,
@@ -328,14 +338,75 @@ async function setMobileViewport(client, viewport) {
 	]).catch(() => undefined);
 	client = await reconnectClient(client);
 	await waitForMobileApp(client);
+	await waitForRealWindowSize(client, viewport);
 	await delay(500);
 	await ensureFixtureOpenInMobile(client);
 	return client;
 }
 
+async function runOsaScript(script) {
+	const { stdout } = await execFileAsync('/usr/bin/osascript', ['-e', script], { timeout: 5000 });
+	return stdout.trim();
+}
+
+async function getRealWindowBounds() {
+	const output = await runOsaScript(`
+		tell application "System Events"
+			tell process ${JSON.stringify(OBSIDIAN_APP_NAME)}
+				set frontmost to true
+				set windowPosition to position of front window
+				set windowSize to size of front window
+				return (item 1 of windowPosition as text) & "," & (item 2 of windowPosition as text) & "," & (item 1 of windowSize as text) & "," & (item 2 of windowSize as text)
+			end tell
+		end tell
+	`);
+	const [left, top, width, height] = output.split(',').map(value => Number.parseInt(value, 10));
+	assert([left, top, width, height].every(Number.isFinite), `Could not read real Obsidian window bounds: ${output}`);
+	return { left, top, width, height };
+}
+
+async function setRealWindowBounds(bounds) {
+	await runOsaScript(`
+		tell application "System Events"
+			tell process ${JSON.stringify(OBSIDIAN_APP_NAME)}
+				set frontmost to true
+				set position of front window to {${Math.round(bounds.left)}, ${Math.round(bounds.top)}}
+				set size of front window to {${Math.round(bounds.width)}, ${Math.round(bounds.height)}}
+			end tell
+		end tell
+	`);
+	await delay(500);
+}
+
+async function waitForRealWindowSize(client, viewport) {
+	let last = null;
+	for (let attempt = 0; attempt < 80; attempt++) {
+		last = await evaluate(
+			client,
+			`(() => ({
+				innerWidth: window.innerWidth,
+				innerHeight: window.innerHeight,
+				outerWidth: window.outerWidth,
+				outerHeight: window.outerHeight,
+				visualWidth: window.visualViewport?.width ?? null,
+				visualHeight: window.visualViewport?.height ?? null,
+			}))()`,
+		).catch(() => null);
+		if (last && Math.abs(last.outerWidth - viewport.width) <= 24 && Math.abs(last.outerHeight - viewport.height) <= 48) {
+			return last;
+		}
+		await delay(100);
+	}
+	throw new Error(`Timed out waiting for real Obsidian window resize to ${viewport.width}x${viewport.height}\n${JSON.stringify(last, null, 2)}`);
+}
+
 async function restoreDesktop(client) {
 	await evaluate(client, `window.app?.emulateMobile?.(false); true`);
 	await client.send('Emulation.clearDeviceMetricsOverride');
+	await client.send('Emulation.setTouchEmulationEnabled', { enabled: false }).catch(() => undefined);
+	if (originalWindowBounds) {
+		await setRealWindowBounds(originalWindowBounds);
+	}
 }
 
 async function createFixtureAndCaptureSettings(client) {
@@ -636,6 +707,8 @@ async function getRenderState(client, mode, settings = {}) {
 					bodyClass: document.body.className,
 					innerWidth: window.innerWidth,
 					innerHeight: window.innerHeight,
+					outerWidth: window.outerWidth,
+					outerHeight: window.outerHeight,
 					visualWidth: window.visualViewport?.width ?? null,
 					visualHeight: window.visualViewport?.height ?? null,
 				},
@@ -959,7 +1032,8 @@ async function verifyNoFlicker(client, mode, settings) {
 
 function assertRenderState(mode, settings, state) {
 	assert(state.mobile.isMobile === true, `${mode}: Obsidian mobile emulation is not active`, state.mobile);
-	assert(state.mobile.innerWidth <= 430, `${mode}: viewport is not mobile-sized`, state.mobile);
+	assert(state.mobile.outerWidth <= 454, `${mode}: real Obsidian window was not resized to mobile width`, state.mobile);
+	assert(state.mobile.innerWidth <= 430, `${mode}: real Obsidian content area is not mobile-sized`, state.mobile);
 	assert(state.page.bodyScrollWidth <= state.page.bodyClientWidth + 2, `${mode}: document has page-level horizontal overflow`, {
 		settings,
 		page: state.page,
