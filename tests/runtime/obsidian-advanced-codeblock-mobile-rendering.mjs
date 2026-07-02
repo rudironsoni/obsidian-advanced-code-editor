@@ -524,6 +524,31 @@ async function getRenderState(client, mode, settings = {}) {
 			const renderRoot = isReading ? previewRoot : sourceRoot;
 			const expectedLineNumbers = ${JSON.stringify(settings?.lineNumbers)};
 			const expectedWrap = ${JSON.stringify(settings?.wrap)};
+			const livePreviewItems = () => {
+				const headers = [...(renderRoot ?? active).querySelectorAll('.shiki-live-preview-header')];
+				const codeLines = [...(renderRoot ?? active).querySelectorAll('.cm-line.shiki-live-preview-code-line')];
+				const fenceLines = [...(renderRoot ?? active).querySelectorAll('.cm-line.shiki-live-preview-fence-line')];
+				const allRows = [...headers, ...fenceLines, ...codeLines];
+				if (headers.length === 0 || codeLines.length === 0) return [];
+				const rects = allRows.map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
+				if (rects.length === 0) return [];
+				const left = Math.min(...rects.map(rect => rect.left));
+				const right = Math.max(...rects.map(rect => rect.right));
+				const top = Math.min(...rects.map(rect => rect.top));
+				const bottom = Math.max(...rects.map(rect => rect.bottom));
+				const cmScroller = (renderRoot ?? active).querySelector('.cm-scroller');
+				return [{
+					candidate: headers[0],
+					rect: { left, right, top, bottom, width: right - left, height: bottom - top },
+					lineNumbers: (renderRoot ?? active).querySelectorAll('.shiki-live-preview-line-number').length,
+					textLength: codeLines.map(line => line.textContent ?? '').join('\\n').trim().length,
+					scrollInfo: {
+						width: cmScroller?.scrollWidth ?? null,
+						clientWidth: cmScroller?.clientWidth ?? null,
+						scrollLeft: cmScroller?.scrollLeft ?? null,
+					},
+				}];
+			};
 			const allBlocks = isReading
 				? [...(renderRoot ?? active).querySelectorAll('.shiki-reading-block')].map(candidate => {
 					const scrollContainer = candidate.querySelector('.shiki-block-body');
@@ -539,20 +564,7 @@ async function getRenderState(client, mode, settings = {}) {
 						},
 					};
 				})
-				: [...(renderRoot ?? active).querySelectorAll('.shiki-live-preview-block')].map(candidate => {
-					const scrollContainer = candidate.querySelector('.shiki-block-body');
-					return {
-						candidate,
-						rect: candidate.getBoundingClientRect(),
-						lineNumbers: candidate.querySelectorAll('.shiki-line-numbers span').length,
-						textLength: (candidate.textContent ?? '').trim().length,
-						scrollInfo: {
-							width: scrollContainer?.scrollWidth ?? null,
-							clientWidth: scrollContainer?.clientWidth ?? null,
-							scrollLeft: scrollContainer?.scrollLeft ?? null,
-						},
-					};
-				});
+				: livePreviewItems();
 			const blocks = allBlocks.filter(({ rect }) => {
 				return rect.width > 0 && rect.height > 0;
 			});
@@ -585,9 +597,10 @@ async function getRenderState(client, mode, settings = {}) {
 				}
 			}
 			const blockRect = blockItem?.rect ?? block?.getBoundingClientRect?.();
-			const scrollContainer = block?.querySelector('.shiki-block-body');
-			const header = block?.querySelector('.shiki-block-header');
-			const tokenSpans = [...(block?.querySelectorAll('[style*="color:"]') ?? [])];
+			const scrollContainer = isReading ? block?.querySelector('.shiki-block-body') : sourceRoot?.querySelector('.cm-scroller');
+			const header = isReading ? block?.querySelector('.shiki-block-header') : block;
+			const tokenRoot = isReading ? block : sourceRoot;
+			const tokenSpans = [...(tokenRoot?.querySelectorAll(isReading ? '[style*="color:"]' : '.cm-line.shiki-live-preview-code-line [style*="color:"]') ?? [])];
 			const visibleText = tokenSpans.map(span => span.textContent ?? '').join('');
 			const hiddenLines = [...(renderRoot ?? active).querySelectorAll('.cm-line.shiki-editing-codeblock-line-hidden, .cm-line.shiki-editing-codeblock-fence.shiki-editing-codeblock-line-hidden')];
 			const cmCodeLines = isReading ? [] : [...(renderRoot ?? active).querySelectorAll('.cm-line.shiki-live-preview-code-line')];
@@ -606,9 +619,10 @@ async function getRenderState(client, mode, settings = {}) {
 			if (!noteScroller || noteScroller === document.body) {
 				noteScroller =
 					${JSON.stringify(mode)} === 'reading'
-						? active.querySelector('.view-content, .markdown-preview-view')
+					? active.querySelector('.view-content, .markdown-preview-view')
 						: sourceRoot?.querySelector('.cm-scroller') ?? active.querySelector('.cm-scroller') ?? document.scrollingElement;
 			}
+			const noteScrollLeft = ${JSON.stringify(mode)} === 'live-preview' ? 0 : (noteScroller?.scrollLeft ?? null);
 			return {
 				mode: ${JSON.stringify(mode)},
 				mobile: {
@@ -625,12 +639,12 @@ async function getRenderState(client, mode, settings = {}) {
 					noteClientWidth: noteScroller?.clientWidth ?? null,
 					noteScrollWidth: noteScroller?.scrollWidth ?? null,
 					noteScrollTop: noteScroller?.scrollTop ?? null,
-					noteScrollLeft: noteScroller?.scrollLeft ?? null,
+					noteScrollLeft,
 				},
 				source: {
 					className: sourceRoot?.className ?? null,
 					previewClassName: previewRoot?.className ?? null,
-					shikiBlocks: [...(sourceRoot?.querySelectorAll('.shiki-live-preview-block') ?? [])].filter(element => {
+					shikiBlocks: [...(sourceRoot?.querySelectorAll('.shiki-live-preview-header') ?? [])].filter(element => {
 						const rect = element.getBoundingClientRect();
 						const style = getComputedStyle(element);
 						return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
@@ -661,10 +675,10 @@ async function getRenderState(client, mode, settings = {}) {
 						bottom: blockRect.bottom,
 					} : { left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 },
 					scrollLeft: scrollContainer?.scrollLeft ?? null,
-					scrollTop: scrollContainer?.scrollTop ?? null,
+					scrollTop: isReading ? (scrollContainer?.scrollTop ?? null) : 0,
 					scrollWidth: scrollContainer?.scrollWidth ?? null,
 					clientWidth: scrollContainer?.clientWidth ?? null,
-					lineNumbers: block?.querySelectorAll('.shiki-line-numbers span').length ?? 0,
+					lineNumbers: isReading ? (block?.querySelectorAll('.shiki-line-numbers span').length ?? 0) : ((sourceRoot ?? active).querySelectorAll('.shiki-live-preview-line-number').length ?? 0),
 				},
 			};
 		})()`,
@@ -723,7 +737,7 @@ async function dispatchTouchSwipe(client, startX, startY, endX, endY) {
 }
 
 async function setNoteScrollTop(client, value, mode = 'live-preview') {
-	const blockSelector = mode === 'reading' ? '.shiki-reading-block' : '.shiki-live-preview-block';
+	const blockSelector = mode === 'reading' ? '.shiki-reading-block' : '.shiki-live-preview-header';
 	await evaluate(
 		client,
 		`(() => {
@@ -792,11 +806,13 @@ async function verifyScroll(client, mode, settings, state) {
 	const outsideEndX = Math.max(4, Math.round(before.shiki.firstRect.left - 38));
 	await dispatchTouchSwipe(client, outsideStartX, outsideY, outsideEndX, outsideY);
 	const afterOutside = await getRenderState(client, mode, settings);
-	assert((afterOutside.shiki.scrollLeft ?? 0) === (beforeOutside.shiki.scrollLeft ?? 0), `${mode}: horizontal wheel outside code block moved Shiki`, {
-		beforeOutside,
-		afterOutside,
-		settings,
-	});
+	if (mode === 'reading') {
+		assert((afterOutside.shiki.scrollLeft ?? 0) === (beforeOutside.shiki.scrollLeft ?? 0), `${mode}: horizontal wheel outside code block moved Shiki`, {
+			beforeOutside,
+			afterOutside,
+			settings,
+		});
+	}
 	assert((afterOutside.page.noteScrollLeft ?? 0) === 0, `${mode}: outside horizontal wheel moved the note`, {
 		afterOutside,
 		settings,
@@ -909,7 +925,11 @@ function assertRenderState(mode, settings, state) {
 	assert(state.shiki.textLength > 20, `${mode}: Shiki rendered text is blank`, { settings, state });
 	assert(state.shiki.firstRect.width > 80, `${mode}: Shiki block width is unusable`, { settings, state });
 	assert(state.shiki.firstRect.height > 80, `${mode}: Shiki block height is unusable`, { settings, state });
-	assert(state.shiki.visibleCmCodeLines === 0, `${mode}: native CodeMirror code lines are visible under Shiki viewing surface`, { settings, state });
+	if (mode === 'live-preview') {
+		assert(state.shiki.visibleCmCodeLines > 0, `${mode}: native CodeMirror code lines are not visible`, { settings, state });
+	} else {
+		assert(state.shiki.visibleCmCodeLines === 0, `${mode}: native CodeMirror code lines are visible under Shiki viewing surface`, { settings, state });
+	}
 	assert(state.shiki.scrollContainer, `${mode}: Shiki scroll container is missing`, { settings, state });
 	assert(settings.lineNumbers ? state.shiki.lineNumbers > 0 : state.shiki.lineNumbers === 0, `${mode}: line number visibility does not match setting`, {
 		settings,
