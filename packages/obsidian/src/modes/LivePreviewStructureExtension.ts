@@ -118,6 +118,11 @@ class ShikiLivePreviewHorizontalScrollWidget extends WidgetType {
 		let documentStartY = 0;
 		let documentStartScrollLeft = 0;
 		let documentHorizontal = false;
+		let touchIdentifier: number | null = null;
+		let touchStartX = 0;
+		let touchStartY = 0;
+		let touchStartScrollLeft = 0;
+		let touchHorizontal = false;
 		const sync = (): void => {
 			ShikiLivePreviewHorizontalScrollWidget.scrollLeftByBlock.set(this.scrollKey, scroller.scrollLeft);
 			offsetStyle.textContent = `${rowSelector}{--shiki-live-preview-scroll-left:${scroller.scrollLeft}px;}`;
@@ -129,10 +134,15 @@ class ShikiLivePreviewHorizontalScrollWidget extends WidgetType {
 			rows = [...scroller.ownerDocument.querySelectorAll<HTMLElement>(rowSelector)];
 			sync();
 		};
+		const isBlockRowTarget = (target: EventTarget | null): boolean => target instanceof Element && target.closest(rowSelector) !== null;
+		const setSharedScrollLeft = (scrollLeft: number): void => {
+			scroller.scrollLeft = Math.max(0, scrollLeft);
+			syncCurrentRows();
+		};
 		const onDocumentPointerDown = (event: PointerEvent): void => {
 			if (event.pointerType === 'mouse' && event.button !== 0) return;
 			if (scroller.scrollWidth <= scroller.clientWidth) return;
-			if (!(event.target instanceof Element) || !event.target.closest(rowSelector)) return;
+			if (!isBlockRowTarget(event.target)) return;
 			documentPointerId = event.pointerId;
 			documentStartX = event.clientX;
 			documentStartY = event.clientY;
@@ -148,23 +158,71 @@ class ShikiLivePreviewHorizontalScrollWidget extends WidgetType {
 			}
 			if (!documentHorizontal) return;
 			if (event.cancelable) event.preventDefault();
-			scroller.scrollLeft = Math.max(0, documentStartScrollLeft - deltaX);
-			syncCurrentRows();
+			setSharedScrollLeft(documentStartScrollLeft - deltaX);
 		};
 		const onDocumentPointerEnd = (event: PointerEvent): void => {
 			if (documentPointerId !== event.pointerId) return;
 			documentPointerId = null;
 			documentHorizontal = false;
 		};
+		const onDocumentTouchStart = (event: TouchEvent): void => {
+			if (scroller.scrollWidth <= scroller.clientWidth) return;
+			if (!isBlockRowTarget(event.target)) return;
+			const touch = event.changedTouches[0];
+			if (!touch) return;
+			touchIdentifier = touch.identifier;
+			touchStartX = touch.clientX;
+			touchStartY = touch.clientY;
+			touchStartScrollLeft = scroller.scrollLeft;
+			touchHorizontal = false;
+		};
+		const onDocumentTouchMove = (event: TouchEvent): void => {
+			if (touchIdentifier === null) return;
+			const touch = [...event.changedTouches].find(candidate => candidate.identifier === touchIdentifier);
+			if (!touch) return;
+			const deltaX = touch.clientX - touchStartX;
+			const deltaY = touch.clientY - touchStartY;
+			if (!touchHorizontal && Math.abs(deltaX) > 6 && Math.abs(deltaX) > Math.abs(deltaY)) {
+				touchHorizontal = true;
+			}
+			if (!touchHorizontal) return;
+			if (event.cancelable) event.preventDefault();
+			setSharedScrollLeft(touchStartScrollLeft - deltaX);
+		};
+		const onDocumentTouchEnd = (event: TouchEvent): void => {
+			if (touchIdentifier === null) return;
+			const touch = [...event.changedTouches].find(candidate => candidate.identifier === touchIdentifier);
+			if (!touch) return;
+			touchIdentifier = null;
+			touchHorizontal = false;
+		};
+		const onDocumentWheel = (event: WheelEvent): void => {
+			if (scroller.scrollWidth <= scroller.clientWidth) return;
+			if (!isBlockRowTarget(event.target)) return;
+			const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.shiftKey ? event.deltaY : 0;
+			if (delta === 0) return;
+			if (event.cancelable) event.preventDefault();
+			setSharedScrollLeft(scroller.scrollLeft + delta);
+		};
 		ownerDocument.addEventListener('pointerdown', onDocumentPointerDown, true);
 		ownerDocument.addEventListener('pointermove', onDocumentPointerMove, true);
 		ownerDocument.addEventListener('pointerup', onDocumentPointerEnd, true);
 		ownerDocument.addEventListener('pointercancel', onDocumentPointerEnd, true);
+		ownerDocument.addEventListener('touchstart', onDocumentTouchStart, { capture: true, passive: false });
+		ownerDocument.addEventListener('touchmove', onDocumentTouchMove, { capture: true, passive: false });
+		ownerDocument.addEventListener('touchend', onDocumentTouchEnd, true);
+		ownerDocument.addEventListener('touchcancel', onDocumentTouchEnd, true);
+		ownerDocument.addEventListener('wheel', onDocumentWheel, { capture: true, passive: false });
 		this.cleanupDocumentPan = (): void => {
 			ownerDocument.removeEventListener('pointerdown', onDocumentPointerDown, true);
 			ownerDocument.removeEventListener('pointermove', onDocumentPointerMove, true);
 			ownerDocument.removeEventListener('pointerup', onDocumentPointerEnd, true);
 			ownerDocument.removeEventListener('pointercancel', onDocumentPointerEnd, true);
+			ownerDocument.removeEventListener('touchstart', onDocumentTouchStart, true);
+			ownerDocument.removeEventListener('touchmove', onDocumentTouchMove, true);
+			ownerDocument.removeEventListener('touchend', onDocumentTouchEnd, true);
+			ownerDocument.removeEventListener('touchcancel', onDocumentTouchEnd, true);
+			ownerDocument.removeEventListener('wheel', onDocumentWheel, true);
 			offsetStyle.remove();
 		};
 		const resize = (): void => {

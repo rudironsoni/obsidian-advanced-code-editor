@@ -192,6 +192,13 @@ async function verifyLivePreviewViewing(client) {
 			if (sharedScroll) sharedScroll.scrollLeft = 0;
 			sharedScroll?.dispatchEvent(new Event('scroll'));
 			await new Promise(resolve => setTimeout(resolve, 50));
+			const wheelRow = codeRows[0];
+			wheelRow?.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: 140, deltaY: 0 }));
+			await new Promise(resolve => setTimeout(resolve, 50));
+			const wheelScrollLeft = sharedScroll?.scrollLeft ?? 0;
+			if (sharedScroll) sharedScroll.scrollLeft = 0;
+			sharedScroll?.dispatchEvent(new Event('scroll'));
+			await new Promise(resolve => setTimeout(resolve, 50));
 			const beforeTouchCodeLeft = firstContent?.getBoundingClientRect().left ?? null;
 			const panRow = codeRows[0];
 			const panRect = panRow?.getBoundingClientRect();
@@ -211,6 +218,7 @@ async function verifyLivePreviewViewing(client) {
 				sharedScrollWidth: sharedScroll?.scrollWidth ?? 0,
 				sharedScrollLeft: sharedScroll?.scrollLeft ?? 0,
 				scrollbarScrollLeft: 260,
+				wheelScrollLeft,
 				touchPanScrollLeft,
 				visibleCodeLineCount: root.querySelectorAll('.cm-line.shiki-live-preview-code-line').length,
 				visibleGutterCount: visibleGutters.length,
@@ -242,6 +250,7 @@ async function verifyLivePreviewViewing(client) {
 	assert(state.blockGutterCount === 4, 'Live Preview viewing did not preserve native note gutter rows for the fenced range', state);
 	assert(state.sharedScrollWidth > state.sharedScrollClient, 'Live Preview viewing shared scrollbar is not horizontally scrollable', state);
 	assert(state.scrollbarScrollLeft > 0, 'Live Preview viewing shared scrollbar did not scroll horizontally', state);
+	assert(state.wheelScrollLeft > 0, 'Live Preview viewing wheel over code row did not move the shared scrollbar', state);
 	assert(state.touchPanScrollLeft > 0, 'Live Preview viewing code row touch pan did not move the shared scrollbar', state);
 	assert(state.lineNumberCount === 2, 'Live Preview viewing internal line numbers include fence lines or omit code lines', state);
 	assert(JSON.stringify(state.lineNumberValues) === JSON.stringify(['1', '2']), 'Live Preview viewing internal line numbers do not count only code content lines', state);
