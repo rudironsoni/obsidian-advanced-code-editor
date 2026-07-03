@@ -1,12 +1,10 @@
 import { debounce, Plugin, PluginSettingTab, TFile } from 'obsidian';
 import { DEFAULT_SETTINGS, type Settings } from 'packages/obsidian/src/settings/Settings';
-import { LazyHighlighter } from 'packages/obsidian/src/LazyHighlighter';
+import { ShikiHighlighter } from 'packages/obsidian/src/ShikiHighlighter';
+import { SHIKI_INLINE_REGEX } from 'packages/obsidian/src/InlineCodeRegex';
 import type { CodeBlock } from 'packages/obsidian/src/CodeBlock';
 import type { InlineCodeBlock } from 'packages/obsidian/src/InlineCodeBlock';
 import { CodeBlockRegistry } from 'packages/obsidian/src/codeblocks/CodeBlockRegistry';
-import { LazyMonacoRuntime } from 'packages/obsidian/src/monaco/LazyMonacoRuntime';
-import { MonacoSurfaceRegistry } from 'packages/obsidian/src/monaco/MonacoSurfaceRegistry';
-import { HydrationQueue } from 'packages/obsidian/src/monaco/HydrationQueue';
 import { SourceModeTokenizationCache } from 'packages/obsidian/src/runtime/SourceModeTokenizationCache';
 import { getObsidianSafeLanguageNames } from 'packages/obsidian/src/runtime/LanguageMetadata';
 import { getActiveTheme } from 'packages/obsidian/src/runtime/ThemeBridge';
@@ -14,17 +12,13 @@ import type { ReadingViewAdapter } from 'packages/obsidian/src/modes/ReadingView
 
 import 'packages/obsidian/src/styles.css';
 
-export const SHIKI_INLINE_REGEX = /^\{([^\s]+)\} (.*)/i; // format: `{lang} code`
 const SHIKI_INSTANCE_KEY = '__shikiHighlighterInstanceId';
 
 type ShikiWindow = Window & { [SHIKI_INSTANCE_KEY]?: number };
 
 export default class ShikiPlugin extends Plugin {
-	highlighter!: LazyHighlighter;
-	monacoRuntime!: LazyMonacoRuntime;
+	highlighter!: ShikiHighlighter;
 	codeBlockRegistry!: CodeBlockRegistry;
-	surfaceRegistry!: MonacoSurfaceRegistry;
-	hydrationQueue!: HydrationQueue;
 	readingViewAdapter!: ReadingViewAdapter;
 	sourceModeTokenizationCache!: SourceModeTokenizationCache;
 	activeCodeBlocks!: Map<string, (CodeBlock | InlineCodeBlock)[]>;
@@ -44,11 +38,9 @@ export default class ShikiPlugin extends Plugin {
 		(window as ShikiWindow)[SHIKI_INSTANCE_KEY] = this.instanceId;
 		this.settings = structuredClone(DEFAULT_SETTINGS);
 		this.loadedSettings = structuredClone(this.settings);
-		this.monacoRuntime = new LazyMonacoRuntime(this);
-		this.highlighter = new LazyHighlighter(this);
+		this.applyFontSizeClass();
+		this.highlighter = new ShikiHighlighter(this);
 		this.codeBlockRegistry = new CodeBlockRegistry();
-		this.surfaceRegistry = new MonacoSurfaceRegistry(this);
-		this.hydrationQueue = new HydrationQueue();
 		this.readingViewAdapter = undefined as never;
 		this.sourceModeTokenizationCache = new SourceModeTokenizationCache();
 		this.activeCodeBlocks = new Map();
@@ -149,9 +141,10 @@ export default class ShikiPlugin extends Plugin {
 		await this.ensureSettingsLoaded();
 		this.loadedSettings = structuredClone(this.settings);
 
+		this.applyFontSizeClass();
+
 		await this.highlighter.reload();
 		this.sourceModeTokenizationCache.clear();
-		this.surfaceRegistry.updateThemes();
 
 		for (const [_, codeBlocks] of this.activeCodeBlocks) {
 			for (const codeBlock of codeBlocks) {
@@ -166,6 +159,8 @@ export default class ShikiPlugin extends Plugin {
 		if (this.unloaded || this.cm6PluginRegistered) {
 			return;
 		}
+		await this.ensureSettingsLoaded();
+		this.applyFontSizeClass();
 
 		const { createCm6Plugin } = await import('packages/obsidian/src/codemirror/Cm6_ViewPlugin');
 		this.registerEditorExtension([createCm6Plugin(this)]);
@@ -177,6 +172,8 @@ export default class ShikiPlugin extends Plugin {
 		if (this.unloaded || this.codeBlockProcessorsRegistered) {
 			return;
 		}
+		await this.ensureSettingsLoaded();
+		this.applyFontSizeClass();
 
 		if (!this.readingViewAdapter) {
 			const { ReadingViewAdapter } = await import('packages/obsidian/src/modes/ReadingViewAdapter');
@@ -233,7 +230,7 @@ export default class ShikiPlugin extends Plugin {
 				processedPre.add(pre);
 				const codeBlock = new CodeBlock(
 					this,
-					pre,
+					pre.parentElement ?? pre,
 					codeElement.textContent?.trim() ? codeElement.textContent : sourceFromSectionInfo(pre),
 					language,
 					ctx,
@@ -250,7 +247,13 @@ export default class ShikiPlugin extends Plugin {
 					continue;
 				}
 				processedPre.add(pre);
-				const codeBlock = new CodeBlock(this, pre, pre.textContent?.trim() ? pre.textContent : sourceFromSectionInfo(pre), language, ctx);
+				const codeBlock = new CodeBlock(
+					this,
+					pre.parentElement ?? pre,
+					pre.textContent?.trim() ? pre.textContent : sourceFromSectionInfo(pre),
+					language,
+					ctx,
+				);
 				ctx.addChild(codeBlock);
 			}
 		}, 1000);
@@ -263,6 +266,9 @@ export default class ShikiPlugin extends Plugin {
 		if (this.unloaded || this.inlineCodeProcessorRegistered) {
 			return;
 		}
+		void this.ensureSettingsLoaded().then(() => {
+			this.applyFontSizeClass();
+		});
 
 		this.registerMarkdownPostProcessor(async (el, ctx) => {
 			const inlineCodes = el.findAll(':not(pre) > code');
@@ -284,8 +290,6 @@ export default class ShikiPlugin extends Plugin {
 	onunload(): void {
 		this.unloaded = true;
 		void this.highlighter?.unload();
-		this.surfaceRegistry.clear();
-		this.hydrationQueue.clear();
 		this.codeBlockRegistry.clear();
 	}
 
@@ -295,6 +299,14 @@ export default class ShikiPlugin extends Plugin {
 
 	getActiveTheme(): string {
 		return getActiveTheme(this);
+	}
+
+	applyFontSizeClass(): void {
+		if (this.loadedSettings.useEditorFontSize) {
+			document.body.classList.add('shiki-use-editor-font-size');
+		} else {
+			document.body.classList.remove('shiki-use-editor-font-size');
+		}
 	}
 
 	addActiveCodeBlock(codeBlock: CodeBlock | InlineCodeBlock): void {

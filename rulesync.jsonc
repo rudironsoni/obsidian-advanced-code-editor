@@ -1,6 +1,6 @@
 {
 	"$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
-	"targets": ["copilot", "cursor", "claudecode", "codexcli", "opencode", "antigravity"],
+	"targets": ["copilot", "cursor", "claudecode", "codexcli", "opencode", "antigravity-cli"],
 	"features": ["*"],
 	"sources": [
 		{

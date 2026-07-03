@@ -17,12 +17,12 @@ This document maps the scorecard signals to concrete fixes you can apply. Use it
 
 The portal checks for four files at the repo root.
 
-| Signal                | Fix                                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Missing readme        | Add `README.md` describing the plugin's purpose, installation, usage, and screenshots.                                               |
-| Missing license       | Add `LICENSE` (MIT is typical).                                                                                                      |
-| Missing description   | Ensure `manifest.json` has a clear `description` field.                                                                              |
-| Missing contributing  | Add `CONTRIBUTING.md`. See [contributing-template.md](contributing-template.md) for a portable template.                             |
+| Signal               | Fix                                                                                                      |
+| -------------------- | -------------------------------------------------------------------------------------------------------- |
+| Missing readme       | Add `README.md` describing the plugin's purpose, installation, usage, and screenshots.                   |
+| Missing license      | Add `LICENSE` (MIT is typical).                                                                          |
+| Missing description  | Ensure `manifest.json` has a clear `description` field.                                                  |
+| Missing contributing | Add `CONTRIBUTING.md`. See [contributing-template.md](contributing-template.md) for a portable template. |
 
 ### Maintenance, Responsiveness, Adoption
 
@@ -56,22 +56,22 @@ These are almost always **dev-only transitives** pulled in through `eslint`, `es
 
 ```json
 {
-  "pnpm": {
-    "overrides": {
-      "minimatch@<3.1.3": "^3.1.3",
-      "minimatch@^4 || ^5 || ^6 || ^7 || ^8": "^8.0.5",
-      "minimatch@^9": "^9.0.6",
-      "picomatch@<2.3.2": "^2.3.2",
-      "picomatch@^3 || ^4": "^4.0.4",
-      "brace-expansion@<1.1.13": "^1.1.13",
-      "brace-expansion@^2": "^2.0.3",
-      "ajv@<6.14.0": "^6.14.0",
-      "ajv@^7 || ^8": "^8.18.0",
-      "flatted@<3.4.0": "^3.4.0",
-      "fast-uri@<3.1.1": "^3.1.1",
-      "yaml@<2.8.3": "^2.8.3"
-    }
-  }
+	"pnpm": {
+		"overrides": {
+			"minimatch@<3.1.3": "^3.1.3",
+			"minimatch@^4 || ^5 || ^6 || ^7 || ^8": "^8.0.5",
+			"minimatch@^9": "^9.0.6",
+			"picomatch@<2.3.2": "^2.3.2",
+			"picomatch@^3 || ^4": "^4.0.4",
+			"brace-expansion@<1.1.13": "^1.1.13",
+			"brace-expansion@^2": "^2.0.3",
+			"ajv@<6.14.0": "^6.14.0",
+			"ajv@^7 || ^8": "^8.18.0",
+			"flatted@<3.4.0": "^3.4.0",
+			"fast-uri@<3.1.1": "^3.1.1",
+			"yaml@<2.8.3": "^2.8.3"
+		}
+	}
 }
 ```
 
@@ -89,54 +89,54 @@ Then run `pnpm install` and `pnpm why <pkg>` to verify the patched version is re
 name: Release
 
 on:
-  push:
-    tags:
-      - "*"
-  workflow_dispatch:
+    push:
+        tags:
+            - '*'
+    workflow_dispatch:
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+    contents: write
+    id-token: write
+    attestations: write
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "pnpm"
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - id: version
-        run: echo "version=$(jq -r .version manifest.json)" >> "$GITHUB_OUTPUT"
-      - uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: |
-            main.js
-            styles.css
-            manifest.json
-      - env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          COMMIT_NOTES=$(git log -1 --pretty=format:%B)
-          PREV_TAG=$(git tag --sort=-creatordate --merged HEAD | grep -v "^${VERSION}$" | head -n 1 || true)
-          if [ -n "$PREV_TAG" ]; then
-            COMPARE="**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${VERSION}"
-          else
-            COMPARE="**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/commits/${VERSION}"
-          fi
-          NOTES=$(printf "%s\n\n---\n\n%s\n" "$COMMIT_NOTES" "$COMPARE")
-          gh release create "$VERSION" \
-            --title="$VERSION" \
-            --notes "$NOTES" \
-            main.js styles.css manifest.json
+    release:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: 'pnpm'
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm build
+            - id: version
+              run: echo "version=$(jq -r .version manifest.json)" >> "$GITHUB_OUTPUT"
+            - uses: actions/attest-build-provenance@v2
+              with:
+                  subject-path: |
+                      main.js
+                      styles.css
+                      manifest.json
+            - env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  VERSION: ${{ steps.version.outputs.version }}
+              run: |
+                  COMMIT_NOTES=$(git log -1 --pretty=format:%B)
+                  PREV_TAG=$(git tag --sort=-creatordate --merged HEAD | grep -v "^${VERSION}$" | head -n 1 || true)
+                  if [ -n "$PREV_TAG" ]; then
+                    COMPARE="**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${VERSION}"
+                  else
+                    COMPARE="**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/commits/${VERSION}"
+                  fi
+                  NOTES=$(printf "%s\n\n---\n\n%s\n" "$COMMIT_NOTES" "$COMPARE")
+                  gh release create "$VERSION" \
+                    --title="$VERSION" \
+                    --notes "$NOTES" \
+                    main.js styles.css manifest.json
 ```
 
 Then cut releases by pushing a tag (e.g. `git tag 0.1.0 && git push origin 0.1.0`) instead of uploading files manually. The workflow attaches the assets and registers the attestation, which the scorecard checks against the source repo for byte-for-byte reproducibility.
@@ -165,13 +165,11 @@ Compute the flag before `esbuild.context(...)` and reference it on the
 // build machine's absolute file paths into main.js, so CI and the scorecard
 // reproducer produce byte-different output. Ship production with no
 // sourcemap; keep the inline sourcemap only for the dev/watch build.
-const isProduction =
-	process.argv.slice(2).includes("build") ||
-	process.argv.slice(2).includes("production");
+const isProduction = process.argv.slice(2).includes('build') || process.argv.slice(2).includes('production');
 
 const context = await esbuild.context({
 	// ...
-	sourcemap: isProduction ? false : "inline",
+	sourcemap: isProduction ? false : 'inline',
 	// ...
 });
 ```
@@ -200,14 +198,14 @@ The fix is almost never to keep `!important` and hope the scorecard ignores it. 
 ```css
 /* Wrong: leans on !important to beat Obsidian's defaults */
 .my-plugin-btn {
-  border: none !important;
-  background: none !important;
+	border: none !important;
+	background: none !important;
 }
 
 /* Right: parent class boosts specificity, no !important needed */
 .my-plugin-panel .my-plugin-btn {
-  border: none;
-  background: none;
+	border: none;
+	background: none;
 }
 ```
 
@@ -221,13 +219,13 @@ Most uses of `:has()` are stylistic preferences that can be rewritten as descend
 
 ```css
 /* Wrong: re-styles the parent based on a descendant */
-.result:has(a[href*="http"]) {
-  word-break: break-all;
+.result:has(a[href*='http']) {
+	word-break: break-all;
 }
 
 /* Right: targets the child directly */
-.result a[href*="http"] {
-  word-break: break-all;
+.result a[href*='http'] {
+	word-break: break-all;
 }
 ```
 
@@ -240,8 +238,8 @@ A plugin's `styles.css` is loaded globally. Rules targeting Obsidian's built-in 
 ```css
 /* Wrong: forces flex layout on every menu in Obsidian, not just this plugin's */
 .menu .menu-item {
-  display: flex !important;
-  justify-content: space-between !important;
+	display: flex !important;
+	justify-content: space-between !important;
 }
 ```
 
@@ -327,7 +325,7 @@ This is the most common Risk-tier finding for plugins that accumulated `eslint-d
 
 #### `@typescript-eslint/no-unused-vars` (Warning)
 
-> 'foo' is defined but never used. Allowed unused args must match /^_/u.
+> 'foo' is defined but never used. Allowed unused args must match /^\_/u.
 
 **Fix**: prefix unused parameters with `_` (e.g. `_file`, `_index`, `_settings`). For destructured properties you don't need, remove them.
 
@@ -351,13 +349,19 @@ This is the most common Risk-tier finding for plugins that accumulated `eslint-d
 
 ```ts
 // Wrong
-button.onclick = async () => { await doThing(); };
+button.onclick = async () => {
+	await doThing();
+};
 
 // Right (fire-and-forget)
-button.onclick = () => { void doThing(); };
+button.onclick = () => {
+	void doThing();
+};
 
 // Better (handle errors)
-button.onclick = () => { doThing().catch(console.error); };
+button.onclick = () => {
+	doThing().catch(console.error);
+};
 ```
 
 #### `@typescript-eslint/no-floating-promises` (Warning)
@@ -384,23 +388,23 @@ Lowercase the `name` field in `manifest.json`. Title case is fine; all caps is n
 When you bump `eslint-plugin-obsidianmd` to a version that adds type-aware rules (0.3.0+), the rules will fail on non-TypeScript files because there is no `parserOptions.project` for them. Scope the recommended config to TS only:
 
 ```js
-import obsidianmd from "eslint-plugin-obsidianmd";
+import obsidianmd from 'eslint-plugin-obsidianmd';
 
 export default defineConfig([
-  { ignores: ["main.js", "node_modules/**", "*.js", "scripts/**"] },
-  // Only run obsidianmd recommended rules on TypeScript files
-  ...obsidianmd.configs.recommended.map((config) => ({
-    ...config,
-    files: config.files ?? ["**/*.ts"],
-  })),
-  {
-    files: ["**/*.ts"],
-    languageOptions: {
-      parser: tsparser,
-      parserOptions: { project: "./tsconfig.json", sourceType: "module" },
-      // ...
-    },
-  },
+	{ ignores: ['main.js', 'node_modules/**', '*.js', 'scripts/**'] },
+	// Only run obsidianmd recommended rules on TypeScript files
+	...obsidianmd.configs.recommended.map(config => ({
+		...config,
+		files: config.files ?? ['**/*.ts'],
+	})),
+	{
+		files: ['**/*.ts'],
+		languageOptions: {
+			parser: tsparser,
+			parserOptions: { project: './tsconfig.json', sourceType: 'module' },
+			// ...
+		},
+	},
 ]);
 ```
 

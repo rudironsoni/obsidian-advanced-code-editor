@@ -3,8 +3,6 @@ import { parseCodeBlockMeta } from 'packages/obsidian/src/codeblocks/CodeBlockMe
 import type { CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
 
-type ReadingSurface = ReturnType<ShikiPlugin['surfaceRegistry']['getOrCreate']>;
-
 interface ReadingBlockState {
 	block: CodeBlockModel;
 	container: HTMLElement;
@@ -12,7 +10,6 @@ interface ReadingBlockState {
 	language: string;
 	observer: MutationObserver | undefined;
 	releaseTimer: number | undefined;
-	surface: ReadingSurface;
 }
 
 export class ReadingViewAdapter {
@@ -30,7 +27,6 @@ export class ReadingViewAdapter {
 			return undefined;
 		}
 		this.plugin.codeBlockRegistry.upsert(block);
-		const surface = this.plugin.surfaceRegistry.getOrCreate(block);
 		const previousState = this.blockStates.get(block.id);
 		if (previousState?.releaseTimer !== undefined) {
 			window.clearTimeout(previousState.releaseTimer);
@@ -43,10 +39,9 @@ export class ReadingViewAdapter {
 			language: language.toLowerCase(),
 			observer: undefined,
 			releaseTimer: undefined,
-			surface,
 		};
 		this.blockStates.set(block.id, state);
-		this.attachSurface(state, container);
+		this.enhanceBlock(state);
 		this.scheduleAttachmentCheck(state);
 		this.blockIdsByContainer.set(container, block.id);
 		return block.id;
@@ -60,7 +55,6 @@ export class ReadingViewAdapter {
 		this.blockIdsByContainer.delete(container);
 		const state = this.blockStates.get(blockId);
 		if (!state) {
-			this.plugin.surfaceRegistry.release(blockId);
 			this.plugin.codeBlockRegistry.delete(blockId);
 			return;
 		}
@@ -68,76 +62,138 @@ export class ReadingViewAdapter {
 			return;
 		}
 		state.releaseTimer = window.setTimeout(() => {
-			if (state.container.isConnected || state.container.contains(state.surface.hostEl)) {
+			if (state.container.isConnected) {
 				return;
 			}
 			state.observer?.disconnect();
 			this.blockStates.delete(blockId);
-			this.plugin.surfaceRegistry.release(blockId);
 			this.plugin.codeBlockRegistry.delete(blockId);
 		}, 250);
 	}
 
-	private scheduleAttachmentCheck(state: ReadingBlockState): void {
-		const attach = (): void => {
-			if (state.surface.isDisposed()) {
-				return;
-			}
-			const currentContainer = this.findCurrentContainer(state) ?? (state.container.isConnected ? state.container : undefined);
-			if (!currentContainer) {
-				return;
-			}
-			this.attachSurface(state, currentContainer);
-		};
-		const observerRoot = state.container.closest<HTMLElement>('.markdown-preview-view, .markdown-preview-section, .view-content');
-		const observer = new MutationObserver(() => {
-			window.requestAnimationFrame(attach);
-		});
-		observer.observe(observerRoot ?? state.container, { childList: true, subtree: true });
-		state.observer = observer;
-		for (const delayMs of [0, 50, 250, 1000, 2000, 4000]) {
-			window.setTimeout(attach, delayMs);
-		}
-	}
-
-	private attachSurface(state: ReadingBlockState, container: HTMLElement): void {
-		if (!container.isConnected || state.surface.isDisposed() || container.contains(state.surface.hostEl)) {
+	private enhanceBlock(state: ReadingBlockState): void {
+		const container = state.container;
+		if (!container.isConnected) {
 			return;
 		}
-		state.container = container;
-		this.blockIdsByContainer.set(container, state.block.id);
-		container.empty();
-		state.surface.setNoteScrollerProvider(() => container.closest<HTMLElement>('.markdown-preview-view, .view-content'));
-		state.surface.attach(container);
-		this.plugin.hydrationQueue.enqueue(state.surface);
+
+		const pre = container.querySelector('pre') ?? (container.tagName === 'PRE' ? container : null);
+		const codeElement = pre?.querySelector('code');
+		if (!pre || !codeElement) {
+			return;
+		}
+
+		const wrapper = container.tagName === 'PRE' ? (container.parentElement ?? container) : container;
+		const existingBody = wrapper.querySelector<HTMLElement>(':scope > .shiki-block-body');
+
+		if (existingBody) {
+			void this.applyShikiHighlight(state, codeElement);
+			return;
+		}
+
+		wrapper.classList.add('shiki-reading-block');
+		wrapper.classList.remove('wrap-lines');
+		if (this.plugin.loadedSettings.wrapLines) {
+			wrapper.classList.add('wrap-lines');
+		}
+		for (const stale of wrapper.querySelectorAll(':scope > .shiki-block-header, :scope > .shiki-block-body, :scope > .shiki-code-scroll')) {
+			stale.remove();
+		}
+
+		const header = document.createElement('div');
+		header.className = 'shiki-block-header';
+		const left = header.createDiv({ cls: 'shiki-header-left' });
+		left.createSpan({ cls: 'shiki-lang-name', text: state.language });
+		const right = header.createDiv({ cls: 'shiki-header-right' });
+		const copyBtn = right.createEl('button', { cls: 'shiki-copy-button', text: 'Copy' });
+		copyBtn.onclick = (): void => {
+			navigator.clipboard.writeText(state.block.code).catch(() => {});
+		};
+
+		const body = document.createElement('div');
+		body.className = 'shiki-block-body';
+		const scroll = body.createDiv({ cls: 'shiki-code-scroll' });
+		pre.remove();
+		if (container !== wrapper && container !== pre && container.childElementCount === 0 && container.textContent?.trim() === '') {
+			container.remove();
+		}
+		scroll.appendChild(pre);
+		wrapper.appendChild(header);
+		wrapper.appendChild(body);
+
+		if (!this.plugin.loadedSettings.wrapLines) {
+			pre.style.whiteSpace = 'pre';
+			codeElement.style.whiteSpace = 'pre';
+		}
+
+		void this.applyShikiHighlight(state, codeElement);
 	}
 
-	private findCurrentContainer(state: ReadingBlockState): HTMLElement | undefined {
-		const root = state.container.closest<HTMLElement>('.markdown-preview-view, .view-content') ?? document.body;
-		const candidates = root.querySelectorAll<HTMLElement>('pre[class*="language-"], pre > code[class*="language-"]');
-		for (const candidate of candidates) {
-			const pre = candidate.matches('pre') ? candidate : candidate.parentElement;
-			if (!(pre instanceof HTMLElement)) {
-				continue;
+	private async applyShikiHighlight(state: ReadingBlockState, codeElement: HTMLElement): Promise<void> {
+		const highlight = await this.plugin.highlighter.getHighlightTokens(state.block.code, state.block.language);
+		if (!highlight) {
+			return;
+		}
+		const themeBackground = this.plugin.highlighter.getThemeBackground(highlight);
+		if (themeBackground) {
+			codeElement.closest<HTMLElement>('.shiki-reading-block')?.style.setProperty('--shiki-code-background', themeBackground);
+		}
+
+		const lines = state.block.code.split('\n');
+
+		// Preserve the original code text but replace with Shiki-colored spans
+		codeElement.empty();
+		for (let i = 0; i < lines.length; i++) {
+			const lineTokens = highlight.tokens[i];
+			if (!lineTokens) {
+				codeElement.appendChild(document.createTextNode(lines[i] ?? ''));
+			} else {
+				for (const token of lineTokens) {
+					const tokenStyle = this.plugin.highlighter.getTokenStyle(token);
+					codeElement.createSpan({ text: token.content, cls: tokenStyle.classes.join(' '), attr: { style: tokenStyle.style } });
+				}
 			}
-			if (this.containerMatchesState(pre, state)) {
-				return pre;
+			if (i < lines.length - 1) {
+				codeElement.appendChild(document.createTextNode('\n'));
 			}
 		}
-		return undefined;
+
+		// Add line numbers if enabled
+		const blockRoot = codeElement.closest<HTMLElement>('.shiki-reading-block');
+		if (blockRoot) {
+			for (const lineNumbers of [...blockRoot.querySelectorAll('.shiki-line-numbers')]) {
+				lineNumbers.remove();
+			}
+		}
+		const bodyEl = codeElement.closest<HTMLElement>('.shiki-block-body');
+		if (bodyEl) {
+			if (!this.plugin.loadedSettings.showLineNumbers) {
+				bodyEl.style.display = '';
+			}
+		}
+		if (this.plugin.loadedSettings.showLineNumbers) {
+			if (bodyEl && !bodyEl.querySelector('.shiki-line-numbers')) {
+				bodyEl.style.display = 'flex';
+				const lineNumbers = document.createElement('div');
+				lineNumbers.className = 'shiki-line-numbers';
+				for (let i = 1; i <= lines.length; i++) {
+					lineNumbers.createSpan({ text: String(i) });
+				}
+				bodyEl.insertBefore(lineNumbers, bodyEl.firstChild);
+			}
+		}
 	}
 
-	private containerMatchesState(container: HTMLElement, state: ReadingBlockState): boolean {
-		const languageElement = container.matches('[class*="language-"]') ? container : container.querySelector<HTMLElement>('[class*="language-"]');
-		const className = [...(languageElement?.classList ?? [])].find(value => value.startsWith('language-'));
-		if (className && className.slice('language-'.length).toLowerCase() !== state.language) {
-			return false;
-		}
-		const sectionInfo = state.ctx.getSectionInfo(container);
-		if (!sectionInfo) {
-			return container.contains(state.surface.hostEl);
-		}
-		return sectionInfo.lineStart === state.block.sectionStartLine && sectionInfo.lineEnd === state.block.sectionEndLine;
+	private scheduleAttachmentCheck(state: ReadingBlockState): void {
+		const attach = (): void => {
+			if (!state.container.isConnected) {
+				return;
+			}
+			this.enhanceBlock(state);
+		};
+		// Single delayed check; the post-processor already calls us at the right time,
+		// but give the DOM a moment to settle before enhancing.
+		window.setTimeout(attach, 50);
 	}
 
 	private buildBlockModel(container: HTMLElement, source: string, language: string, ctx: MarkdownPostProcessorContext): CodeBlockModel | undefined {

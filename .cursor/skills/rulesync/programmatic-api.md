@@ -3,34 +3,34 @@
 Rulesync can be used as a library in your Node.js/TypeScript projects. The `generate`, `importFromTool`, and `convertFromTool` functions are available as named exports.
 
 ```typescript
-import { convertFromTool, generate, importFromTool } from "rulesync";
+import { convertFromTool, generate, importFromTool } from 'rulesync';
 
 // Generate configurations
 const result = await generate({
-  targets: ["claudecode", "cursor"],
-  features: ["rules", "mcp"],
+	targets: ['claudecode', 'cursor'],
+	features: ['rules', 'mcp'],
 });
 console.log(`Generated ${result.rulesCount} rules, ${result.mcpCount} MCP configs`);
 
 // Import existing tool configurations into .rulesync/
 const importResult = await importFromTool({
-  target: "claudecode",
-  features: ["rules", "commands"],
+	target: 'claudecode',
+	features: ['rules', 'commands'],
 });
 console.log(`Imported ${importResult.rulesCount} rules`);
 
 // Convert configurations between AI tools without writing intermediate .rulesync/ files
 try {
-  const convertResult = await convertFromTool({
-    from: "claudecode",
-    to: ["cursor", "copilot"],
-    features: ["rules"],
-  });
-  console.log(`Converted ${convertResult.rulesCount} rule file(s)`);
+	const convertResult = await convertFromTool({
+		from: 'claudecode',
+		to: ['cursor', 'copilot'],
+		features: ['rules'],
+	});
+	console.log(`Converted ${convertResult.rulesCount} rule file(s)`);
 } catch (error) {
-  // Thrown when `from` is empty, `to` is empty, `to` includes `from`,
-  // a source file cannot be parsed, or write fails.
-  console.error("convert failed:", error);
+	// Thrown when `from` is empty, `to` is empty, `to` includes `from`,
+	// a source file cannot be parsed, or write fails.
+	console.error('convert failed:', error);
 }
 ```
 

@@ -24,9 +24,6 @@ export class SourceModeAdapter {
 			this.decorations = Decoration.none;
 			return;
 		}
-		if (!isLivePreview) {
-			this.scheduleStaleMonacoOverlayCleanup();
-		}
 		this.decorations = this.decorations.map(update.changes);
 		if (isLivePreview) {
 			this.decorations = Decoration.none;
@@ -38,7 +35,6 @@ export class SourceModeAdapter {
 	}
 
 	async retokenize(): Promise<void> {
-		this.removeMonacoArtifacts();
 		if (!this.plugin.isCurrentInstance()) {
 			this.decorations = Decoration.none;
 			return;
@@ -55,6 +51,8 @@ export class SourceModeAdapter {
 		const builder = new RangeSetBuilder<Decoration>();
 		const theme = getActiveTheme(this.plugin);
 		const settingsSignature = JSON.stringify({ disabledLanguages: this.plugin.loadedSettings.disabledLanguages, theme });
+		const sourceViewRoot = this.view.dom.closest<HTMLElement>('.markdown-source-view.mod-cm6');
+		sourceViewRoot?.style.removeProperty('--shiki-code-background');
 
 		for (const block of visibleBlocks) {
 			const cached = this.plugin.sourceModeTokenizationCache.get({
@@ -80,10 +78,13 @@ export class SourceModeAdapter {
 			if (requestId !== this.tokenizationRequest || !highlight || block.codeFrom === undefined || block.codeTo === undefined) {
 				continue;
 			}
-			let lineOffset = 0;
+			const themeBackground = this.plugin.highlighter.getThemeBackground(highlight);
+			if (themeBackground) {
+				sourceViewRoot?.style.setProperty('--shiki-code-background', themeBackground);
+			}
 			for (const lineTokens of highlight.tokens) {
 				for (const token of lineTokens) {
-					const from = block.codeFrom + lineOffset + token.offset;
+					const from = block.codeFrom + token.offset;
 					const to = Math.min(from + token.content.length, block.codeTo);
 					if (to <= from) {
 						continue;
@@ -100,7 +101,6 @@ export class SourceModeAdapter {
 						}),
 					);
 				}
-				lineOffset += this.lineLength(block.code, lineOffset) + 1;
 			}
 		}
 
@@ -111,16 +111,6 @@ export class SourceModeAdapter {
 		this.requestDecorationRefresh();
 	}
 
-	private scheduleStaleMonacoOverlayCleanup(): void {
-		window.setTimeout(() => this.removeStaleMonacoOverlays(), 0);
-		window.setTimeout(() => this.removeStaleMonacoOverlays(), 50);
-	}
-
-	private removeStaleMonacoOverlays(): void {
-		for (const root of Array.from(document.querySelectorAll<HTMLElement>('.shiki-monaco-overlay-root'))) {
-			root.remove();
-		}
-	}
 	destroy(): void {
 		this.tokenizationRequest++;
 		this.decorations = Decoration.none;
@@ -133,11 +123,6 @@ export class SourceModeAdapter {
 			lines.push({ lineNumber, text: line.text, from: line.from, to: line.to });
 		}
 		return lines;
-	}
-
-	private lineLength(code: string, offset: number): number {
-		const nextNewline = code.indexOf('\n', offset);
-		return nextNewline === -1 ? code.length - offset : nextNewline - offset;
 	}
 
 	private toSourceBlock(parsed: ReturnType<CodeBlockParser['parseLivePreviewBlocks']>[number]): CodeBlockModel {
@@ -157,19 +142,5 @@ export class SourceModeAdapter {
 			openingFenceLine: parsed.openingFenceLine,
 			closingFenceLine: parsed.closingFenceLine,
 		});
-	}
-
-	private removeMonacoArtifacts(): void {
-		for (const element of Array.from(this.view.dom.querySelectorAll<HTMLElement>('.shiki-monaco-block, .shiki-monaco-codeblock'))) {
-			const blockId = element.getAttribute('data-shiki-block-id');
-			if (blockId !== null) {
-				this.plugin.surfaceRegistry.release(blockId);
-				this.plugin.codeBlockRegistry.delete(blockId);
-			}
-			element.remove();
-		}
-		for (const root of Array.from(this.view.dom.querySelectorAll<HTMLElement>('.shiki-monaco-overlay-root'))) {
-			root.remove();
-		}
 	}
 }

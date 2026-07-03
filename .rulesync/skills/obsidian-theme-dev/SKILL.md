@@ -17,6 +17,7 @@ To ensure consistent theme development, proper CSS organization, and adherence t
 ## Scope
 
 This skill covers:
+
 - Writing or modifying CSS/SCSS for `theme.css`
 - Working with Obsidian's CSS variables and theming system
 - Implementing responsive design or dark/light mode support

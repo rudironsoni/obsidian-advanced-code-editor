@@ -13,6 +13,7 @@ To ensure consistent development across plugins and themes, proper code organiza
 ## Scope
 
 This skill covers:
+
 - Implementing new plugin features
 - TypeScript/JavaScript coding conventions
 - Plugin debugging and troubleshooting

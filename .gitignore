@@ -45,3 +45,11 @@ debug-tokenizer2.mjs
 modern-monaco-*.tgz
 package/
 test-obsidian.mjs
+
+# Runtime verification artifacts and ephemeral test environments
+tests/obsidian-test-user-data/
+tests/obsidian-test-vault/.obsidian/
+tests/obsidian-test-vault/codex-live-preview-redraw-loop.md
+tests/obsidian-test-vault/codex-shiki-mobile-rendering.md
+planning/test-reports/runtime/
+tests/runtime-session/

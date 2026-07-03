@@ -38,30 +38,30 @@ export class ShikiSettingsTab extends PluginSettingTab {
 			.setName('Show line numbers')
 			.setDesc('Controls whether line numbers are shown by default.')
 			.addToggle(toggle => {
-				toggle.setValue(this.plugin.settings.ecDefaultShowLineNumbers).onChange(async value => {
-					this.plugin.settings.ecDefaultShowLineNumbers = value;
+				toggle.setValue(this.plugin.settings.showLineNumbers).onChange(async value => {
+					this.plugin.settings.showLineNumbers = value;
 					await this.plugin.saveSettingsAndReloadHighlighter();
 				});
 			});
 
 		new Setting(this.containerEl)
-			.setName('Wrap')
+			.setName('Wrap lines')
 			.setDesc('Controls whether code block lines wrap by default.')
 			.addToggle(toggle => {
-				toggle.setValue(this.plugin.settings.ecDefaultWrap).onChange(async value => {
-					this.plugin.settings.ecDefaultWrap = value;
+				toggle.setValue(this.plugin.settings.wrapLines).onChange(async value => {
+					this.plugin.settings.wrapLines = value;
 					await this.plugin.saveSettingsAndReloadHighlighter();
 				});
 			});
 
-		new Setting(this.containerEl).setName('Editor').setHeading();
-
 		new Setting(this.containerEl)
-			.setName('Font family')
-			.setDesc('Font family for the inline code block editor. Use CSS font-family syntax.')
-			.addText(text => {
-				text.setValue(this.plugin.settings.ecEditorFontFamily).onChange(async value => {
-					this.plugin.settings.ecEditorFontFamily = value || 'var(--font-monospace)';
+			.setName('Use editor font size')
+			.setDesc(
+				"When enabled, code blocks in Live Preview and Reading mode use the same font size as the editor. When disabled, they use Obsidian's smaller code block font size.",
+			)
+			.addToggle(toggle => {
+				toggle.setValue(this.plugin.settings.useEditorFontSize).onChange(async value => {
+					this.plugin.settings.useEditorFontSize = value;
 					await this.plugin.saveSettingsAndReloadHighlighter();
 				});
 			});
@@ -138,7 +138,7 @@ export class ShikiSettingsTab extends PluginSettingTab {
 			.addButton(button => {
 				button.setButtonText('Add Language Rule').onClick(async () => {
 					button.setDisabled(true);
-					const languages = await this.plugin.highlighter.obsidianSafeLanguageNames();
+					const languages = this.plugin.highlighter.obsidianSafeLanguageNames();
 					button.setDisabled(false);
 
 					const modal = new StringSelectModal(this.plugin, languages, language => {

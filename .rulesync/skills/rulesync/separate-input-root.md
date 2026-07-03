@@ -19,20 +19,20 @@ Without `--input-root`, you would have to `cd ~/.aiglobal && rulesync generate` 
 
 1. Create and initialize a shared rules directory:
 
-   ```bash
-   mkdir -p ~/.aiglobal
-   cd ~/.aiglobal
-   rulesync init
-   ```
+    ```bash
+    mkdir -p ~/.aiglobal
+    cd ~/.aiglobal
+    rulesync init
+    ```
 
 2. Edit your shared rules (`~/.aiglobal/.rulesync/rules/overview.md`, etc.) to your preferences.
 
 3. From any project, generate configurations using the shared rules:
 
-   ```bash
-   # In your project directory
-   rulesync generate --input-root ~/.aiglobal --targets claudecode --features rules
-   ```
+    ```bash
+    # In your project directory
+    rulesync generate --input-root ~/.aiglobal --targets claudecode --features rules
+    ```
 
 ## Comparison with `--global`
 

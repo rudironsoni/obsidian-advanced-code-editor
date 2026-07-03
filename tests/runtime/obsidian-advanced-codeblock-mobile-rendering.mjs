@@ -1,0 +1,1144 @@
+#!/usr/bin/env node
+
+import { mkdir, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import path from 'node:path';
+import { promisify } from 'node:util';
+
+const DEFAULT_PORT = 9230;
+const PORT = Number(process.env.OBSIDIAN_DEBUG_PORT ?? DEFAULT_PORT);
+const REPORT_DIR = process.env.OBSIDIAN_MOBILE_RENDER_REPORT_DIR ?? path.join('planning', 'test-reports', 'runtime', 'mobile-rendering');
+const OBSIDIAN_APP_NAME = process.env.OBSIDIAN_APP_NAME ?? 'Obsidian';
+const NOTE_PATH = 'codex-shiki-mobile-rendering.md';
+const MOBILE_VIEWPORTS = [
+	{ name: 'iphone-390x844', width: 390, height: 844, deviceScaleFactor: 3 },
+	{ name: 'phone-430x932', width: 430, height: 932, deviceScaleFactor: 3 },
+];
+const SHIKI_BLOCK_SELECTOR = '.shiki-live-preview-block, .shiki-reading-block';
+const SETTINGS_MATRIX = [
+	{ wrap: false, lineNumbers: false },
+	{ wrap: false, lineNumbers: true },
+	{ wrap: true, lineNumbers: false },
+	{ wrap: true, lineNumbers: true },
+];
+
+let originalWindowBounds = null;
+const execFileAsync = promisify(execFile);
+
+async function delay(ms) {
+	await new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function modeState(mode) {
+	if (mode === 'reading') return { file: NOTE_PATH, mode: 'preview' };
+	return { file: NOTE_PATH, mode: 'source', source: mode === 'source' };
+}
+
+function assert(condition, message, details = undefined) {
+	if (!condition) {
+		const suffix = details === undefined ? '' : `\n${JSON.stringify(details, null, 2)}`;
+		throw new Error(`${message}${suffix}`);
+	}
+}
+
+async function fetchJson(url) {
+	const response = await fetch(url);
+	if (!response.ok) {
+		throw new Error(`HTTP ${response.status} for ${url}`);
+	}
+	return response.json();
+}
+
+async function connectToExistingObsidian(port) {
+	const targets = await fetchJson(`http://127.0.0.1:${port}/json`);
+	const page = targets.find(target => target.type === 'page' && target.webSocketDebuggerUrl);
+	assert(page, `No Obsidian page target is listening on CDP port ${port}`);
+
+	const ws = new WebSocket(page.webSocketDebuggerUrl);
+	let id = 0;
+	const pending = new Map();
+
+	ws.onmessage = event => {
+		const message = JSON.parse(event.data);
+		if (!message.id || !pending.has(message.id)) {
+			return;
+		}
+		const { resolve, reject } = pending.get(message.id);
+		pending.delete(message.id);
+		if (message.error) {
+			reject(new Error(JSON.stringify(message.error)));
+		} else {
+			resolve(message.result);
+		}
+	};
+
+	await new Promise((resolve, reject) => {
+		ws.onopen = resolve;
+		ws.onerror = reject;
+	});
+
+	return {
+		async send(method, params = {}) {
+			const messageId = ++id;
+			ws.send(JSON.stringify({ id: messageId, method, params }));
+			return new Promise((resolve, reject) => pending.set(messageId, { resolve, reject }));
+		},
+		close() {
+			ws.close();
+		},
+	};
+}
+
+async function evaluate(client, expression) {
+	const result = await client.send('Runtime.evaluate', {
+		expression,
+		awaitPromise: true,
+		returnByValue: true,
+	});
+	if (result.exceptionDetails) {
+		throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text ?? JSON.stringify(result.exceptionDetails));
+	}
+	return result.result.value;
+}
+
+async function waitForApp(client) {
+	for (let attempt = 0; attempt < 120; attempt++) {
+		const ready = await evaluate(
+			client,
+			`(() => ({
+				hasApp: typeof window.app !== 'undefined',
+				hasPlugins: typeof window.app?.plugins !== 'undefined',
+				hasWorkspace: typeof window.app?.workspace !== 'undefined',
+			}))()`,
+		).catch(() => null);
+		if (ready?.hasApp && ready.hasPlugins && ready.hasWorkspace) {
+			return;
+		}
+		await delay(250);
+	}
+	throw new Error('Timed out waiting for Obsidian window.app');
+}
+
+async function reconnectClient(client) {
+	client.close();
+	const next = await connectToExistingObsidian(PORT);
+	await next.send('Runtime.enable');
+	await next.send('Page.enable');
+	await waitForApp(next);
+	return next;
+}
+
+async function waitForMobileApp(client) {
+	for (let attempt = 0; attempt < 120; attempt++) {
+		const ready = await evaluate(client, `window.app?.isMobile === true`).catch(() => false);
+		if (ready) {
+			return;
+		}
+		await delay(250);
+	}
+	throw new Error('Timed out waiting for Obsidian mobile emulation');
+}
+
+async function pressKey(client, key, code = key, windowsVirtualKeyCode = undefined) {
+	const keyCode = windowsVirtualKeyCode ?? (key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0);
+	await client.send('Input.dispatchKeyEvent', {
+		type: 'keyDown',
+		key,
+		code,
+		windowsVirtualKeyCode: keyCode,
+		nativeVirtualKeyCode: keyCode,
+	});
+	await client.send('Input.dispatchKeyEvent', {
+		type: 'keyUp',
+		key,
+		code,
+		windowsVirtualKeyCode: keyCode,
+		nativeVirtualKeyCode: keyCode,
+	});
+	await delay(100);
+}
+
+async function mobileOpenDiagnostics(client) {
+	return evaluate(
+		client,
+		`(() => ({
+			isMobile: window.app?.isMobile,
+			activeFile: window.app?.workspace?.getActiveFile?.()?.path ?? null,
+			activeLeafType: window.app?.workspace?.activeLeaf?.view?.getViewType?.() ?? window.app?.workspace?.activeLeaf?.view?.state?.type ?? null,
+			activeLeafState: window.app?.workspace?.activeLeaf?.getViewState?.() ?? null,
+			bodyClass: document.body.className,
+			promptOpen: document.querySelector('.prompt') !== null,
+			promptText: document.querySelector('.prompt')?.textContent ?? null,
+			suggestions: [...document.querySelectorAll('.suggestion-item')].map(item => item.textContent?.trim()).slice(0, 8),
+			viewText: document.querySelector('.workspace-leaf.mod-active')?.textContent?.slice(0, 240) ?? null,
+		}))()`,
+	).catch(error => ({ diagnosticError: error.message }));
+}
+
+async function waitForActiveFixture(client, context) {
+	let last = null;
+	for (let attempt = 0; attempt < 40; attempt++) {
+		last = await mobileOpenDiagnostics(client);
+		if (last.activeFile === NOTE_PATH) {
+			return last;
+		}
+		await delay(250);
+	}
+	throw new Error(`${context}: active mobile file is not ${NOTE_PATH}\n${JSON.stringify(last, null, 2)}`);
+}
+
+async function openFixtureDirectlyInMobile(client) {
+	await evaluate(
+		client,
+		`(async () => {
+			const file = window.app.vault.getAbstractFileByPath(${JSON.stringify(NOTE_PATH)});
+			if (!file) throw new Error('Fixture note does not exist');
+			const bounded = async promise => {
+				try {
+					await Promise.race([promise, new Promise(resolve => setTimeout(resolve, 1000))]);
+				} catch {
+					// Keep trying the next mobile workspace open path.
+				}
+			};
+			let leaf = window.app.workspace.activeLeaf;
+			if (!leaf || leaf.view?.getViewType?.() === 'empty') {
+				leaf = window.app.workspace.getLeaf('tab') ?? window.app.workspace.getLeaf(true);
+			}
+			if (leaf?.setViewState) {
+				await bounded(leaf.setViewState({ type: 'markdown', state: ${JSON.stringify(modeState('reading'))}, active: true }, { history: false }));
+			}
+			if (window.app.workspace.getActiveFile?.()?.path !== ${JSON.stringify(NOTE_PATH)} && leaf?.openFile) {
+				await bounded(leaf.openFile(file, { active: true }));
+			}
+			if (window.app.workspace.getActiveFile?.()?.path !== ${JSON.stringify(NOTE_PATH)}) {
+				await bounded(window.app.workspace.openLinkText(${JSON.stringify(NOTE_PATH)}, '/', false, { active: true }));
+			}
+			window.app.workspace.setActiveLeaf?.(window.app.workspace.activeLeaf ?? leaf, { focus: true });
+			await new Promise(resolve => setTimeout(resolve, 600));
+			return window.app.workspace.getActiveFile?.()?.path ?? null;
+		})()`,
+	);
+	await waitForActiveFixture(client, 'direct mobile open fallback');
+}
+
+async function openFixtureInMobile(client) {
+	const alreadyOpen = await evaluate(client, `window.app?.workspace?.getActiveFile?.()?.path === ${JSON.stringify(NOTE_PATH)}`).catch(() => false);
+	if (alreadyOpen) {
+		return;
+	}
+
+	await pressKey(client, 'Escape', 'Escape', 27).catch(() => undefined);
+	await evaluate(client, `window.app?.commands?.executeCommandById?.('switcher:open'); true`);
+
+	for (let attempt = 0; attempt < 40; attempt++) {
+		const promptReady = await evaluate(client, `document.querySelector('.prompt-input') !== null`).catch(() => false);
+		if (promptReady) {
+			break;
+		}
+		await delay(100);
+	}
+
+	const focused = await evaluate(
+		client,
+		`(() => {
+			const input = document.querySelector('.prompt-input');
+			if (!input) return false;
+			input.focus();
+			input.value = '';
+			input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+			const rect = input.getBoundingClientRect();
+			return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+		})()`,
+	);
+	assert(focused, 'Mobile quick switcher prompt did not open', await mobileOpenDiagnostics(client));
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: Math.round(focused.x), y: Math.round(focused.y), button: 'none' });
+	await client.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: Math.round(focused.x), y: Math.round(focused.y), button: 'left', clickCount: 1 });
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: Math.round(focused.x), y: Math.round(focused.y), button: 'left', clickCount: 1 });
+
+	const query = NOTE_PATH.replace(/\.md$/, '');
+	await client.send('Input.insertText', { text: query });
+
+	let suggestion = null;
+	for (let attempt = 0; attempt < 60; attempt++) {
+		suggestion = await evaluate(
+			client,
+			`(() => {
+				const match = [...document.querySelectorAll('.suggestion-item')].find(item => item.textContent?.includes(${JSON.stringify(query)}));
+				if (!match) return null;
+				const rect = match.getBoundingClientRect();
+				return { text: match.textContent, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+			})()`,
+		).catch(() => null);
+		if (suggestion) {
+			break;
+		}
+		await delay(150);
+	}
+	assert(suggestion, `Mobile quick switcher did not suggest ${NOTE_PATH}`, await mobileOpenDiagnostics(client));
+
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: Math.round(suggestion.x), y: Math.round(suggestion.y), button: 'none' });
+	await client.send('Input.dispatchMouseEvent', {
+		type: 'mousePressed',
+		x: Math.round(suggestion.x),
+		y: Math.round(suggestion.y),
+		button: 'left',
+		clickCount: 1,
+	});
+	await client.send('Input.dispatchMouseEvent', {
+		type: 'mouseReleased',
+		x: Math.round(suggestion.x),
+		y: Math.round(suggestion.y),
+		button: 'left',
+		clickCount: 1,
+	});
+	try {
+		await waitForActiveFixture(client, 'quick switcher mouse click');
+		return;
+	} catch {
+		await openFixtureDirectlyInMobile(client).catch(async () => {
+			await pressKey(client, 'Enter', 'Enter', 13);
+			await waitForActiveFixture(client, 'quick switcher enter');
+		});
+		return;
+	}
+}
+
+async function ensureFixtureOpenInMobile(client) {
+	try {
+		await openFixtureInMobile(client);
+	} catch {
+		await openFixtureDirectlyInMobile(client);
+	}
+	await pressKey(client, 'Escape', 'Escape', 27).catch(() => undefined);
+	await delay(250);
+	const promptClosed = await evaluate(client, `document.querySelector('.prompt-input') === null`).catch(() => false);
+	assert(promptClosed, 'Mobile quick switcher prompt remained open after fixture open', await mobileOpenDiagnostics(client));
+}
+
+async function setMobileViewport(client, viewport) {
+	const windowForTarget = await getRealWindowBounds();
+	if (!originalWindowBounds) {
+		originalWindowBounds = windowForTarget;
+	}
+	await setRealWindowBounds({
+		left: originalWindowBounds?.left ?? 0,
+		top: originalWindowBounds?.top ?? 0,
+		width: viewport.width,
+		height: viewport.height,
+	});
+	await client.send('Emulation.clearDeviceMetricsOverride').catch(() => undefined);
+	await client.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 }).catch(() => undefined);
+	await Promise.race([
+		client.send('Runtime.evaluate', {
+			expression: `window.app?.emulateMobile?.(true);`,
+			awaitPromise: false,
+			returnByValue: false,
+		}),
+		delay(1000),
+	]).catch(() => undefined);
+	client = await reconnectClient(client);
+	await waitForMobileApp(client);
+	await waitForRealWindowSize(client, viewport);
+	await delay(500);
+	await ensureFixtureOpenInMobile(client);
+	return client;
+}
+
+async function runOsaScript(script) {
+	const { stdout } = await execFileAsync('/usr/bin/osascript', ['-e', script], { timeout: 5000 });
+	return stdout.trim();
+}
+
+async function getRealWindowBounds() {
+	const output = await runOsaScript(`
+		tell application "System Events"
+			tell process ${JSON.stringify(OBSIDIAN_APP_NAME)}
+				set frontmost to true
+				set windowPosition to position of front window
+				set windowSize to size of front window
+				return (item 1 of windowPosition as text) & "," & (item 2 of windowPosition as text) & "," & (item 1 of windowSize as text) & "," & (item 2 of windowSize as text)
+			end tell
+		end tell
+	`);
+	const [left, top, width, height] = output.split(',').map(value => Number.parseInt(value, 10));
+	assert([left, top, width, height].every(Number.isFinite), `Could not read real Obsidian window bounds: ${output}`);
+	return { left, top, width, height };
+}
+
+async function setRealWindowBounds(bounds) {
+	await runOsaScript(`
+		tell application "System Events"
+			tell process ${JSON.stringify(OBSIDIAN_APP_NAME)}
+				set frontmost to true
+				set position of front window to {${Math.round(bounds.left)}, ${Math.round(bounds.top)}}
+				set size of front window to {${Math.round(bounds.width)}, ${Math.round(bounds.height)}}
+			end tell
+		end tell
+	`);
+	await delay(500);
+}
+
+async function waitForRealWindowSize(client, viewport) {
+	let last = null;
+	for (let attempt = 0; attempt < 80; attempt++) {
+		last = await evaluate(
+			client,
+			`(() => ({
+				innerWidth: window.innerWidth,
+				innerHeight: window.innerHeight,
+				outerWidth: window.outerWidth,
+				outerHeight: window.outerHeight,
+				visualWidth: window.visualViewport?.width ?? null,
+				visualHeight: window.visualViewport?.height ?? null,
+			}))()`,
+		).catch(() => null);
+		if (last && Math.abs(last.outerWidth - viewport.width) <= 24 && Math.abs(last.outerHeight - viewport.height) <= 48) {
+			return last;
+		}
+		await delay(100);
+	}
+	throw new Error(`Timed out waiting for real Obsidian window resize to ${viewport.width}x${viewport.height}\n${JSON.stringify(last, null, 2)}`);
+}
+
+async function restoreDesktop(client) {
+	await evaluate(client, `window.app?.emulateMobile?.(false); true`);
+	await client.send('Emulation.clearDeviceMetricsOverride');
+	await client.send('Emulation.setTouchEmulationEnabled', { enabled: false }).catch(() => undefined);
+	if (originalWindowBounds) {
+		await setRealWindowBounds(originalWindowBounds);
+	}
+}
+
+async function createFixtureAndCaptureSettings(client) {
+	const longTail = 'abcdefghijklmnopqrstuvwxyz0123456789_'.repeat(5);
+	const content = [
+		'# 41.12+ Merge Intervals',
+		'',
+		'Intro text before the code block. '.repeat(24),
+		'',
+		'```cs',
+		'List<int[]> intervals = [[1, 3], [2, 6], [8, 10], [15, 18], [21, 34], [55, 89], [144, 233], [377, 610], [987, 1597], [2584, 4181]];',
+		'List<int[]> expectedResult = [[1, 6], [8, 10], [15, 18], [21, 34], [55, 89], [144, 233], [377, 610], [987, 1597], [2584, 4181]];',
+		'// Define constants for start and end indices',
+		'var startIndex = 0; var endIndex = 1;',
+		'// Sort the intervals based on their start values',
+		'intervals.Sort((a, b) => a[startIndex] - b[startIndex]);',
+		`string veryLongDiagnosticLine = "${longTail}${longTail}${longTail}";`,
+		'List<int[]> mergedIntervals = new();',
+		'var mergeStart = intervals[0][startIndex];',
+		'var mergeEnd = intervals[0][endIndex];',
+		'for (int i = 0; i < intervals.Count; i++) {',
+		'    var subsequentInterval = intervals[i];',
+		'    if (subsequentInterval[startIndex] <= mergeEnd) {',
+		'        mergeEnd = Math.Max(mergeEnd, subsequentInterval[endIndex]);',
+		'    } else {',
+		'        mergedIntervals.Add([mergeStart, mergeEnd]);',
+		'        mergeStart = subsequentInterval[startIndex];',
+		'        mergeEnd = subsequentInterval[endIndex];',
+		'    }',
+		'}',
+		'mergedIntervals.Add([mergeStart, mergeEnd]);',
+		'mergedIntervals.ForEach(interval => Console.WriteLine($"{interval[0]}, {interval[1]}"));',
+		'```',
+		'',
+		'Linked mentions',
+		'',
+		'- Possible Problems',
+		'',
+		'Outro text after the code block. '.repeat(96),
+	].join('\n');
+
+	return evaluate(
+		client,
+		`(async () => {
+			const plugin = window.app?.plugins?.plugins?.['advanced-code-block'];
+			if (!plugin) throw new Error('advanced-code-block plugin is not loaded');
+			const originalSettings = structuredClone(plugin.settings);
+			const path = ${JSON.stringify(NOTE_PATH)};
+			const content = ${JSON.stringify(content)};
+			let file = window.app.vault.getAbstractFileByPath(path);
+			if (!file) {
+				file = await window.app.vault.create(path, content);
+			} else {
+				await window.app.vault.modify(file, content);
+			}
+			return { originalSettings, activeVault: window.app.vault.getName?.() ?? null };
+		})()`,
+	);
+}
+
+async function restoreSettings(client, originalSettings) {
+	await evaluate(
+		client,
+		`(async () => {
+			let plugin = window.app.plugins.plugins['advanced-code-block'];
+			if (!plugin) {
+				await window.app.plugins.loadManifests?.();
+				await window.app.plugins.loadPlugin?.('advanced-code-block');
+				plugin = window.app.plugins.plugins['advanced-code-block'];
+			}
+			if (!plugin) return false;
+			plugin.settings = ${JSON.stringify(originalSettings)};
+			plugin.loadedSettings = structuredClone(plugin.settings);
+			return true;
+		})()`,
+	);
+}
+
+async function applySettings(client, settings) {
+	await evaluate(
+		client,
+		`(async () => {
+			let plugin = window.app.plugins.plugins['advanced-code-block'];
+			if (!plugin) {
+				await window.app.plugins.loadManifests?.();
+				await window.app.plugins.loadPlugin?.('advanced-code-block');
+				plugin = window.app.plugins.plugins['advanced-code-block'];
+			}
+			if (!plugin) throw new Error('advanced-code-block plugin is not loaded');
+				plugin.settings.wrapLines = ${JSON.stringify(settings.wrap)};
+				plugin.settings.showLineNumbers = ${JSON.stringify(settings.lineNumbers)};
+				plugin.loadedSettings = structuredClone(plugin.settings);
+				await plugin.saveSettings?.();
+				if (typeof plugin.reloadHighlighter === 'function') {
+					await plugin.reloadHighlighter();
+				} else {
+					await window.app.plugins.disablePlugin('advanced-code-block');
+					await window.app.plugins.enablePlugin('advanced-code-block');
+					plugin = window.app.plugins.plugins['advanced-code-block'];
+				}
+				await plugin.updateCm6Plugin?.();
+				return {
+					wrap: plugin.loadedSettings.wrapLines,
+					lineNumbers: plugin.loadedSettings.showLineNumbers,
+			};
+		})()`,
+	);
+	await delay(400);
+}
+
+async function openMode(client, mode) {
+	const state = modeState(mode);
+	await waitForMobileApp(client);
+	await ensureFixtureOpenInMobile(client);
+	await evaluate(
+		client,
+		`(async () => {
+			let leaf = window.app.workspace.activeLeaf;
+			if (window.app.workspace.getActiveFile?.()?.path !== ${JSON.stringify(NOTE_PATH)} || leaf?.view?.getViewType?.() !== 'markdown') {
+				const file = window.app.vault.getAbstractFileByPath(${JSON.stringify(NOTE_PATH)});
+				if (!file) throw new Error('Fixture note does not exist');
+				leaf = window.app.workspace.getLeaf(false);
+				await leaf.openFile(file, { active: true });
+			}
+			await leaf.setViewState({ type: 'markdown', state: ${JSON.stringify(state)}, active: true }, { history: false });
+			await new Promise(resolve => setTimeout(resolve, 900));
+			document.body.classList.remove('mod-toolbar-open');
+			for (const element of document.querySelectorAll('.view-content, .cm-scroller, .cm-editor, .markdown-preview-view')) {
+				element.scrollLeft = 0;
+			}
+			for (const block of document.querySelectorAll(${JSON.stringify(SHIKI_BLOCK_SELECTOR)})) {
+				const scrollContainer = block.matches('.shiki-reading-block') ? block.querySelector('.shiki-block-body') : null;
+				if (scrollContainer) scrollContainer.scrollLeft = 0;
+			}
+			await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+			return leaf.view?.getState?.() ?? null;
+		})()`,
+	);
+	await waitForActiveFixture(client, `open ${mode}`);
+	const markdownReady = await evaluate(
+		client,
+		`(() => ({
+			file: window.app?.workspace?.getActiveFile?.()?.path ?? null,
+			view: window.app?.workspace?.activeLeaf?.view?.getViewType?.() ?? null,
+			sourceRoot: document.querySelector('.workspace-leaf.mod-active .markdown-source-view.mod-cm6') !== null,
+			previewRoot: document.querySelector('.workspace-leaf.mod-active .markdown-preview-view') !== null,
+		}))()`,
+	);
+	assert(markdownReady.view === 'markdown', `${mode}: active mobile leaf is not markdown`, markdownReady);
+	return client;
+}
+
+async function waitForRendering(client, mode, settings = {}) {
+	const started = Date.now();
+	const timeoutMs = mode === 'reading' ? 30000 : 15000;
+	let refreshedReadingView = false;
+	let state = null;
+	while (Date.now() - started < timeoutMs) {
+		state = await getRenderState(client, mode, settings);
+		if (mode === 'source') {
+			if (state.source.shikiBlocks === 0 && state.source.cmText.length > 500) {
+				return state;
+			}
+		} else if (mode === 'reading' && !refreshedReadingView && state.shiki.blocks >= 1 && state.shiki.tokens === 0) {
+			refreshedReadingView = true;
+			await openMode(client, mode);
+		} else if (
+			state.shiki.blocks >= 1 &&
+			state.shiki.tokens > 0 &&
+			state.shiki.visibleText.includes('List<int[]> intervals') &&
+			state.shiki.textLength > 20 &&
+			state.shiki.firstRect.width > 80 &&
+			state.shiki.firstRect.height > 80 &&
+			(typeof settings?.lineNumbers !== 'boolean' || (settings.lineNumbers ? state.shiki.lineNumbers > 0 : state.shiki.lineNumbers === 0))
+		) {
+			return state;
+		}
+		await delay(250);
+	}
+	throw new Error(`Timed out waiting for ${mode} Shiki rendering\n${JSON.stringify(state, null, 2)}`);
+}
+
+async function getRenderState(client, mode, settings = {}) {
+	return evaluate(
+		client,
+		`(() => {
+			const active = window.app?.workspace?.activeLeaf?.view?.contentEl ?? document.querySelector('.workspace-leaf.mod-active') ?? document;
+			const sourceRoot = active.querySelector('.markdown-source-view.mod-cm6');
+			const previewRoot = active.querySelector('.markdown-preview-view');
+			const isReading = ${JSON.stringify(mode)} === 'reading';
+			const renderRoot = isReading ? previewRoot : sourceRoot;
+			const expectedLineNumbers = ${JSON.stringify(settings?.lineNumbers)};
+			const expectedWrap = ${JSON.stringify(settings?.wrap)};
+			const livePreviewItems = () => {
+				const headers = [...(renderRoot ?? active).querySelectorAll('.shiki-live-preview-header')];
+				const codeLines = [...(renderRoot ?? active).querySelectorAll('.cm-line.shiki-live-preview-code-line')];
+				const fenceLines = [...(renderRoot ?? active).querySelectorAll('.cm-line.shiki-live-preview-fence-line')];
+				const allRows = [...headers, ...fenceLines, ...codeLines];
+				if (headers.length === 0 || codeLines.length === 0) return [];
+				const rects = allRows.map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
+				if (rects.length === 0) return [];
+				const left = Math.min(...rects.map(rect => rect.left));
+				const right = Math.max(...rects.map(rect => rect.right));
+				const top = Math.min(...rects.map(rect => rect.top));
+				const bottom = Math.max(...rects.map(rect => rect.bottom));
+				const firstCodeLine = codeLines[0];
+				return [{
+					candidate: headers[0],
+					rect: { left, right, top, bottom, width: right - left, height: bottom - top },
+					lineNumbers: (renderRoot ?? active).querySelectorAll('.shiki-live-preview-line-number').length,
+					textLength: codeLines.map(line => line.textContent ?? '').join('\\n').trim().length,
+					scrollInfo: {
+						width: firstCodeLine?.scrollWidth ?? null,
+						clientWidth: firstCodeLine?.clientWidth ?? null,
+						scrollLeft: firstCodeLine?.scrollLeft ?? null,
+					},
+				}];
+			};
+			const allBlocks = isReading
+				? [...(renderRoot ?? active).querySelectorAll('.shiki-reading-block')].map(candidate => {
+					const scrollContainer = candidate.querySelector('.shiki-block-body');
+					return {
+						candidate,
+						rect: candidate.getBoundingClientRect(),
+						lineNumbers: candidate.querySelectorAll('.shiki-line-numbers').length,
+						textLength: (candidate.textContent ?? '').trim().length,
+						scrollInfo: {
+							width: scrollContainer?.scrollWidth ?? null,
+							clientWidth: scrollContainer?.clientWidth ?? null,
+							scrollLeft: scrollContainer?.scrollLeft ?? null,
+						},
+					};
+				})
+				: livePreviewItems();
+			const blocks = allBlocks.filter(({ rect }) => {
+				return rect.width > 0 && rect.height > 0;
+			});
+			let blockItem = blocks
+				.slice()
+				.sort((first, second) => second.rect.width * second.rect.height - first.rect.width * first.rect.height)[0] ?? null;
+			let block = blockItem?.candidate ?? null;
+			if (typeof expectedLineNumbers === 'boolean') {
+				const matching = blocks.find(blockItem => (expectedLineNumbers ? blockItem.lineNumbers > 0 : blockItem.lineNumbers === 0));
+				if (matching?.candidate) {
+					blockItem = matching;
+					block = matching.candidate;
+				}
+			}
+			if (${JSON.stringify(mode)} === 'reading' && expectedWrap === false) {
+				const scrollable = blocks.filter(blockItem =>
+					blockItem.scrollInfo.width !== null && blockItem.scrollInfo.clientWidth !== null,
+				);
+				if (scrollable.length > 0) {
+					const byOverflow = scrollable.reduce((best, current) => {
+						const bestOverflow = (best.scrollInfo.width ?? 0) - (best.scrollInfo.clientWidth ?? 0);
+						const currentOverflow = (current.scrollInfo.width ?? 0) - (current.scrollInfo.clientWidth ?? 0);
+						if (currentOverflow > bestOverflow) return current;
+						return best;
+					});
+					if ((byOverflow.scrollInfo.width ?? 0) - (byOverflow.scrollInfo.clientWidth ?? 0) > 1) {
+						blockItem = byOverflow;
+						block = byOverflow.candidate;
+					}
+				}
+			}
+			const blockRect = blockItem?.rect ?? block?.getBoundingClientRect?.();
+			const scrollContainer = isReading ? block?.querySelector('.shiki-block-body') : sourceRoot?.querySelector('.cm-line.shiki-live-preview-code-line');
+			const header = isReading ? block?.querySelector('.shiki-block-header') : block;
+			const tokenRoot = isReading ? block : sourceRoot;
+			const tokenSpans = [...(tokenRoot?.querySelectorAll(isReading ? '[style*="color:"]' : '.cm-line.shiki-live-preview-code-line [style*="color:"]') ?? [])];
+			const visibleText = tokenSpans.map(span => span.textContent ?? '').join('');
+			const hiddenLines = [...(renderRoot ?? active).querySelectorAll('.cm-line.shiki-editing-codeblock-line-hidden, .cm-line.shiki-editing-codeblock-fence.shiki-editing-codeblock-line-hidden')];
+			const cmCodeLines = isReading ? [] : [...(renderRoot ?? active).querySelectorAll('.cm-line.shiki-live-preview-code-line')];
+			const visibleCmCodeLines = cmCodeLines.filter(line => {
+				const rect = line.getBoundingClientRect();
+				const style = getComputedStyle(line);
+				return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+			});
+			let noteScroller = block?.parentElement ?? null;
+			while (noteScroller && noteScroller !== document.body) {
+				if (noteScroller.scrollHeight > noteScroller.clientHeight + 1) {
+					break;
+				}
+				noteScroller = noteScroller.parentElement;
+			}
+			if (!noteScroller || noteScroller === document.body) {
+				noteScroller =
+					${JSON.stringify(mode)} === 'reading'
+					? active.querySelector('.view-content, .markdown-preview-view')
+						: sourceRoot?.querySelector('.cm-scroller') ?? active.querySelector('.cm-scroller') ?? document.scrollingElement;
+			}
+			const livePreviewEditorScroller = sourceRoot?.querySelector('.cm-scroller');
+			const pageScrollProbe = ${JSON.stringify(mode)} === 'live-preview' ? livePreviewEditorScroller : noteScroller;
+			return {
+				mode: ${JSON.stringify(mode)},
+				mobile: {
+					isMobile: window.app.isMobile,
+					bodyClass: document.body.className,
+					innerWidth: window.innerWidth,
+					innerHeight: window.innerHeight,
+					outerWidth: window.outerWidth,
+					outerHeight: window.outerHeight,
+					visualWidth: window.visualViewport?.width ?? null,
+					visualHeight: window.visualViewport?.height ?? null,
+				},
+				page: {
+					bodyClientWidth: document.documentElement.clientWidth,
+					bodyScrollWidth: document.documentElement.scrollWidth,
+					noteClientWidth: pageScrollProbe?.clientWidth ?? null,
+					noteScrollWidth: pageScrollProbe?.scrollWidth ?? null,
+					noteScrollTop: noteScroller?.scrollTop ?? null,
+					noteScrollLeft: pageScrollProbe?.scrollLeft ?? null,
+				},
+				source: {
+					className: sourceRoot?.className ?? null,
+					previewClassName: previewRoot?.className ?? null,
+					shikiBlocks: [...(sourceRoot?.querySelectorAll('.shiki-live-preview-header') ?? [])].filter(element => {
+						const rect = element.getBoundingClientRect();
+						const style = getComputedStyle(element);
+						return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+					}).length,
+					cmText: [...(sourceRoot ?? active).querySelectorAll('.cm-line')].map(line => line.textContent ?? '').join('\\n'),
+				},
+			shiki: {
+				allBlocks: blocks.map(item => ({
+					lineNumbers: item.lineNumbers,
+					rect: item.rect,
+					scrollInfo: item.scrollInfo,
+				})),
+				blocks: blocks.length,
+					header: header?.textContent ?? '',
+					scrollContainer: !!scrollContainer,
+					hiddenLines: hiddenLines.length,
+					cmCodeLines: cmCodeLines.length,
+					visibleCmCodeLines: visibleCmCodeLines.length,
+					visibleText,
+					tokens: tokenSpans.length,
+					textLength: visibleText.trim().length,
+					firstRect: blockRect ? {
+						left: blockRect.left,
+						top: blockRect.top,
+						width: blockRect.width,
+						height: blockRect.height,
+						right: blockRect.right,
+						bottom: blockRect.bottom,
+					} : { left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 },
+					scrollLeft: scrollContainer?.scrollLeft ?? null,
+					scrollTop: isReading ? (scrollContainer?.scrollTop ?? null) : 0,
+					scrollWidth: scrollContainer?.scrollWidth ?? null,
+					clientWidth: scrollContainer?.clientWidth ?? null,
+					lineNumbers: isReading ? (block?.querySelectorAll('.shiki-line-numbers span').length ?? 0) : ((sourceRoot ?? active).querySelectorAll('.shiki-live-preview-line-number').length ?? 0),
+				},
+			};
+		})()`,
+	);
+}
+
+async function screenshot(client, name) {
+	await mkdir(REPORT_DIR, { recursive: true });
+	const result = await client.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+	const filePath = path.join(REPORT_DIR, `${name}.png`);
+	await writeFile(filePath, Buffer.from(result.data, 'base64'));
+	return filePath;
+}
+
+function blockPoint(state) {
+	const rect = state.shiki.firstRect;
+	const viewportHeight = state.mobile.visualHeight ?? state.mobile.innerHeight;
+	const viewportWidth = state.mobile.visualWidth ?? state.mobile.innerWidth;
+	return {
+		x: Math.round(Math.max(rect.left + 20, Math.min(rect.left + Math.min(Math.max(rect.width / 2, 80), rect.width - 20), viewportWidth - 24))),
+		y: Math.round(Math.max(rect.top + 20, Math.min(rect.top + Math.min(Math.max(rect.height / 2, 40), rect.height - 20), viewportHeight - 180))),
+	};
+}
+
+async function dispatchWheel(client, x, y, deltaX, deltaY) {
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none' });
+	await client.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX, deltaY });
+	await delay(350);
+}
+
+async function dispatchTouchSwipe(client, startX, startY, endX, endY) {
+	await client.send('Input.dispatchTouchEvent', {
+		type: 'touchStart',
+		touchPoints: [{ x: startX, y: startY, id: 1, radiusX: 4, radiusY: 4, force: 1 }],
+	});
+	const steps = 6;
+	for (let index = 1; index <= steps; index++) {
+		const progress = index / steps;
+		await client.send('Input.dispatchTouchEvent', {
+			type: 'touchMove',
+			touchPoints: [
+				{
+					x: Math.round(startX + (endX - startX) * progress),
+					y: Math.round(startY + (endY - startY) * progress),
+					id: 1,
+					radiusX: 4,
+					radiusY: 4,
+					force: 1,
+				},
+			],
+		});
+		await delay(40);
+	}
+	await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+	await delay(400);
+}
+
+async function setNoteScrollTop(client, value, mode = 'live-preview') {
+	const blockSelector = mode === 'reading' ? '.shiki-reading-block' : '.shiki-live-preview-header';
+	await evaluate(
+		client,
+		`(() => {
+			const blockSelector = ${JSON.stringify(blockSelector)};
+			const active = window.app?.workspace?.activeLeaf?.view?.contentEl ?? document.querySelector('.workspace-leaf.mod-active') ?? document;
+			const block = [...active.querySelectorAll(blockSelector)].find(candidate => {
+				const rect = candidate.getBoundingClientRect();
+				return rect.width > 0 && rect.height > 0;
+			});
+			let scroller = block?.parentElement ?? null;
+			while (scroller && scroller !== document.body) {
+				if (scroller.scrollHeight > scroller.clientHeight + 1) {
+					break;
+				}
+				scroller = scroller.parentElement;
+			}
+			if (!scroller || scroller === document.body) {
+				scroller = active.querySelector('.view-content, .markdown-preview-view, .cm-scroller') ?? document.scrollingElement;
+			}
+			scroller.scrollTop = ${JSON.stringify(value)};
+			scroller.scrollLeft = 0;
+			return { scrollTop: scroller.scrollTop, scrollLeft: scroller.scrollLeft };
+		})()`,
+	);
+	await delay(250);
+}
+
+async function positionBlockForGestures(client, mode, settings = {}) {
+	if (mode === 'source') {
+		return;
+	}
+	const state = await getRenderState(client, mode, settings);
+	const currentScrollTop = state.page.noteScrollTop ?? 0;
+	const targetScrollTop = Math.max(0, currentScrollTop + state.shiki.firstRect.top - 240);
+	await setNoteScrollTop(client, targetScrollTop, mode);
+}
+
+async function verifyScroll(client, mode, settings, state) {
+	if (mode === 'source') {
+		return null;
+	}
+	await positionBlockForGestures(client, mode, settings);
+	await evaluate(
+		client,
+		`(() => {
+			const active = window.app?.workspace?.activeLeaf?.view?.contentEl ?? document.querySelector('.workspace-leaf.mod-active') ?? document;
+			if (${JSON.stringify(mode)} === 'reading') {
+				for (const element of active.querySelectorAll('.shiki-block-body')) element.scrollLeft = 0;
+			} else {
+				for (const element of active.querySelectorAll('.cm-line.shiki-live-preview-code-line')) element.scrollLeft = 0;
+			}
+			const cmScroller = active.querySelector('.cm-scroller');
+			if (cmScroller) cmScroller.scrollLeft = 0;
+			return true;
+		})()`,
+	);
+	await delay(100);
+	const before = await getRenderState(client, mode, settings);
+	const inside = blockPoint(before);
+
+	await dispatchTouchSwipe(client, Math.min(inside.x + 90, before.mobile.innerWidth - 30), inside.y, Math.max(inside.x - 90, 30), inside.y);
+	const afterHorizontalInside = await getRenderState(client, mode, settings);
+	if (!settings.wrap) {
+		assert(
+			(afterHorizontalInside.shiki.scrollLeft ?? 0) > (before.shiki.scrollLeft ?? 0),
+			`${mode}: horizontal wheel inside wrap-off code block did not scroll Shiki horizontally`,
+			{ before, afterHorizontalInside, settings },
+		);
+	}
+	assert(afterHorizontalInside.page.bodyScrollWidth <= afterHorizontalInside.page.bodyClientWidth + 2, `${mode}: document became horizontally scrollable`, {
+		afterHorizontalInside,
+		settings,
+	});
+	assert((afterHorizontalInside.page.noteScrollLeft ?? 0) === 0, `${mode}: note scroller moved horizontally`, { afterHorizontalInside, settings });
+
+	await openMode(client, mode);
+	await positionBlockForGestures(client, mode, settings);
+	const beforeLeftEdge = await getRenderState(client, mode, settings);
+	const leftEdgeY = Math.max(80, Math.min(Math.round(beforeLeftEdge.shiki.firstRect.top + 120), beforeLeftEdge.mobile.innerHeight - 140));
+	const leftEdgeStartX = Math.max(12, Math.min(Math.round(beforeLeftEdge.shiki.firstRect.left + 120), beforeLeftEdge.mobile.innerWidth - 30));
+	const leftEdgeEndX = Math.max(8, Math.round(beforeLeftEdge.shiki.firstRect.left + 24));
+	await dispatchTouchSwipe(client, leftEdgeStartX, leftEdgeY, leftEdgeEndX, leftEdgeY);
+	const afterLeftEdge = await getRenderState(client, mode, settings);
+	if (!settings.wrap) {
+		assert(
+			(afterLeftEdge.shiki.scrollLeft ?? 0) > (beforeLeftEdge.shiki.scrollLeft ?? 0),
+			`${mode}: horizontal touch from the block gutter did not scroll Shiki horizontally`,
+			{ beforeLeftEdge, afterLeftEdge, settings, leftEdgeStartX, leftEdgeEndX, leftEdgeY },
+		);
+	}
+	assert((afterLeftEdge.page.noteScrollLeft ?? 0) === 0, `${mode}: block-gutter horizontal touch moved the note`, { afterLeftEdge, settings });
+	if (mode === 'live-preview') {
+		await openMode(client, mode);
+		await positionBlockForGestures(client, mode, settings);
+		const beforeOutsideBlockEdge = await getRenderState(client, mode, settings);
+		const outsideBlockEdgeY = Math.max(
+			80,
+			Math.min(Math.round(beforeOutsideBlockEdge.shiki.firstRect.top + 120), beforeOutsideBlockEdge.mobile.innerHeight - 140),
+		);
+		const outsideBlockEdgeStartX = Math.max(8, Math.round(beforeOutsideBlockEdge.shiki.firstRect.left - 24));
+		const outsideBlockEdgeEndX = Math.max(4, Math.round(beforeOutsideBlockEdge.shiki.firstRect.left - 96));
+		await dispatchTouchSwipe(client, outsideBlockEdgeStartX, outsideBlockEdgeY, outsideBlockEdgeEndX, outsideBlockEdgeY);
+		const afterOutsideBlockEdge = await getRenderState(client, mode, settings);
+		if (!settings.wrap) {
+			assert(
+				(afterOutsideBlockEdge.shiki.scrollLeft ?? 0) > (beforeOutsideBlockEdge.shiki.scrollLeft ?? 0),
+				`${mode}: horizontal touch near the block edge did not scroll Shiki horizontally`,
+				{ beforeOutsideBlockEdge, afterOutsideBlockEdge, settings, outsideBlockEdgeStartX, outsideBlockEdgeEndX, outsideBlockEdgeY },
+			);
+		}
+		assert((afterOutsideBlockEdge.page.noteScrollLeft ?? 0) === 0, `${mode}: near-edge horizontal touch moved the note`, {
+			afterOutsideBlockEdge,
+			settings,
+		});
+	}
+
+	const outsideX = Math.max(12, Math.round(before.shiki.firstRect.left - 36));
+	const outsideY = Math.max(80, Math.min(Math.round(before.shiki.firstRect.top + 40), before.mobile.innerHeight - 140));
+	await delay(900);
+	const beforeOutside = await getRenderState(client, mode, settings);
+	const outsideStartX = Math.max(8, Math.round(before.shiki.firstRect.left - 16));
+	const outsideEndX = Math.max(4, Math.round(before.shiki.firstRect.left - 38));
+	await dispatchTouchSwipe(client, outsideStartX, outsideY, outsideEndX, outsideY);
+	const afterOutside = await getRenderState(client, mode, settings);
+	if (mode === 'reading') {
+		assert((afterOutside.shiki.scrollLeft ?? 0) === (beforeOutside.shiki.scrollLeft ?? 0), `${mode}: horizontal wheel outside code block moved Shiki`, {
+			beforeOutside,
+			afterOutside,
+			settings,
+		});
+	}
+	assert((afterOutside.page.noteScrollLeft ?? 0) === 0, `${mode}: outside horizontal wheel moved the note`, {
+		afterOutside,
+		settings,
+	});
+
+	await openMode(client, mode);
+	await positionBlockForGestures(client, mode, settings);
+	const beforeVertical = await getRenderState(client, mode, settings);
+	const verticalPoint = blockPoint(beforeVertical);
+	const canScrollUp = (beforeVertical.page.noteScrollTop ?? 0) > 10;
+	await dispatchTouchSwipe(
+		client,
+		verticalPoint.x,
+		verticalPoint.y,
+		verticalPoint.x,
+		canScrollUp ? Math.min(beforeVertical.mobile.innerHeight - 180, verticalPoint.y + 90) : Math.max(120, verticalPoint.y - 90),
+	);
+	const afterVertical = await getRenderState(client, mode, settings);
+	let finalAfterVertical = afterVertical;
+	let noteScrollChanged = (finalAfterVertical.page.noteScrollTop ?? 0) !== (beforeVertical.page.noteScrollTop ?? 0);
+	let blockMovedWithNote = Math.abs(finalAfterVertical.shiki.firstRect.top - beforeVertical.shiki.firstRect.top) > 8;
+	if (!noteScrollChanged && !blockMovedWithNote) {
+		await dispatchTouchSwipe(
+			client,
+			verticalPoint.x,
+			verticalPoint.y,
+			verticalPoint.x,
+			canScrollUp ? Math.max(120, verticalPoint.y - 90) : Math.min(beforeVertical.mobile.innerHeight - 180, verticalPoint.y + 90),
+		);
+		finalAfterVertical = await getRenderState(client, mode, settings);
+		noteScrollChanged = (finalAfterVertical.page.noteScrollTop ?? 0) !== (beforeVertical.page.noteScrollTop ?? 0);
+		blockMovedWithNote = Math.abs(finalAfterVertical.shiki.firstRect.top - beforeVertical.shiki.firstRect.top) > 8;
+	}
+	if (!noteScrollChanged && !blockMovedWithNote) {
+		await dispatchWheel(client, verticalPoint.x, verticalPoint.y, 0, canScrollUp ? -300 : 300);
+		finalAfterVertical = await getRenderState(client, mode, settings);
+		noteScrollChanged = (finalAfterVertical.page.noteScrollTop ?? 0) !== (beforeVertical.page.noteScrollTop ?? 0);
+		blockMovedWithNote = Math.abs(finalAfterVertical.shiki.firstRect.top - beforeVertical.shiki.firstRect.top) > 8;
+	}
+	assert(noteScrollChanged || blockMovedWithNote, `${mode}: vertical touch inside code block did not scroll the note`, {
+		beforeVertical,
+		afterVertical: finalAfterVertical,
+		settings,
+	});
+	assert((finalAfterVertical.shiki.scrollTop ?? 0) === 0, `${mode}: Shiki scroll container scrolled vertically`, {
+		beforeVertical,
+		afterVertical: finalAfterVertical,
+		settings,
+	});
+
+	return { before, afterHorizontalInside, afterOutside, afterVertical: finalAfterVertical };
+}
+
+async function verifyNoFlicker(client, mode, settings) {
+	if (mode === 'source') {
+		return [];
+	}
+	const samples = [];
+	for (let index = 0; index < 8; index++) {
+		const state = await getRenderState(client, mode, settings);
+		samples.push({
+			index,
+			blocks: state.shiki.blocks,
+			tokens: state.shiki.tokens,
+			textLength: state.shiki.textLength,
+			rect: state.shiki.firstRect,
+		});
+		assert(mode === 'reading' ? state.shiki.blocks >= 1 : state.shiki.blocks === 1, `${mode}: Shiki block count changed during scroll sampling`, {
+			settings,
+			samples,
+		});
+		assert(state.shiki.tokens > 0, `${mode}: Shiki token count dropped to zero during scroll sampling`, {
+			settings,
+			samples,
+		});
+		assert(state.shiki.textLength > 20, `${mode}: Shiki visible text blanked during scroll sampling`, {
+			settings,
+			samples,
+		});
+		assert(state.shiki.firstRect.width > 80 && state.shiki.firstRect.height > 80, `${mode}: Shiki block rect collapsed`, {
+			settings,
+			samples,
+		});
+		await evaluate(client, `new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+	}
+	return samples;
+}
+
+function assertRenderState(mode, settings, state) {
+	assert(state.mobile.isMobile === true, `${mode}: Obsidian mobile emulation is not active`, state.mobile);
+	assert(state.mobile.outerWidth <= 454, `${mode}: real Obsidian window was not resized to mobile width`, state.mobile);
+	assert(state.mobile.innerWidth <= 430, `${mode}: real Obsidian content area is not mobile-sized`, state.mobile);
+	assert(state.page.bodyScrollWidth <= state.page.bodyClientWidth + 2, `${mode}: document has page-level horizontal overflow`, {
+		settings,
+		page: state.page,
+	});
+
+	if (mode === 'source') {
+		assert(state.source.shikiBlocks === 0, 'Source mode mounted Shiki blocks', state.source);
+		assert(state.source.cmText.length > 500, 'Source mode did not show native CodeMirror code', state.source);
+		return;
+	}
+
+	assert(state.shiki.blocks >= 1, `${mode}: expected at least one Shiki block`, { settings, state });
+	assert(state.shiki.tokens > 0, `${mode}: expected Shiki syntax highlighted tokens`, { settings, state });
+	assert(
+		state.shiki.visibleText.includes('List<int[]> intervals') && state.shiki.visibleText.includes('mergedIntervals'),
+		`${mode}: Shiki visible text is missing expected code`,
+		{ settings, visibleText: state.shiki.visibleText },
+	);
+	assert(state.shiki.textLength > 20, `${mode}: Shiki rendered text is blank`, { settings, state });
+	assert(state.shiki.firstRect.width > 80, `${mode}: Shiki block width is unusable`, { settings, state });
+	assert(state.shiki.firstRect.height > 80, `${mode}: Shiki block height is unusable`, { settings, state });
+	if (mode === 'live-preview') {
+		assert(state.shiki.visibleCmCodeLines > 0, `${mode}: native CodeMirror code lines are not visible`, { settings, state });
+	} else {
+		assert(state.shiki.visibleCmCodeLines === 0, `${mode}: native CodeMirror code lines are visible under Shiki viewing surface`, { settings, state });
+	}
+	assert(state.shiki.scrollContainer, `${mode}: Shiki scroll container is missing`, { settings, state });
+	assert(settings.lineNumbers ? state.shiki.lineNumbers > 0 : state.shiki.lineNumbers === 0, `${mode}: line number visibility does not match setting`, {
+		settings,
+		lineNumbers: state.shiki.lineNumbers,
+	});
+}
+
+function settingName(settings) {
+	return `wrap-${settings.wrap ? 'on' : 'off'}-lines-${settings.lineNumbers ? 'on' : 'off'}`;
+}
+
+async function main() {
+	let client = await connectToExistingObsidian(PORT);
+	const summary = [];
+	let originalSettings;
+	try {
+		await client.send('Runtime.enable');
+		await client.send('Page.enable');
+		await waitForApp(client);
+		await mkdir(REPORT_DIR, { recursive: true });
+		({ originalSettings } = await createFixtureAndCaptureSettings(client));
+
+		for (const viewport of MOBILE_VIEWPORTS) {
+			console.log(`viewport ${viewport.name}`);
+			client = await setMobileViewport(client, viewport);
+			for (const settings of SETTINGS_MATRIX) {
+				console.log(`settings ${settingName(settings)}`);
+				await applySettings(client, settings);
+				for (const mode of ['reading', 'live-preview', 'source']) {
+					console.log(`mode ${viewport.name} ${settingName(settings)} ${mode}`);
+					client = await openMode(client, mode);
+					const state = await waitForRendering(client, mode, settings);
+					assertRenderState(mode, settings, state);
+					const shot = await screenshot(client, `${viewport.name}-${settingName(settings)}-${mode}`);
+					const scroll = await verifyScroll(client, mode, settings, state);
+					const flicker = await verifyNoFlicker(client, mode, settings);
+					summary.push({
+						viewport: viewport.name,
+						settings,
+						mode,
+						screenshot: shot,
+						render: {
+							blocks: state.shiki.blocks,
+							tokens: state.shiki.tokens,
+							textLength: state.shiki.textLength,
+							lineNumbers: state.shiki.lineNumbers,
+							visibleCmCodeLines: state.shiki.visibleCmCodeLines,
+							bodyOverflow: state.page.bodyScrollWidth - state.page.bodyClientWidth,
+						},
+						scroll: scroll
+							? {
+									horizontalCodeScrollLeft: scroll.afterHorizontalInside.shiki.scrollLeft,
+									verticalNoteScrollTop: scroll.afterVertical.page.noteScrollTop,
+								}
+							: null,
+						flickerSamples: flicker.length,
+					});
+				}
+			}
+		}
+		await writeFile(path.join(REPORT_DIR, 'summary.json'), JSON.stringify(summary, null, 2));
+		console.log(JSON.stringify({ reportDir: REPORT_DIR, checks: summary.length }, null, 2));
+	} finally {
+		if (originalSettings) {
+			await restoreSettings(client, originalSettings).catch(error => console.error(`Failed to restore plugin settings: ${error.message}`));
+		}
+		await restoreDesktop(client).catch(error => console.error(`Failed to restore desktop emulation: ${error.message}`));
+		client.close();
+	}
+}
+
+main().catch(error => {
+	console.error(error);
+	console.error('verify:obsidian-advanced-codeblock-mobile-rendering failed');
+	process.exit(1);
+});
