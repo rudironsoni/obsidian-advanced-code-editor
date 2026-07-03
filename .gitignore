@@ -43,6 +43,7 @@ packages/obsidian/src/modern-monaco-inline.ts
 debug-tokenizer.mjs
 debug-tokenizer2.mjs
 modern-monaco-*.tgz
+.tokensave/
 package/
 test-obsidian.mjs
 
