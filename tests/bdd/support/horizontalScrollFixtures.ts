@@ -1,3 +1,9 @@
+const stressLine = 'abcdefghijklmnopqrstuvwxyz0123456789_'.repeat(8);
+const stressLines = Array.from(
+	{ length: 120 },
+	(_, index) => `const stressLine${String(index).padStart(3, '0')} = "${stressLine}${String(index).padStart(3, '0')}";`,
+).join('\n');
+
 export const horizontalScrollFixtureNotes: Record<string, string> = {
 	'Horizontal scroll single block.md': `# Horizontal scroll single block
 
@@ -35,5 +41,15 @@ This fixture verifies that wrap-on code blocks do not require block horizontal s
 const wrappedHorizontalScrollAnchor = "wrap-0123456789-wrap-0123456789-wrap-0123456789-wrap-0123456789-wrap-0123456789-wrap-0123456789-wrap-0123456789-wrap-0123456789";
 const wrappedFollowupValue = wrappedHorizontalScrollAnchor + "WRAP_ON_SCROLL_TARGET";
 \`\`\`
+`,
+	'Horizontal scroll stress block.md': `# Horizontal scroll stress block
+
+This fixture verifies that Live Preview horizontal scroll remains responsive under repeated wheel input.
+
+\`\`\`ts title="Live Preview scroll performance"
+${stressLines}
+\`\`\`
+
+After the stress block.
 `,
 };

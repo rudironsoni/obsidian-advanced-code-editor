@@ -47,6 +47,15 @@ Feature: Block-owned horizontal scroll
     Then wrapped code blocks should not require horizontal block scroll
     And the surrounding note should not move horizontally
 
+  @desktop
+  Scenario: Live Preview repeated wheel scrolling remains responsive
+    Given horizontal scroll settings use nowrap with line numbers
+    And the fixture note "Horizontal scroll stress block.md" is open in Live Preview for horizontal scroll
+    When I repeatedly scroll the first code block horizontally with wheel gestures
+    Then Live Preview horizontal scrolling should stay responsive
+    And the active note should keep horizontal scroll inside the first code block
+    And the surrounding note should not move horizontally
+
   @mobile
   Scenario: Mobile-emulated Live Preview touch gestures keep horizontal scroll inside the code block
     Given Obsidian is running in mobile emulation
