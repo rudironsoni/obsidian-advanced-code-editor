@@ -248,6 +248,9 @@ test('styles contain Shiki block styles and no Monaco styles', () => {
 	expect(styles).not.toContain('.shiki-live-preview-horizontal-scroll');
 	expect(styles).not.toContain('.shiki-live-preview-scroll-content');
 	expect(styles).toContain('.markdown-source-view.mod-cm6.is-live-preview .cm-scroller');
+	expect(styles).toContain('.cm-line.shiki-live-preview-fence-line');
+	expect(styles).toContain('background: var(--shiki-code-background);');
+	expect(styles).toContain('-webkit-text-fill-color: transparent;');
 	expect(styles).toContain('overflow-x: visible');
 	expect(styles).toContain('body.shiki-use-editor-font-size .shiki-live-preview-block .shiki-block-body');
 	expect(styles).toContain('font-size: var(--font-text-size);');

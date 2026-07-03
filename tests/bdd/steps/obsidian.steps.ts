@@ -115,6 +115,18 @@ Then('the active note should keep horizontal scroll inside the first code block'
 	assert.ok(first.scrollbarCount >= 1, `expected at least one block scrollbar: ${JSON.stringify(state)}`);
 	assert.ok(first.visibleScrollbarCount >= 1 || first.scrollLeft > 0, `expected visible scrollbar or scrolled block: ${JSON.stringify(state)}`);
 	assert.ok(first.scrollLeft > 0, `expected first block to scroll horizontally: ${JSON.stringify(state)}`);
+	if (state.mode === 'live-preview') {
+		assert.equal(first.scrollOwnerCount, 1, `expected Live Preview to scroll the whole block, not individual rows: ${JSON.stringify(state)}`);
+		assert.equal(first.rowScrollLeftMax, 0, `expected Live Preview rows not to own horizontal scrollLeft: ${JSON.stringify(state)}`);
+		assert.ok(first.livePreviewContentCount > 0, `expected Live Preview code content marks to be measurable: ${JSON.stringify(state)}`);
+		assert.ok(first.livePreviewContentTranslateXSpread <= 0.5, `expected Live Preview rows to share one horizontal offset: ${JSON.stringify(state)}`);
+		for (const translateX of first.livePreviewContentTranslateXValues) {
+			assert.ok(
+				Math.abs(translateX + first.scrollLeft) <= 1,
+				`expected Live Preview code content to be translated by the block scrollLeft: ${JSON.stringify(state)}`,
+			);
+		}
+	}
 	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(state)}`);
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(state)}`);
 });

@@ -14,7 +14,7 @@ export const config: WebdriverIO.Config = {
 			'./tests/bdd/features/horizontal-scroll.feature',
 		],
 	],
-	maxInstances: Number(env.WDIO_MAX_INSTANCES ?? 1),
+	maxInstances: 1,
 	capabilities: [
 		{
 			browserName: 'obsidian',

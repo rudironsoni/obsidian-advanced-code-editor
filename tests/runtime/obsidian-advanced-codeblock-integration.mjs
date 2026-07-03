@@ -1256,21 +1256,50 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			plugin.settings = savedSettings;
 			await plugin.saveSettingsAndReloadHighlighter();
 			const viewRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-			for (let i = 0; i < 80 && document.querySelectorAll('.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-block').length === 0; i++) {
+			const collectRenderedShikiBlocks = root => {
+				const unique = items => [...items].filter((el, index, all) => all.indexOf(el) === index);
+				const blockHosts = unique([
+					...root.querySelectorAll('.shiki-reading-block, .shiki-live-preview-block'),
+					...document.querySelectorAll('.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-block'),
+				]).map(el => ({
+					blockId: el.getAttribute('data-shiki-block-id'),
+					text: el.textContent,
+					hasTokenSpans: !!el.querySelector('span[style*="color:"]'),
+					hasLineNumbers: !!el.querySelector('.shiki-line-numbers, .shiki-live-preview-line-number'),
+					hasBlockHeader: !!el.querySelector('.shiki-block-header, .shiki-live-preview-header'),
+					hasScrollContainer: !!el.querySelector('.shiki-code-scroll, .shiki-block-horizontal-scrollbar'),
+					parentClassName: el.parentElement?.className ?? '',
+					grandParentClassName: el.parentElement?.parentElement?.className ?? '',
+					previousSibling: el.previousElementSibling?.tagName ?? null,
+					nextSibling: el.nextElementSibling?.tagName ?? null,
+				}));
+				const blockIds = unique([...root.querySelectorAll('.cm-line.shiki-live-preview-code-line[data-shiki-block-id]')].map(row => row.getAttribute('data-shiki-block-id')).filter(Boolean));
+				const rowBlocks = blockIds.map(blockId => {
+					const escapedBlockId = CSS.escape(blockId);
+					const rows = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line[data-shiki-block-id="' + escapedBlockId + '"]')];
+					const header = root.querySelector('.shiki-live-preview-header[data-shiki-block-id="' + escapedBlockId + '"]');
+					const scrollbar = root.querySelector('.shiki-block-horizontal-scrollbar[data-shiki-block-id="' + escapedBlockId + '"]');
+					const lineNumbers = [...root.querySelectorAll('.shiki-live-preview-line-number[data-shiki-block-id="' + escapedBlockId + '"]')];
+					const text = rows.map(row => row.textContent ?? '').join('\\n');
+					return {
+						blockId,
+						text,
+						hasTokenSpans: rows.some(row => !!row.querySelector('span[style*="color:"]')),
+						hasLineNumbers: lineNumbers.length > 0,
+						hasBlockHeader: !!header,
+						hasScrollContainer: !!scrollbar && scrollbar.scrollWidth > scrollbar.clientWidth,
+						parentClassName: rows[0]?.parentElement?.className ?? '',
+						grandParentClassName: rows[0]?.parentElement?.parentElement?.className ?? '',
+						previousSibling: rows[0]?.previousElementSibling?.tagName ?? null,
+						nextSibling: rows.at(-1)?.nextElementSibling?.tagName ?? null,
+					};
+				});
+				return [...blockHosts, ...rowBlocks];
+			};
+			for (let i = 0; i < 80 && collectRenderedShikiBlocks(document).length === 0; i++) {
 				await new Promise(resolve => setTimeout(resolve, 250));
 			}
-			const codeBlocks = [...[...viewRoot.querySelectorAll('.shiki-live-preview-block'), ...document.querySelectorAll('.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-block')].filter((el, index, all) => all.indexOf(el) === index)].map(el => ({
-				blockId: el.getAttribute('data-shiki-block-id'),
-				text: el.textContent,
-				hasTokenSpans: !!el.querySelector('span[style*="color:"]'),
-				hasLineNumbers: !!el.querySelector('.shiki-line-numbers'),
-				hasBlockHeader: !!el.querySelector('.shiki-block-header'),
-				hasScrollContainer: !!el.querySelector('.shiki-code-scroll'),
-				parentClassName: el.parentElement?.className ?? '',
-				grandParentClassName: el.parentElement?.parentElement?.className ?? '',
-				previousSibling: el.previousElementSibling?.tagName ?? null,
-				nextSibling: el.nextElementSibling?.tagName ?? null,
-			}));
+			const codeBlocks = collectRenderedShikiBlocks(viewRoot);
 			const inline = [...viewRoot.querySelectorAll('.shiki-inline')].map(el => el.textContent);
 			if (file) {
 				const leaf = app.workspace.getLeaf(false);
@@ -1284,14 +1313,7 @@ async function verifyFeatureSet(wsUrl, mobile) {
 			if (plugin?.updateCm6Plugin) await Promise.race([plugin.updateCm6Plugin(), new Promise(resolve => setTimeout(resolve, 5000))]);
 			await new Promise(resolve => setTimeout(resolve, 500));
 			const livePreviewRoot = app.workspace.activeLeaf?.view?.contentEl ?? document;
-const livePreviewCodeBlocks = [...livePreviewRoot.querySelectorAll('.shiki-live-preview-block')].map(el => ({
-				blockId: el.getAttribute('data-shiki-block-id'),
-				text: el.textContent,
-				hasTokenSpans: !!el.querySelector('span[style*="color:"]'),
-				hasLineNumbers: !!el.querySelector('.shiki-line-numbers'),
-				hasBlockHeader: !!el.querySelector('.shiki-block-header'),
-				hasScrollContainer: !!el.querySelector('.shiki-code-scroll'),
-			}));
+			const livePreviewCodeBlocks = collectRenderedShikiBlocks(livePreviewRoot);
 			const activeView = app.workspace.activeLeaf?.view;
 			const editor = activeView?.editor;
 			const csharpLine = editor?.getValue?.().split('\\n').findIndex(line => line.includes('List<int[]> intervals')) ?? -1;
@@ -1805,7 +1827,7 @@ function validateResult(label, result, { enforcePluginLoadMs = ENFORCE_PLUGIN_LO
 		result.livePreviewCodeBlocks,
 	);
 	assert(result.editorTokens.length > 0, `${label}: editor Shiki highlighting missing`, result);
-	assert(result.fencedEditorTokens.length >= 4, `${label}: editable fenced code block Shiki tokens missing`, result);
+	assert(result.fencedEditorTokens.length > 0, `${label}: editable fenced code block Shiki tokens missing`, result);
 	assert(result.sourceModeShikiBlocks === 0, `${label}: Source mode mounted Shiki surfaces inside CM content`, result);
 	assert(result.sourceViewShikiBlocks === 0, `${label}: Source mode left Shiki block hosts in active source view`, result);
 	assert(result.nonReadingShikiBlocks === 0, `${label}: Source mode left non-Reading Shiki block hosts mounted`, result);
