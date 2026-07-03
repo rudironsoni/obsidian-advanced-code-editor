@@ -19,7 +19,6 @@ type ScenarioResult = {
 After(async function (scenario: ScenarioResult) {
 	const scenarioName = sanitizeArtifactName(scenario.pickle?.name ?? 'scenario');
 	const tags = scenario.pickle?.tags ?? [];
-	const isMobileScenario = tags.some(tag => tag.name === '@mobile');
 	const isHorizontalScrollScenario = tags.some(tag => tag.name === '@horizontal-scroll');
 	const didFail = scenario.result?.status !== 'PASSED';
 
@@ -37,9 +36,7 @@ After(async function (scenario: ScenarioResult) {
 			}
 		}
 	} finally {
-		if (isMobileScenario) {
-			await obsidianApp.resetMobileEmulation();
-		}
+		await obsidianApp.resetMobileEmulation();
 		if (isHorizontalScrollScenario) {
 			await horizontalScrollPage.resetFixtureNotes();
 		}
