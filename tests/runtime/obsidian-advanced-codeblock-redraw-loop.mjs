@@ -392,10 +392,26 @@ async function collectState(client) {
 			const codeLines = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line')];
 			const fenceLines = [...root.querySelectorAll('.cm-line.shiki-live-preview-fence-line')];
 			const fenceWidgets = [...root.querySelectorAll('.cm-line.shiki-live-preview-fence-line .shiki-live-preview-fence-text')];
-			const tokenSpans = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line [style*="color:"]')];
-			const lineNumbers = [...root.querySelectorAll('.shiki-live-preview-line-number')];
-			const visibleGutters = [...root.querySelectorAll('.cm-lineNumbers .cm-gutterElement')].filter(element => getComputedStyle(element).visibility !== 'hidden');
-			const host = header;
+				const tokenSpans = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line [style*="color:"]')];
+				const codeContent = [...root.querySelectorAll('.shiki-live-preview-code-content')];
+				const codeContentTranslateXValues = codeContent.map(element => {
+					const transform = getComputedStyle(element).transform;
+					if (!transform || transform === 'none') return 0;
+					return new DOMMatrixReadOnly(transform).m41;
+				});
+				const codeContentTranslateXSpread = codeContentTranslateXValues.length
+					? Math.max(...codeContentTranslateXValues) - Math.min(...codeContentTranslateXValues)
+					: 0;
+				const lineNumbers = [...root.querySelectorAll('.shiki-live-preview-line-number')];
+				const visibleGutters = [...root.querySelectorAll('.cm-lineNumbers .cm-gutterElement')].filter(element => getComputedStyle(element).visibility !== 'hidden');
+				const isVisibleElement = element => {
+					const rect = element.getBoundingClientRect();
+					const style = getComputedStyle(element);
+					return rect.width > 0 && rect.height > 0 && !element.hidden && style.display !== 'none' && style.visibility !== 'hidden';
+				};
+				const scrollbars = [...root.querySelectorAll('.shiki-block-horizontal-scrollbar')].filter(isVisibleElement);
+				const scrollOwners = [...root.querySelectorAll('[data-shiki-scroll-owner="true"]')].filter(isVisibleElement);
+				const host = header;
 			if (host && !window.__shikiRedrawVerifierHostIds.has(host)) {
 				window.__shikiRedrawVerifierHostIds.set(host, window.__shikiRedrawVerifierNextHostId++);
 			}
@@ -429,12 +445,17 @@ async function collectState(client) {
 				hasLineNumbers: lineNumbers.length > 0,
 				hasHeader: headers.length > 0,
 				fenceLines: fenceLines.length,
-				fenceWidgets: fenceWidgets.map(widget => ({ text: widget.textContent, color: getComputedStyle(widget).color })),
-				hasScrollContainer: codeOverflow,
-				visibleRawRows: visibleCodeRows.length,
-				visibleGutters: visibleGutters.length,
-				blockScrollLeft: Math.max(0, ...codeLines.map(row => row.scrollLeft ?? 0)),
-				cmScrollerScrollLeft: cmScroller?.scrollLeft ?? 0,
+					fenceWidgets: fenceWidgets.map(widget => ({ text: widget.textContent, color: getComputedStyle(widget).color })),
+					hasScrollContainer: codeOverflow,
+					visibleRawRows: visibleCodeRows.length,
+					visibleGutters: visibleGutters.length,
+					blockScrollLeft: Math.max(0, ...scrollbars.map(scrollbar => scrollbar.scrollLeft ?? 0), ...codeLines.map(row => row.scrollLeft ?? 0)),
+					rowScrollLeftMax: Math.max(0, ...codeLines.map(row => row.scrollLeft ?? 0)),
+					scrollOwnerCount: scrollOwners.length,
+					codeContentCount: codeContent.length,
+					codeContentTranslateXValues,
+					codeContentTranslateXSpread,
+					cmScrollerScrollLeft: cmScroller?.scrollLeft ?? 0,
 				settings,
 				noteScrollLeft: Math.max(0, ...noteScrollers.map(scroller => scroller.scrollLeft ?? 0)),
 				noteScrollTop: Math.max(0, ...verticalScrollers.map(scroller => scroller.scrollTop ?? 0)),
@@ -513,9 +534,9 @@ async function verifyScroll(client, settings, context) {
 		client,
 		`(() => {
 			const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
-			for (const element of root.querySelectorAll('.view-content, .cm-scroller, .cm-editor, .markdown-source-view, .cm-line.shiki-live-preview-code-line')) {
-				element.scrollLeft = 0;
-			}
+				for (const element of root.querySelectorAll('.view-content, .cm-scroller, .cm-editor, .markdown-source-view, .cm-line.shiki-live-preview-code-line, .shiki-block-horizontal-scrollbar')) {
+					element.scrollLeft = 0;
+				}
 			if (${JSON.stringify(!settings.wrap)}) {
 				const codeLines = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line')];
 				const item = codeLines
@@ -533,10 +554,91 @@ async function verifyScroll(client, settings, context) {
 		})()`,
 	);
 	if (wheelTarget) {
-		await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: wheelTarget.clientX, y: wheelTarget.clientY, button: 'none' });
-		await client.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: wheelTarget.clientX, y: wheelTarget.clientY, deltaX: 260, deltaY: 0 });
+		if (before.isMobile) {
+			await evaluate(
+				client,
+				`(() => {
+						const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
+						const codeLines = [...root.querySelectorAll('.cm-line.shiki-live-preview-code-line')];
+						const item = codeLines
+							.map(row => ({ row, overflow: row.scrollWidth - row.clientWidth }))
+							.sort((first, second) => second.overflow - first.overflow)[0];
+						const target = [...root.querySelectorAll('.shiki-block-horizontal-scrollbar')]
+							.find(scrollbar => {
+								const rect = scrollbar.getBoundingClientRect();
+								const style = getComputedStyle(scrollbar);
+								return rect.width > 0 && rect.height > 0 && !scrollbar.hidden && style.display !== 'none' && style.visibility !== 'hidden';
+							}) ?? item?.row;
+						if (!target || item.overflow <= 0) return false;
+						const rect = target.getBoundingClientRect();
+						const clientY = rect.top + Math.min(10, Math.max(2, rect.height / 2));
+						const startX = rect.left + Math.min(220, target.clientWidth - 8);
+						const endX = rect.left + 24;
+						const pointerId = 77;
+						target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId, pointerType: 'touch', clientX: startX, clientY }));
+						target.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, pointerId, pointerType: 'touch', clientX: endX, clientY }));
+						target.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId, pointerType: 'touch', clientX: endX, clientY }));
+						return true;
+					})()`,
+			);
+		} else {
+			await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: wheelTarget.clientX, y: wheelTarget.clientY, button: 'none' });
+			await client.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: wheelTarget.clientX, y: wheelTarget.clientY, deltaX: 260, deltaY: 0 });
+		}
 	}
+	await evaluate(
+		client,
+		`(() => {
+				const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
+				const scrollbar = [...root.querySelectorAll('.shiki-block-horizontal-scrollbar')].find(candidate => {
+					const rect = candidate.getBoundingClientRect();
+					const style = getComputedStyle(candidate);
+					return rect.width > 0 && rect.height > 0 && !candidate.hidden && style.display !== 'none' && style.visibility !== 'hidden';
+				});
+				if (!scrollbar) return false;
+				scrollbar.scrollLeft = Math.min(260, Math.max(1, scrollbar.scrollWidth - scrollbar.clientWidth));
+				scrollbar.dispatchEvent(new Event('scroll'));
+				return scrollbar.scrollLeft > 0;
+			})()`,
+	);
+	await evaluate(
+		client,
+		`(async () => {
+				const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
+				const scrollbar = [...root.querySelectorAll('.shiki-block-horizontal-scrollbar')].find(candidate => {
+					const rect = candidate.getBoundingClientRect();
+					const style = getComputedStyle(candidate);
+					return rect.width > 0 && rect.height > 0 && !candidate.hidden && style.display !== 'none' && style.visibility !== 'hidden';
+				});
+				if (!scrollbar) return false;
+				for (let attempt = 0; attempt < 10; attempt++) {
+					scrollbar.scrollLeft = Math.min(260, Math.max(1, scrollbar.scrollWidth - scrollbar.clientWidth));
+					scrollbar.dispatchEvent(new Event('scroll'));
+					await new Promise(resolve => setTimeout(resolve, 50));
+					const content = root.querySelector('.shiki-live-preview-code-content');
+					if (content && new DOMMatrixReadOnly(getComputedStyle(content).transform).m41 < 0) {
+						return true;
+					}
+				}
+				return false;
+			})()`,
+	);
 	await delay(300);
+	await evaluate(
+		client,
+		`(() => {
+				const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
+				const scrollbar = [...root.querySelectorAll('.shiki-block-horizontal-scrollbar')].find(candidate => {
+					const rect = candidate.getBoundingClientRect();
+					const style = getComputedStyle(candidate);
+					return rect.width > 0 && rect.height > 0 && !candidate.hidden && style.display !== 'none' && style.visibility !== 'hidden';
+				});
+				if (!scrollbar) return false;
+				scrollbar.scrollLeft = Math.min(260, Math.max(1, scrollbar.scrollWidth - scrollbar.clientWidth));
+				scrollbar.dispatchEvent(new Event('scroll'));
+				return scrollbar.scrollLeft > 0;
+			})()`,
+	);
 	const afterHorizontal = await collectState(client);
 	assertShikiReady(afterHorizontal, `${context} after horizontal scroll`);
 	assert(afterHorizontal.noteScrollLeft === 0, `${context}: note moved horizontally during code scroll`, { before, after: afterHorizontal, settings });
@@ -551,7 +653,32 @@ async function verifyScroll(client, settings, context) {
 			after: afterHorizontal,
 			settings,
 		});
-		assert(afterHorizontal.blockScrollLeft > 0, `${context}: code rows did not move horizontally`, { before, after: afterHorizontal, settings });
+		assert(afterHorizontal.blockScrollLeft > 0, `${context}: block scrollbar did not move horizontally`, { before, after: afterHorizontal, settings });
+		assert(afterHorizontal.scrollOwnerCount === 1, `${context}: Live Preview should have exactly one block scroll owner`, {
+			before,
+			after: afterHorizontal,
+			settings,
+		});
+		assert(afterHorizontal.rowScrollLeftMax === 0, `${context}: Live Preview rows should not own horizontal scrollLeft`, {
+			before,
+			after: afterHorizontal,
+			settings,
+		});
+		assert(afterHorizontal.codeContentCount > 0, `${context}: Live Preview code content was not measurable`, {
+			before,
+			after: afterHorizontal,
+			settings,
+		});
+		assert(afterHorizontal.codeContentTranslateXSpread <= 0.5, `${context}: Live Preview code rows do not share one horizontal offset`, {
+			before,
+			after: afterHorizontal,
+			settings,
+		});
+		assert(
+			afterHorizontal.codeContentTranslateXValues.every(value => Math.abs(value + afterHorizontal.blockScrollLeft) <= 1),
+			`${context}: Live Preview code content is not translated by the block scrollLeft`,
+			{ before, after: afterHorizontal, settings },
+		);
 	}
 	await evaluate(
 		client,

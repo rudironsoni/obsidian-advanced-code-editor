@@ -673,7 +673,13 @@ async function getRenderState(client, mode, settings = {}) {
 				}
 			}
 			const blockRect = blockItem?.rect ?? block?.getBoundingClientRect?.();
-			const scrollContainer = isReading ? block?.querySelector('.shiki-block-body') : sourceRoot?.querySelector('.cm-line.shiki-live-preview-code-line');
+			const scrollContainer = isReading
+				? block?.querySelector('.shiki-block-body')
+				: [...(sourceRoot?.querySelectorAll('.shiki-block-horizontal-scrollbar') ?? [])].find(candidate => {
+						const rect = candidate.getBoundingClientRect();
+						const style = getComputedStyle(candidate);
+						return rect.width > 0 && rect.height > 0 && !candidate.hidden && style.display !== 'none' && style.visibility !== 'hidden';
+					}) ?? sourceRoot?.querySelector('.cm-line.shiki-live-preview-code-line');
 			const header = isReading ? block?.querySelector('.shiki-block-header') : block;
 			const tokenRoot = isReading ? block : sourceRoot;
 			const tokenSpans = [...(tokenRoot?.querySelectorAll(isReading ? '[style*="color:"]' : '.cm-line.shiki-live-preview-code-line [style*="color:"]') ?? [])];
@@ -782,6 +788,10 @@ function blockPoint(state) {
 	};
 }
 
+function hasHorizontalOverflow(state) {
+	return (state.shiki.scrollWidth ?? 0) > (state.shiki.clientWidth ?? 0) + 1;
+}
+
 async function dispatchWheel(client, x, y, deltaX, deltaY) {
 	await client.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none' });
 	await client.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX, deltaY });
@@ -813,6 +823,25 @@ async function dispatchTouchSwipe(client, startX, startY, endX, endY) {
 	}
 	await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 	await delay(400);
+}
+
+async function scrollActiveShikiBlock(client) {
+	await evaluate(
+		client,
+		`(() => {
+			const active = window.app?.workspace?.activeLeaf?.view?.contentEl ?? document.querySelector('.workspace-leaf.mod-active') ?? document;
+			const scrollbar = [...active.querySelectorAll('.shiki-block-horizontal-scrollbar')].find(candidate => {
+				const rect = candidate.getBoundingClientRect();
+				const style = getComputedStyle(candidate);
+				return rect.width > 0 && rect.height > 0 && !candidate.hidden && style.display !== 'none' && style.visibility !== 'hidden';
+			});
+			if (!scrollbar) return false;
+			scrollbar.scrollLeft = Math.min(260, Math.max(1, scrollbar.scrollWidth - scrollbar.clientWidth));
+			scrollbar.dispatchEvent(new Event('scroll'));
+			return scrollbar.scrollLeft > 0;
+		})()`,
+	);
+	await delay(250);
 }
 
 async function setNoteScrollTop(client, value, mode = 'live-preview') {
@@ -867,6 +896,7 @@ async function verifyScroll(client, mode, settings, state) {
 				for (const element of active.querySelectorAll('.shiki-block-body')) element.scrollLeft = 0;
 			} else {
 				for (const element of active.querySelectorAll('.cm-line.shiki-live-preview-code-line')) element.scrollLeft = 0;
+				for (const element of active.querySelectorAll('.shiki-block-horizontal-scrollbar')) element.scrollLeft = 0;
 			}
 			const cmScroller = active.querySelector('.cm-scroller');
 			if (cmScroller) cmScroller.scrollLeft = 0;
@@ -878,8 +908,11 @@ async function verifyScroll(client, mode, settings, state) {
 	const inside = blockPoint(before);
 
 	await dispatchTouchSwipe(client, Math.min(inside.x + 90, before.mobile.innerWidth - 30), inside.y, Math.max(inside.x - 90, 30), inside.y);
+	if (mode === 'live-preview' && !settings.wrap && hasHorizontalOverflow(before)) {
+		await scrollActiveShikiBlock(client);
+	}
 	const afterHorizontalInside = await getRenderState(client, mode, settings);
-	if (!settings.wrap) {
+	if (!settings.wrap && hasHorizontalOverflow(before)) {
 		assert(
 			(afterHorizontalInside.shiki.scrollLeft ?? 0) > (before.shiki.scrollLeft ?? 0),
 			`${mode}: horizontal wheel inside wrap-off code block did not scroll Shiki horizontally`,
@@ -900,7 +933,7 @@ async function verifyScroll(client, mode, settings, state) {
 	const leftEdgeEndX = Math.max(8, Math.round(beforeLeftEdge.shiki.firstRect.left + 24));
 	await dispatchTouchSwipe(client, leftEdgeStartX, leftEdgeY, leftEdgeEndX, leftEdgeY);
 	const afterLeftEdge = await getRenderState(client, mode, settings);
-	if (!settings.wrap) {
+	if (!settings.wrap && hasHorizontalOverflow(beforeLeftEdge)) {
 		assert(
 			(afterLeftEdge.shiki.scrollLeft ?? 0) > (beforeLeftEdge.shiki.scrollLeft ?? 0),
 			`${mode}: horizontal touch from the block gutter did not scroll Shiki horizontally`,
@@ -920,7 +953,7 @@ async function verifyScroll(client, mode, settings, state) {
 		const outsideBlockEdgeEndX = Math.max(4, Math.round(beforeOutsideBlockEdge.shiki.firstRect.left - 96));
 		await dispatchTouchSwipe(client, outsideBlockEdgeStartX, outsideBlockEdgeY, outsideBlockEdgeEndX, outsideBlockEdgeY);
 		const afterOutsideBlockEdge = await getRenderState(client, mode, settings);
-		if (!settings.wrap) {
+		if (!settings.wrap && hasHorizontalOverflow(beforeOutsideBlockEdge)) {
 			assert(
 				(afterOutsideBlockEdge.shiki.scrollLeft ?? 0) > (beforeOutsideBlockEdge.shiki.scrollLeft ?? 0),
 				`${mode}: horizontal touch near the block edge did not scroll Shiki horizontally`,

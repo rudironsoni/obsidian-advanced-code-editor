@@ -1,9 +1,11 @@
-import { RangeSetBuilder, StateField, type EditorState, type Extension } from '@codemirror/state';
+import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state';
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view';
 import { createBlockHorizontalScrollbarDecoration, SHIKI_BLOCK_SCROLL_ROW_CLASS } from 'packages/obsidian/src/codemirror/BlockHorizontalScroll';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
+
+const SHIKI_LIVE_PREVIEW_CODE_CONTENT_CLASS = 'shiki-live-preview-code-content';
 
 interface LivePreviewStructureState {
 	decorations: DecorationSet;
@@ -103,7 +105,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 		}
 		const lines = collectLines(state);
 		const parsed = parser.parseLivePreviewBlocks(lines);
-		const decorations = new RangeSetBuilder<Decoration>();
+		const ranges: Range<Decoration>[] = [];
 
 		for (const parsedBlock of parsed) {
 			const block = plugin.codeBlockRegistry.createModel({
@@ -128,11 +130,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 				continue;
 			}
 
-			decorations.add(
-				block.fenceFrom,
-				block.fenceFrom,
-				Decoration.widget({ widget: new ShikiLivePreviewHeaderWidget(block, plugin), block: true, side: -1 }),
-			);
+			ranges.push(Decoration.widget({ widget: new ShikiLivePreviewHeaderWidget(block, plugin), block: true, side: -1 }).range(block.fenceFrom));
 
 			for (let lineNumber = parsedBlock.openingFenceLine; lineNumber <= parsedBlock.closingFenceLine; lineNumber++) {
 				const line = state.doc.line(lineNumber);
@@ -143,43 +141,50 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 					: isClosingFence
 						? 'shiki-live-preview-fence-line shiki-live-preview-closing-fence-line'
 						: `shiki-live-preview-code-line ${SHIKI_BLOCK_SCROLL_ROW_CLASS}${plugin.loadedSettings.wrapLines ? ' shiki-live-preview-code-line-wrap' : ' shiki-live-preview-code-line-nowrap'}`;
-				decorations.add(
-					line.from,
-					line.from,
+				ranges.push(
 					Decoration.line({
 						attributes: {
 							class: className,
 							'data-shiki-block-id': block.id,
 							'data-shiki-editing-block-id': block.id,
-							'data-shiki-scroll-owner': isOpeningFence || isClosingFence ? 'false' : 'true',
+							'data-shiki-scroll-owner': 'false',
 						},
-					}),
+					}).range(line.from),
 				);
 
 				if (isOpeningFence || isClosingFence) {
-					decorations.add(
-						line.from,
-						line.to,
+					ranges.push(
 						Decoration.replace({
 							widget: new ShikiLivePreviewFenceWidget(isOpeningFence ? openingFenceText(block) : (block.openingFence ?? '```')),
-						}),
+						}).range(line.from, line.to),
+					);
+				}
+
+				if (!isOpeningFence && !isClosingFence) {
+					ranges.push(
+						Decoration.mark({
+							attributes: {
+								class: SHIKI_LIVE_PREVIEW_CODE_CONTENT_CLASS,
+								'data-shiki-block-id': block.id,
+							},
+						}).range(line.from, line.to),
 					);
 				}
 
 				if (!isOpeningFence && !isClosingFence && plugin.loadedSettings.showLineNumbers) {
-					decorations.add(
-						line.from,
-						line.from,
-						Decoration.widget({ widget: new ShikiLivePreviewLineNumberWidget(lineNumber - parsedBlock.openingFenceLine), side: -1 }),
+					ranges.push(
+						Decoration.widget({ widget: new ShikiLivePreviewLineNumberWidget(lineNumber - parsedBlock.openingFenceLine), side: -1 }).range(
+							line.from,
+						),
 					);
 				}
 			}
 
 			const closingFence = state.doc.line(parsedBlock.closingFenceLine);
-			decorations.add(closingFence.to, closingFence.to, createBlockHorizontalScrollbarDecoration(block.id, plugin.loadedSettings.wrapLines));
+			ranges.push(createBlockHorizontalScrollbarDecoration(block.id, plugin.loadedSettings.wrapLines).range(closingFence.to));
 		}
 
-		return { decorations: decorations.finish() };
+		return { decorations: ranges.length ? Decoration.set(ranges, true) : Decoration.none };
 	};
 
 	const structureField = StateField.define<LivePreviewStructureState>({

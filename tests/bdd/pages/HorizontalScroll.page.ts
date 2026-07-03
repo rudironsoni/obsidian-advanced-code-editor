@@ -68,6 +68,11 @@ export type HorizontalScrollBlockState = {
 	rowCount: number;
 	scrollbarCount: number;
 	scrollOwnerCount: number;
+	rowScrollSurfaceCount: number;
+	rowScrollLeftMax: number;
+	livePreviewContentCount: number;
+	livePreviewContentTranslateXValues: number[];
+	livePreviewContentTranslateXSpread: number;
 	visibleScrollbarCount: number;
 	disabledScrollbarCount: number;
 	scrollLeft: number;
@@ -432,6 +437,18 @@ class HorizontalScrollPage {
 					const rectProbe = block.code ?? block.row ?? block.body ?? block.scrollbar ?? block.root;
 					const beforeCodeLeft = block.code?.getBoundingClientRect().left ?? null;
 					const beforeGutterLeft = block.gutter?.getBoundingClientRect().left ?? null;
+					const contentElements = [
+						...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-code-content[data-shiki-block-id="${CSS.escape(block.blockId)}"]`),
+					];
+					const contentTranslateXValues = contentElements.map(element => {
+						const transform = getComputedStyle(element).transform;
+						if (!transform || transform === 'none') return 0;
+						const matrix = new DOMMatrixReadOnly(transform);
+						return matrix.m41;
+					});
+					const contentTranslateXSpread = contentTranslateXValues.length
+						? Math.max(...contentTranslateXValues) - Math.min(...contentTranslateXValues)
+						: 0;
 
 					return {
 						index,
@@ -440,6 +457,11 @@ class HorizontalScrollPage {
 						rowCount: block.rows.length,
 						scrollbarCount: block.scrollbars.length,
 						scrollOwnerCount: block.owners.length,
+						rowScrollSurfaceCount: block.rows.filter(element => element.scrollWidth > element.clientWidth).length,
+						rowScrollLeftMax: Math.max(0, ...block.rows.map(element => element.scrollLeft)),
+						livePreviewContentCount: contentElements.length,
+						livePreviewContentTranslateXValues: contentTranslateXValues,
+						livePreviewContentTranslateXSpread: contentTranslateXSpread,
 						visibleScrollbarCount: block.scrollbars.filter(element => !element.hidden && getComputedStyle(element).display !== 'none').length,
 						disabledScrollbarCount: block.scrollbars.filter(element => element.dataset.shikiScrollDisabled === 'true').length,
 						scrollLeft: Math.max(0, ...targets.map(element => element.scrollLeft)),
