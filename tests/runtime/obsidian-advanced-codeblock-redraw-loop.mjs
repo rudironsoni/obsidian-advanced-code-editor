@@ -501,6 +501,36 @@ async function waitForShikiReady(client, context) {
 	return lastState;
 }
 
+async function measureStyleChurnDuringRefresh(client) {
+	return evaluate(
+		client,
+		`(async () => {
+			const root = document.querySelector('.workspace-leaf.mod-active') ?? document;
+			const targets = [
+				...root.querySelectorAll('.shiki-live-preview-header, .cm-line.shiki-live-preview-code-line, .shiki-live-preview-code-content, .shiki-block-horizontal-scrollbar'),
+			];
+			let styleMutations = 0;
+			const observer = new MutationObserver(records => {
+				for (const record of records) {
+					if (record.type === 'attributes' && record.attributeName === 'style') {
+						styleMutations++;
+					}
+				}
+			});
+			for (const target of targets) {
+				observer.observe(target, { attributes: true, attributeFilter: ['style'] });
+			}
+			for (let attempt = 0; attempt < 5; attempt++) {
+				void Promise.resolve(globalThis.app?.plugins?.plugins?.['advanced-code-block']?.updateCm6Plugin?.()).catch(() => undefined);
+				await new Promise(resolve => setTimeout(resolve, 120));
+			}
+			await new Promise(resolve => setTimeout(resolve, 250));
+			observer.disconnect();
+			return { styleMutations, targets: targets.length };
+		})()`,
+	);
+}
+
 async function assertStable(client, context) {
 	const samples = [];
 	for (let i = 0; i < 12; i++) {
@@ -516,6 +546,8 @@ async function assertStable(client, context) {
 	const tops = samples.map(sample => sample.blockRect.top);
 	assert(Math.max(...heights) - Math.min(...heights) <= 2, `${context}: Shiki block height is jittering`, samples);
 	assert(Math.max(...tops) - Math.min(...tops) <= 2, `${context}: Shiki block top is jittering`, samples);
+	const styleChurn = await measureStyleChurnDuringRefresh(client);
+	assert(styleChurn.styleMutations <= 4, `${context}: Shiki block styles churned during idle refresh sampling`, { styleChurn, samples });
 	return samples.at(-1);
 }
 

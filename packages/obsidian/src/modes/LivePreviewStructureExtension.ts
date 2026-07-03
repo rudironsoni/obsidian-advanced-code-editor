@@ -9,6 +9,14 @@ const SHIKI_LIVE_PREVIEW_CODE_CONTENT_CLASS = 'shiki-live-preview-code-content';
 
 interface LivePreviewStructureState {
 	decorations: DecorationSet;
+	inputs: LivePreviewStructureInputs;
+}
+
+interface LivePreviewStructureInputs {
+	isLivePreview: boolean;
+	showLineNumbers: boolean;
+	sourcePath: string;
+	wrapLines: boolean;
 }
 
 class ShikiLivePreviewHeaderWidget extends WidgetType {
@@ -100,8 +108,9 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 	const parser = new CodeBlockParser();
 
 	const buildState = (state: EditorState): LivePreviewStructureState => {
-		if (!isLivePreviewActive(plugin)) {
-			return { decorations: Decoration.none };
+		const inputs = readInputs(plugin);
+		if (!inputs.isLivePreview) {
+			return { decorations: Decoration.none, inputs };
 		}
 		const lines = collectLines(state);
 		const parsed = parser.parseLivePreviewBlocks(lines);
@@ -109,7 +118,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 
 		for (const parsedBlock of parsed) {
 			const block = plugin.codeBlockRegistry.createModel({
-				sourcePath: plugin.app.workspace.getActiveFile()?.path ?? '',
+				sourcePath: inputs.sourcePath,
 				hostMode: 'live-preview',
 				language: parsedBlock.language,
 				meta: parsedBlock.meta.raw.trim(),
@@ -184,12 +193,16 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 			ranges.push(createBlockHorizontalScrollbarDecoration(block.id, plugin.loadedSettings.wrapLines).range(closingFence.to));
 		}
 
-		return { decorations: ranges.length ? Decoration.set(ranges, true) : Decoration.none };
+		return { decorations: ranges.length ? Decoration.set(ranges, true) : Decoration.none, inputs };
 	};
 
 	const structureField = StateField.define<LivePreviewStructureState>({
 		create: buildState,
-		update(_value, transaction) {
+		update(value, transaction) {
+			const inputs = readInputs(plugin);
+			if (!transaction.docChanged && sameInputs(value.inputs, inputs)) {
+				return value;
+			}
 			return buildState(transaction.state);
 		},
 		provide: field => [EditorView.decorations.from(field, value => value.decorations)],
@@ -201,6 +214,24 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 function isLivePreviewActive(plugin: ShikiPlugin): boolean {
 	const activeContainer = plugin.app.workspace.activeLeaf?.view?.containerEl;
 	return !!activeContainer && activeContainer.querySelector('.markdown-source-view.mod-cm6.is-live-preview') !== null;
+}
+
+function readInputs(plugin: ShikiPlugin): LivePreviewStructureInputs {
+	return {
+		isLivePreview: isLivePreviewActive(plugin),
+		showLineNumbers: plugin.loadedSettings.showLineNumbers,
+		sourcePath: plugin.app.workspace.getActiveFile()?.path ?? '',
+		wrapLines: plugin.loadedSettings.wrapLines,
+	};
+}
+
+function sameInputs(first: LivePreviewStructureInputs, second: LivePreviewStructureInputs): boolean {
+	return (
+		first.isLivePreview === second.isLivePreview &&
+		first.showLineNumbers === second.showLineNumbers &&
+		first.sourcePath === second.sourcePath &&
+		first.wrapLines === second.wrapLines
+	);
 }
 
 function collectLines(state: EditorState): CodeBlockLineInfo[] {
