@@ -102,6 +102,22 @@ export type HorizontalScrollState = {
 	blocks: HorizontalScrollBlockState[];
 };
 
+export type HorizontalScrollPerformanceMetrics = {
+	eventCount: number;
+	p95DispatchMs: number;
+	maxDispatchMs: number;
+	maxFrameGapMs: number;
+	finalScrollLeft: number;
+	rowScrollLeftMax: number;
+	noteScrollLeft: number;
+	documentScrollLeft: number;
+};
+
+export type HorizontalScrollPerformanceResult = {
+	metrics: HorizontalScrollPerformanceMetrics;
+	state: HorizontalScrollState;
+};
+
 export type ExactEditResult = {
 	filePath: string | null;
 	line: number;
@@ -119,6 +135,13 @@ type GestureInput = {
 	mode: HorizontalScrollMode;
 	blockIndex: number;
 	gesture: HorizontalScrollGesture;
+};
+
+type RepeatedWheelInput = {
+	mode: HorizontalScrollMode;
+	blockIndex: number;
+	frames: number;
+	deltaX: number;
 };
 
 class HorizontalScrollPage {
@@ -318,6 +341,109 @@ class HorizontalScrollPage {
 		return this.collectScrollState(mode, `${gesture}-after`);
 	}
 
+	async measureRepeatedWheelScroll(mode: HorizontalScrollMode, blockIndex: number): Promise<HorizontalScrollPerformanceResult> {
+		const metrics = await executeObsidian(
+			async ({ app }, input: RepeatedWheelInput): Promise<HorizontalScrollPerformanceMetrics> => {
+				const runtimeApp = app as unknown as RuntimeApp;
+				const root =
+					runtimeApp.workspace.activeLeaf?.view?.containerEl ??
+					runtimeApp.workspace.activeLeaf?.view?.contentEl ??
+					document.querySelector('.workspace-leaf.mod-active') ??
+					document;
+				const noteScroller =
+					input.mode === 'reading' ? root.querySelector<HTMLElement>('.markdown-preview-view') : root.querySelector<HTMLElement>('.cm-scroller');
+				const scope = noteScroller ?? root;
+				const blockIds = new Set<string>();
+				for (const element of scope.querySelectorAll<HTMLElement>('[data-shiki-block-id]')) {
+					const blockId = element.dataset.shikiBlockId;
+					if (blockId) blockIds.add(blockId);
+				}
+				const blocks = [...blockIds]
+					.map(blockId => {
+						const escapedBlockId = CSS.escape(blockId);
+						const rows = [...scope.querySelectorAll<HTMLElement>(`.shiki-block-scroll-row[data-shiki-block-id="${escapedBlockId}"]`)];
+						const scrollbars = [
+							...scope.querySelectorAll<HTMLElement>(`.shiki-block-horizontal-scrollbar[data-shiki-block-id="${escapedBlockId}"]`),
+						];
+						return { blockId, rows, scrollbar: scrollbars[0] ?? null };
+					})
+					.filter(block => block.rows.length > 0 || block.scrollbar !== null);
+				const block = blocks[input.blockIndex];
+				if (!block) throw new Error(`Code block ${input.blockIndex + 1} was not found`);
+
+				const target = block.scrollbar ?? block.rows[0];
+				if (!target) throw new Error(`Code block ${input.blockIndex + 1} has no horizontal scroll target`);
+				for (const row of block.rows) {
+					row.scrollLeft = 0;
+				}
+				if (block.scrollbar) {
+					block.scrollbar.scrollLeft = 0;
+				}
+				if (noteScroller) {
+					noteScroller.scrollLeft = 0;
+				}
+				document.scrollingElement?.scrollTo({ left: 0 });
+
+				const rect = target.getBoundingClientRect();
+				const clientX = rect.left + Math.min(120, Math.max(8, rect.width / 2));
+				const clientY = rect.top + Math.min(10, Math.max(4, rect.height / 2));
+				const dispatchDurations: number[] = [];
+				let maxFrameGapMs = 0;
+				let lastFrame = performance.now();
+
+				for (let index = 0; index < input.frames; index++) {
+					await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+					const frameNow = performance.now();
+					maxFrameGapMs = Math.max(maxFrameGapMs, frameNow - lastFrame);
+					lastFrame = frameNow;
+					const beforeDispatch = performance.now();
+					target.dispatchEvent(
+						new WheelEvent('wheel', {
+							bubbles: true,
+							cancelable: true,
+							clientX,
+							clientY,
+							deltaX: input.deltaX,
+						}),
+					);
+					dispatchDurations.push(performance.now() - beforeDispatch);
+				}
+
+				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+				const contentTranslateXValues = [
+					...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-code-content[data-shiki-block-id="${CSS.escape(block.blockId)}"]`),
+				].map(element => {
+					const transform = getComputedStyle(element).transform;
+					if (!transform || transform === 'none') return 0;
+					const matrix = new DOMMatrixReadOnly(transform);
+					return matrix.m41;
+				});
+				const effectiveContentScrollLeft = Math.max(0, ...contentTranslateXValues.map(value => -value));
+				const sortedDurations = [...dispatchDurations].sort((first, second) => first - second);
+				const p95Index = Math.max(0, Math.ceil(sortedDurations.length * 0.95) - 1);
+				return {
+					eventCount: dispatchDurations.length,
+					p95DispatchMs: sortedDurations[p95Index] ?? 0,
+					maxDispatchMs: Math.max(0, ...dispatchDurations),
+					maxFrameGapMs,
+					finalScrollLeft: Math.max(
+						0,
+						target.scrollLeft,
+						block.scrollbar?.scrollLeft ?? 0,
+						...block.rows.map(row => row.scrollLeft),
+						effectiveContentScrollLeft,
+					),
+					rowScrollLeftMax: Math.max(0, ...block.rows.map(row => row.scrollLeft)),
+					noteScrollLeft: noteScroller?.scrollLeft ?? 0,
+					documentScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
+				};
+			},
+			{ mode, blockIndex, frames: 60, deltaX: 24 },
+		);
+		const state = await this.collectScrollState(mode, 'repeated-wheel-after');
+		return { metrics, state };
+	}
+
 	async editMarkerAfterScroll(): Promise<ExactEditResult> {
 		return executeObsidian(
 			async ({ app }, input) => {
@@ -450,6 +576,7 @@ class HorizontalScrollPage {
 					const contentTranslateXSpread = contentTranslateXValues.length
 						? Math.max(...contentTranslateXValues) - Math.min(...contentTranslateXValues)
 						: 0;
+					const effectiveContentScrollLeft = Math.max(0, ...contentTranslateXValues.map(value => -value));
 
 					return {
 						index,
@@ -465,7 +592,7 @@ class HorizontalScrollPage {
 						livePreviewContentTranslateXSpread: contentTranslateXSpread,
 						visibleScrollbarCount: block.scrollbars.filter(element => !element.hidden && getComputedStyle(element).display !== 'none').length,
 						disabledScrollbarCount: block.scrollbars.filter(element => element.dataset.shikiScrollDisabled === 'true').length,
-						scrollLeft: Math.max(0, ...targets.map(element => element.scrollLeft)),
+						scrollLeft: Math.max(0, ...targets.map(element => element.scrollLeft), effectiveContentScrollLeft),
 						maxScrollLeft: Math.max(0, ...targets.map(element => element.scrollWidth - element.clientWidth)),
 						clientWidth: rectProbe?.clientWidth ?? 0,
 						scrollWidth: rectProbe?.scrollWidth ?? 0,

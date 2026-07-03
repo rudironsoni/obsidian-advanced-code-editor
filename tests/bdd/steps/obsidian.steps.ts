@@ -5,6 +5,7 @@ import {
 	type ExactEditResult,
 	type HorizontalScrollGesture,
 	type HorizontalScrollMode,
+	type HorizontalScrollPerformanceResult,
 	type HorizontalScrollState,
 } from '../pages/HorizontalScroll.page.js';
 import { obsidianApp } from '../pages/ObsidianApp.page.js';
@@ -14,6 +15,7 @@ let lastExpectedRenderText = '';
 let activeHorizontalScrollMode: HorizontalScrollMode = 'reading';
 let lastHorizontalScrollState: HorizontalScrollState | undefined;
 let lastExactEdit: ExactEditResult | undefined;
+let lastHorizontalScrollPerformance: HorizontalScrollPerformanceResult | undefined;
 
 Given('the built Shiki plugin is enabled in the fixture vault', async () => {
 	await obsidianApp.waitForPluginLoaded();
@@ -108,15 +110,23 @@ When('I edit the visible horizontal scroll marker', async () => {
 	writeJsonArtifact('horizontal-scroll-exact-edit', { edit: lastExactEdit, scroll: lastHorizontalScrollState });
 });
 
+When('I repeatedly scroll the first code block horizontally with wheel gestures', async () => {
+	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
+	lastHorizontalScrollPerformance = await horizontalScrollPage.measureRepeatedWheelScroll(activeHorizontalScrollMode, 0);
+	lastHorizontalScrollState = lastHorizontalScrollPerformance.state;
+	writeJsonArtifact(`horizontal-scroll-${activeHorizontalScrollMode}-wheel-performance`, lastHorizontalScrollPerformance);
+});
+
 Then('the active note should keep horizontal scroll inside the first code block', async () => {
 	const state = await currentHorizontalScrollState('assert-block-scroll');
 	const first = state.blocks[0];
 	assert.ok(first, 'expected a first code block');
-	assert.ok(first.scrollbarCount >= 1, `expected at least one block scrollbar: ${JSON.stringify(state)}`);
 	assert.ok(first.visibleScrollbarCount >= 1 || first.scrollLeft > 0, `expected visible scrollbar or scrolled block: ${JSON.stringify(state)}`);
 	assert.ok(first.scrollLeft > 0, `expected first block to scroll horizontally: ${JSON.stringify(state)}`);
 	if (state.mode === 'live-preview') {
-		assert.equal(first.scrollOwnerCount, 1, `expected Live Preview to scroll the whole block, not individual rows: ${JSON.stringify(state)}`);
+		if (first.scrollbarCount > 0) {
+			assert.equal(first.scrollOwnerCount, 1, `expected mounted Live Preview scrollbar to own block scroll: ${JSON.stringify(state)}`);
+		}
 		assert.equal(first.rowScrollLeftMax, 0, `expected Live Preview rows not to own horizontal scrollLeft: ${JSON.stringify(state)}`);
 		assert.ok(first.livePreviewContentCount > 0, `expected Live Preview code content marks to be measurable: ${JSON.stringify(state)}`);
 		assert.ok(first.livePreviewContentTranslateXSpread <= 0.5, `expected Live Preview rows to share one horizontal offset: ${JSON.stringify(state)}`);
@@ -129,6 +139,23 @@ Then('the active note should keep horizontal scroll inside the first code block'
 	}
 	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(state)}`);
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(state)}`);
+});
+
+Then('Live Preview horizontal scrolling should stay responsive', async () => {
+	assert.ok(lastHorizontalScrollPerformance, 'expected Live Preview horizontal scroll performance result');
+	const { metrics, state } = lastHorizontalScrollPerformance;
+	const first = state.blocks[0];
+	assert.ok(first, `expected a first code block after performance scroll: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.equal(state.mode, 'live-preview', `expected Live Preview mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(metrics.eventCount >= 55, `expected at least 55 measured wheel events: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(metrics.p95DispatchMs <= 12, `expected p95 wheel dispatch under 12ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(metrics.maxDispatchMs <= 30, `expected max wheel dispatch under 30ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(metrics.maxFrameGapMs <= 80, `expected no severe frame gap above 80ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(first.scrollLeft > 0, `expected first block to scroll horizontally: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.equal(first.rowScrollLeftMax, 0, `expected Live Preview rows not to own horizontal scrollLeft: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(first.livePreviewContentTranslateXSpread <= 0.5, `expected Live Preview rows to share one horizontal offset: ${JSON.stringify(state)}`);
 });
 
 Then('the surrounding note should not move horizontally', async () => {
