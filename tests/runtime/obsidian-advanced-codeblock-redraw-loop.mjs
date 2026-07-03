@@ -235,6 +235,42 @@ async function restoreSettings(client, originalSettings) {
 	);
 }
 
+async function setNativeLineNumbers(client, enabled) {
+	return evaluate(
+		client,
+		`(async () => {
+			if (!globalThis.app?.vault || typeof globalThis.app.vault.getConfig !== 'function' || typeof globalThis.app.vault.setConfig !== 'function') {
+				return null;
+			}
+			const previous = globalThis.app.vault.getConfig('showLineNumber');
+			if (previous !== ${JSON.stringify(enabled)}) {
+				globalThis.app.vault.setConfig('showLineNumber', ${JSON.stringify(enabled)});
+				globalThis.app.workspace?.updateOptions?.();
+				await new Promise(resolve => setTimeout(resolve, 300));
+			}
+			return previous;
+		})()`,
+	);
+}
+
+async function restoreNativeLineNumbers(client, originalValue) {
+	if (typeof originalValue !== 'boolean') {
+		return;
+	}
+	await evaluate(
+		client,
+		`(async () => {
+			if (!globalThis.app?.vault || typeof globalThis.app.vault.setConfig !== 'function') {
+				return false;
+			}
+			globalThis.app.vault.setConfig('showLineNumber', ${JSON.stringify(originalValue)});
+			globalThis.app.workspace?.updateOptions?.();
+			await new Promise(resolve => setTimeout(resolve, 300));
+			return true;
+		})()`,
+	);
+}
+
 async function applySettings(client, settings) {
 	await waitForPlugin(client);
 	await evaluate(
@@ -749,9 +785,11 @@ async function run() {
 	const checks = [];
 	const screenshots = [];
 	let originalSettings;
+	let originalNativeLineNumbers;
 	try {
 		await waitForPlugin(client);
 		await ensureObsidianVisible(client);
+		originalNativeLineNumbers = await setNativeLineNumbers(client, true);
 		const setup = await setupFixture(client);
 		originalSettings = setup.originalSettings;
 		for (const viewport of VIEWPORTS) {
@@ -782,6 +820,9 @@ async function run() {
 		if (originalSettings) {
 			await restoreSettings(client, originalSettings).catch(error => console.error(`Failed to restore plugin settings: ${error.message}`));
 		}
+		await restoreNativeLineNumbers(client, originalNativeLineNumbers).catch(error =>
+			console.error(`Failed to restore native line numbers: ${error.message}`),
+		);
 		await evaluate(client, 'globalThis.app?.emulateMobile?.(false); true').catch(() => undefined);
 		await client.send('Emulation.clearDeviceMetricsOverride').catch(() => undefined);
 		client.close();

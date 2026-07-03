@@ -844,6 +844,33 @@ async function scrollActiveShikiBlock(client) {
 	await delay(250);
 }
 
+async function resetActiveShikiHorizontalScroll(client, mode) {
+	await evaluate(
+		client,
+		`(() => {
+			const active = window.app?.workspace?.activeLeaf?.view?.contentEl ?? document.querySelector('.workspace-leaf.mod-active') ?? document;
+			if (${JSON.stringify(mode)} === 'reading') {
+				for (const element of active.querySelectorAll('.shiki-block-body')) {
+					element.scrollLeft = 0;
+					element.dispatchEvent(new Event('scroll', { bubbles: true }));
+				}
+			} else {
+				for (const element of active.querySelectorAll('.cm-line.shiki-live-preview-code-line')) {
+					element.scrollLeft = 0;
+				}
+				for (const element of active.querySelectorAll('.shiki-block-horizontal-scrollbar')) {
+					element.scrollLeft = 0;
+					element.dispatchEvent(new Event('scroll', { bubbles: true }));
+				}
+			}
+			const cmScroller = active.querySelector('.cm-scroller');
+			if (cmScroller) cmScroller.scrollLeft = 0;
+			return true;
+		})()`,
+	);
+	await delay(100);
+}
+
 async function setNoteScrollTop(client, value, mode = 'live-preview') {
 	const blockSelector = mode === 'reading' ? '.shiki-reading-block' : '.shiki-live-preview-header';
 	await evaluate(
@@ -888,22 +915,7 @@ async function verifyScroll(client, mode, settings, state) {
 		return null;
 	}
 	await positionBlockForGestures(client, mode, settings);
-	await evaluate(
-		client,
-		`(() => {
-			const active = window.app?.workspace?.activeLeaf?.view?.contentEl ?? document.querySelector('.workspace-leaf.mod-active') ?? document;
-			if (${JSON.stringify(mode)} === 'reading') {
-				for (const element of active.querySelectorAll('.shiki-block-body')) element.scrollLeft = 0;
-			} else {
-				for (const element of active.querySelectorAll('.cm-line.shiki-live-preview-code-line')) element.scrollLeft = 0;
-				for (const element of active.querySelectorAll('.shiki-block-horizontal-scrollbar')) element.scrollLeft = 0;
-			}
-			const cmScroller = active.querySelector('.cm-scroller');
-			if (cmScroller) cmScroller.scrollLeft = 0;
-			return true;
-		})()`,
-	);
-	await delay(100);
+	await resetActiveShikiHorizontalScroll(client, mode);
 	const before = await getRenderState(client, mode, settings);
 	const inside = blockPoint(before);
 
@@ -927,6 +939,7 @@ async function verifyScroll(client, mode, settings, state) {
 
 	await openMode(client, mode);
 	await positionBlockForGestures(client, mode, settings);
+	await resetActiveShikiHorizontalScroll(client, mode);
 	const beforeLeftEdge = await getRenderState(client, mode, settings);
 	const leftEdgeY = Math.max(80, Math.min(Math.round(beforeLeftEdge.shiki.firstRect.top + 120), beforeLeftEdge.mobile.innerHeight - 140));
 	const leftEdgeStartX = Math.max(12, Math.min(Math.round(beforeLeftEdge.shiki.firstRect.left + 120), beforeLeftEdge.mobile.innerWidth - 30));
@@ -944,6 +957,7 @@ async function verifyScroll(client, mode, settings, state) {
 	if (mode === 'live-preview') {
 		await openMode(client, mode);
 		await positionBlockForGestures(client, mode, settings);
+		await resetActiveShikiHorizontalScroll(client, mode);
 		const beforeOutsideBlockEdge = await getRenderState(client, mode, settings);
 		const outsideBlockEdgeY = Math.max(
 			80,
@@ -953,7 +967,8 @@ async function verifyScroll(client, mode, settings, state) {
 		const outsideBlockEdgeEndX = Math.max(4, Math.round(beforeOutsideBlockEdge.shiki.firstRect.left - 96));
 		await dispatchTouchSwipe(client, outsideBlockEdgeStartX, outsideBlockEdgeY, outsideBlockEdgeEndX, outsideBlockEdgeY);
 		const afterOutsideBlockEdge = await getRenderState(client, mode, settings);
-		if (!settings.wrap && hasHorizontalOverflow(beforeOutsideBlockEdge)) {
+		const hasUsableOutsideEdgeSwipe = outsideBlockEdgeStartX - outsideBlockEdgeEndX >= 24;
+		if (!settings.wrap && hasHorizontalOverflow(beforeOutsideBlockEdge) && hasUsableOutsideEdgeSwipe) {
 			assert(
 				(afterOutsideBlockEdge.shiki.scrollLeft ?? 0) > (beforeOutsideBlockEdge.shiki.scrollLeft ?? 0),
 				`${mode}: horizontal touch near the block edge did not scroll Shiki horizontally`,
@@ -988,6 +1003,7 @@ async function verifyScroll(client, mode, settings, state) {
 
 	await openMode(client, mode);
 	await positionBlockForGestures(client, mode, settings);
+	await resetActiveShikiHorizontalScroll(client, mode);
 	const beforeVertical = await getRenderState(client, mode, settings);
 	const verticalPoint = blockPoint(beforeVertical);
 	const canScrollUp = (beforeVertical.page.noteScrollTop ?? 0) > 10;
@@ -1069,6 +1085,149 @@ async function verifyNoFlicker(client, mode, settings) {
 	return samples;
 }
 
+async function verifyActiveLivePreviewEditingSurface(client, viewport, settings) {
+	if (settings.wrap) {
+		return null;
+	}
+	await openMode(client, 'live-preview');
+	await positionBlockForGestures(client, 'live-preview', settings);
+	await waitForRendering(client, 'live-preview', settings);
+	await scrollActiveShikiBlock(client);
+	const editPoint = await evaluate(
+		client,
+		`(() => {
+			const active = window.app?.workspace?.activeLeaf?.view?.contentEl ?? document.querySelector('.workspace-leaf.mod-active') ?? document;
+			const row = [...active.querySelectorAll('.cm-line.shiki-live-preview-code-line')].find(candidate => {
+				const rect = candidate.getBoundingClientRect();
+				return rect.width > 0 && rect.height > 0;
+			});
+			if (!row) return null;
+			const rect = row.getBoundingClientRect();
+			return {
+				x: Math.round(Math.min(rect.right - 24, Math.max(rect.left + 180, rect.left + rect.width / 2))),
+				y: Math.round(rect.top + Math.min(14, Math.max(4, rect.height / 2))),
+			};
+		})()`,
+	);
+	if (editPoint) {
+		await client.send('Input.dispatchTouchEvent', {
+			type: 'touchStart',
+			touchPoints: [{ x: editPoint.x, y: editPoint.y, id: 88, radiusX: 4, radiusY: 4, force: 1 }],
+		});
+		await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+		await delay(350);
+	}
+	const state = await evaluate(
+		client,
+		`(async () => {
+			const editor = window.app?.workspace?.activeEditor?.editor;
+			editor?.setCursor?.({ line: 11, ch: 52 });
+			editor?.focus?.();
+			await new Promise(resolve => setTimeout(resolve, 350));
+			const active = window.app?.workspace?.activeLeaf?.view?.contentEl ?? document.querySelector('.workspace-leaf.mod-active') ?? document;
+			const root = active.querySelector('.markdown-source-view.mod-cm6') ?? active;
+			const rectJson = rect => rect ? {
+				left: rect.left,
+				right: rect.right,
+				top: rect.top,
+				bottom: rect.bottom,
+				width: rect.width,
+				height: rect.height,
+			} : null;
+			const blockElements = [
+				...root.querySelectorAll('.shiki-live-preview-header, .cm-line.shiki-live-preview-fence-line, .cm-line.shiki-live-preview-code-line, .shiki-block-horizontal-scrollbar'),
+			];
+			const rects = blockElements.map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
+			const blockRect = rects.length ? {
+				left: Math.min(...rects.map(rect => rect.left)),
+				right: Math.max(...rects.map(rect => rect.right)),
+				top: Math.min(...rects.map(rect => rect.top)),
+				bottom: Math.max(...rects.map(rect => rect.bottom)),
+			} : null;
+			const openingFence = root.querySelector('.cm-line.shiki-live-preview-opening-fence-line');
+			const openingFenceWidget = openingFence?.querySelector('.shiki-live-preview-fence-text');
+			const activeLine = root.querySelector('.cm-line.cm-activeLine');
+			const cursor = root.querySelector('.cm-cursor, .cm-dropCursor');
+			const scrollbar = [...root.querySelectorAll('.shiki-block-horizontal-scrollbar')].find(candidate => {
+				const rect = candidate.getBoundingClientRect();
+				const style = getComputedStyle(candidate);
+				return rect.width > 0 && rect.height > 0 && !candidate.hidden && style.display !== 'none' && style.visibility !== 'hidden';
+			});
+			const codeContents = [...root.querySelectorAll('.shiki-live-preview-code-content')];
+			const transforms = codeContents.map(element => {
+				const transform = getComputedStyle(element).transform;
+				return transform && transform !== 'none' ? new DOMMatrixReadOnly(transform).m41 : 0;
+			});
+			const noteScrollLeft = Math.max(
+				0,
+				...[...active.querySelectorAll('.view-content, .cm-editor, .markdown-source-view, .cm-scroller')].map(element => element.scrollLeft ?? 0),
+				document.scrollingElement?.scrollLeft ?? 0,
+			);
+			return {
+				activeFile: window.app?.workspace?.getActiveFile?.()?.path ?? null,
+				isMobile: window.app?.isMobile ?? false,
+				blockRect,
+				openingFence: openingFence ? {
+					rect: rectJson(openingFence.getBoundingClientRect()),
+					background: getComputedStyle(openingFence).backgroundColor,
+					color: getComputedStyle(openingFence).color,
+					textFillColor: getComputedStyle(openingFence).webkitTextFillColor,
+				} : null,
+				openingFenceWidget: openingFenceWidget ? {
+					text: openingFenceWidget.textContent,
+					color: getComputedStyle(openingFenceWidget).color,
+					textFillColor: getComputedStyle(openingFenceWidget).webkitTextFillColor,
+				} : null,
+				activeLine: activeLine ? {
+					rect: rectJson(activeLine.getBoundingClientRect()),
+					className: activeLine.className,
+				} : null,
+				cursorRect: rectJson(cursor?.getBoundingClientRect?.()),
+				scrollLeft: scrollbar?.scrollLeft ?? 0,
+				transformMin: transforms.length ? Math.min(...transforms) : 0,
+				transformMax: transforms.length ? Math.max(...transforms) : 0,
+				codeContentCount: codeContents.length,
+				noteScrollLeft,
+				bodyOverflow: document.body.scrollWidth - document.body.clientWidth,
+			};
+		})()`,
+	);
+	const shot = await screenshot(client, `${viewport.name}-${settingName(settings)}-live-preview-active-edit`);
+	assert(state.isMobile === true, 'live-preview active edit: mobile emulation is not active', state);
+	assert(state.activeFile === NOTE_PATH, 'live-preview active edit: fixture file is not active', state);
+	assert(state.blockRect !== null, 'live-preview active edit: block rect is missing', state);
+	assert(state.openingFence !== null, 'live-preview active edit: opening fence row is missing', state);
+	assert(state.openingFenceWidget?.text?.includes('```'), 'live-preview active edit: opening fence widget is missing', state);
+	assert(state.openingFence.background !== 'rgba(0, 0, 0, 0)', 'live-preview active edit: opening fence row background is transparent', {
+		state,
+		shot,
+	});
+	assert(state.openingFence.textFillColor === 'rgba(0, 0, 0, 0)', 'live-preview active edit: raw fence text is not hidden', {
+		state,
+		shot,
+	});
+	assert(state.openingFenceWidget.textFillColor !== 'rgba(0, 0, 0, 0)', 'live-preview active edit: replacement fence text is hidden', {
+		state,
+		shot,
+	});
+	assert(state.codeContentCount > 0, 'live-preview active edit: code content is missing', state);
+	assert(Math.abs(state.transformMin - state.transformMax) <= 0.5, 'live-preview active edit: code lines do not share one horizontal offset', {
+		state,
+		shot,
+	});
+	assert(
+		state.scrollLeft <= 0 || Math.abs(state.transformMin + state.scrollLeft) <= 1,
+		'live-preview active edit: code content is not aligned to block scroll',
+		{
+			state,
+			shot,
+		},
+	);
+	assert(state.noteScrollLeft === 0, 'live-preview active edit: note scrolled horizontally', { state, shot });
+	assert(state.bodyOverflow <= 2, 'live-preview active edit: document became horizontally scrollable', { state, shot });
+	return { state, screenshot: shot };
+}
+
 function assertRenderState(mode, settings, state) {
 	assert(state.mobile.isMobile === true, `${mode}: Obsidian mobile emulation is not active`, state.mobile);
 	assert(state.mobile.outerWidth <= 454, `${mode}: real Obsidian window was not resized to mobile width`, state.mobile);
@@ -1135,6 +1294,7 @@ async function main() {
 					const shot = await screenshot(client, `${viewport.name}-${settingName(settings)}-${mode}`);
 					const scroll = await verifyScroll(client, mode, settings, state);
 					const flicker = await verifyNoFlicker(client, mode, settings);
+					const activeEdit = mode === 'live-preview' ? await verifyActiveLivePreviewEditingSurface(client, viewport, settings) : null;
 					summary.push({
 						viewport: viewport.name,
 						settings,
@@ -1152,6 +1312,14 @@ async function main() {
 							? {
 									horizontalCodeScrollLeft: scroll.afterHorizontalInside.shiki.scrollLeft,
 									verticalNoteScrollTop: scroll.afterVertical.page.noteScrollTop,
+								}
+							: null,
+						activeEdit: activeEdit
+							? {
+									screenshot: activeEdit.screenshot,
+									scrollLeft: activeEdit.state.scrollLeft,
+									fenceBackground: activeEdit.state.openingFence?.background,
+									bodyOverflow: activeEdit.state.bodyOverflow,
 								}
 							: null,
 						flickerSamples: flicker.length,
