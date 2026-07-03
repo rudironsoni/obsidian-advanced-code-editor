@@ -1,5 +1,6 @@
 import { browser } from '@wdio/globals';
 import { horizontalScrollFixtureNotes } from '../support/horizontalScrollFixtures.js';
+import { executeObsidian } from '../support/executeObsidian.js';
 
 const pluginId = 'advanced-code-block';
 const horizontalScrollMarker = 'HORIZONTAL_SCROLL_MARKER';
@@ -125,7 +126,7 @@ class HorizontalScrollPage {
 	readonly editText = horizontalScrollEditText;
 
 	async resetFixtureNotes(): Promise<void> {
-		await browser.executeObsidian(async ({ app }, fixtures) => {
+		await executeObsidian(async ({ app }, fixtures) => {
 			const runtimeApp = app as unknown as RuntimeApp;
 			for (const [notePath, content] of Object.entries(fixtures)) {
 				const file = runtimeApp.vault.getAbstractFileByPath(notePath);
@@ -139,7 +140,7 @@ class HorizontalScrollPage {
 	}
 
 	async applySettings(input: { wrapLines: boolean; showLineNumbers: boolean }): Promise<void> {
-		await browser.executeObsidian(async ({ app }, settings) => {
+		await executeObsidian(async ({ app }, settings) => {
 			const runtimeApp = app as unknown as RuntimeApp;
 			const pluginId = 'advanced-code-block';
 			const plugin = runtimeApp.plugins.plugins[pluginId];
@@ -156,7 +157,7 @@ class HorizontalScrollPage {
 	}
 
 	async openFixture(path: string, mode: HorizontalScrollMode): Promise<void> {
-		await browser.executeObsidian(
+		await executeObsidian(
 			async ({ app, obsidian }, input: OpenFixtureInput) => {
 				const runtimeApp = app as unknown as RuntimeApp;
 				const file = runtimeApp.vault.getAbstractFileByPath(input.path);
@@ -196,7 +197,7 @@ class HorizontalScrollPage {
 	}
 
 	async resetScrollPositions(mode: HorizontalScrollMode): Promise<void> {
-		await browser.executeObsidian(({ app }, selectedMode) => {
+		await executeObsidian(({ app }, selectedMode) => {
 			const runtimeApp = app as unknown as RuntimeApp;
 			const root =
 				runtimeApp.workspace.activeLeaf?.view?.containerEl ??
@@ -221,7 +222,7 @@ class HorizontalScrollPage {
 	}
 
 	async performGesture(mode: HorizontalScrollMode, blockIndex: number, gesture: HorizontalScrollGesture): Promise<HorizontalScrollState> {
-		await browser.executeObsidian(
+		await executeObsidian(
 			({ app }, input: GestureInput) => {
 				const runtimeApp = app as unknown as RuntimeApp;
 				const root =
@@ -318,7 +319,7 @@ class HorizontalScrollPage {
 	}
 
 	async editMarkerAfterScroll(): Promise<ExactEditResult> {
-		return browser.executeObsidian(
+		return executeObsidian(
 			async ({ app }, input) => {
 				const runtimeApp = app as unknown as RuntimeApp;
 				const leaf = runtimeApp.workspace.activeLeaf;
@@ -364,7 +365,7 @@ class HorizontalScrollPage {
 	}
 
 	async collectScrollState(mode: HorizontalScrollMode, label: string): Promise<HorizontalScrollState> {
-		return browser.executeObsidian(
+		return executeObsidian(
 			({ app }, input) => {
 				const runtimeApp = app as unknown as RuntimeApp;
 				const root =
@@ -498,7 +499,7 @@ class HorizontalScrollPage {
 	private async waitForMode(mode: HorizontalScrollMode, notePath: string): Promise<void> {
 		await browser.waitUntil(
 			async () =>
-				browser.executeObsidian(
+				executeObsidian(
 					({ app }, input) => {
 						const runtimeApp = app as unknown as RuntimeApp;
 						const root =

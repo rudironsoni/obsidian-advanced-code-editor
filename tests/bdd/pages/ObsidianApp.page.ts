@@ -1,4 +1,5 @@
 import { browser } from '@wdio/globals';
+import { executeObsidian, waitForObsidianServiceHelper } from '../support/executeObsidian.js';
 
 const pluginId = 'advanced-code-block';
 
@@ -38,7 +39,7 @@ class ObsidianAppPage {
 	}
 
 	async getPluginLoadState(): Promise<PluginLoadState> {
-		return browser.executeObsidian(({ app }, id): PluginLoadState => {
+		return executeObsidian(({ app }, id): PluginLoadState => {
 			const runtimeApp = app as unknown as RuntimeApp;
 			const manifest = runtimeApp.plugins.manifests[id];
 			return {
@@ -50,7 +51,7 @@ class ObsidianAppPage {
 	}
 
 	async openFixtureInReadingMode(path: string): Promise<void> {
-		await browser.executeObsidian(async ({ app, obsidian }, notePath) => {
+		await executeObsidian(async ({ app, obsidian }, notePath) => {
 			const file = app.vault.getAbstractFileByPath(notePath);
 			if (!(file instanceof obsidian.TFile)) throw new Error(`Fixture not found: ${notePath}`);
 
@@ -79,7 +80,7 @@ class ObsidianAppPage {
 	}
 
 	async getReadingRenderState(): Promise<RenderState> {
-		return browser.executeObsidian(({ app }): RenderState => {
+		return executeObsidian(({ app }): RenderState => {
 			const runtimeApp = app as unknown as RuntimeApp;
 			const active = (app.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
 			const candidates = [
@@ -118,11 +119,12 @@ class ObsidianAppPage {
 			timeout: 30000,
 			timeoutMsg: 'Obsidian mobile emulation was not active',
 		});
-		await this.waitForObsidianServiceHelper();
+		await waitForObsidianServiceHelper();
 	}
 
 	async resetMobileEmulation(): Promise<void> {
 		await this.setMobileEmulation(false);
+		await waitForObsidianServiceHelper();
 	}
 
 	private async setMobileEmulation(enabled: boolean): Promise<void> {
@@ -141,17 +143,6 @@ class ObsidianAppPage {
 			const runtimeWindow = window as unknown as { app?: { isMobile?: boolean } };
 			return runtimeWindow.app?.isMobile === true;
 		});
-	}
-
-	private async waitForObsidianServiceHelper(): Promise<void> {
-		await browser.waitUntil(
-			async () =>
-				browser.execute(() => {
-					const runtimeWindow = window as unknown as { wdioObsidianService?: unknown };
-					return typeof runtimeWindow.wdioObsidianService === 'function';
-				}),
-			{ timeout: 30000, timeoutMsg: 'WDIO Obsidian service helper was not restored after mobile emulation' },
-		);
 	}
 }
 
