@@ -160,7 +160,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 					);
 				}
 
-				if (!isOpeningFence && !isClosingFence) {
+				if (!isOpeningFence && !isClosingFence && line.from < line.to) {
 					ranges.push(
 						Decoration.mark({
 							attributes: {
