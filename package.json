@@ -1,6 +1,6 @@
 {
 	"name": "advanced-code-block",
-	"version": "0.8.0-beta.268",
+	"version": "0.8.0-beta.269",
 	"description": "Advanced code block highlighting with Shiki.",
 	"main": "main.js",
 	"scripts": {
@@ -11,7 +11,7 @@
 		"build:test": "bun run build && bun run copy:test-vault",
 		"typecheck": "tsc -noEmit -skipLibCheck",
 		"test": "bun run test:unit",
-		"test:unit": "bun test tests/architecture-boundaries.test.ts tests/codeblock-parser.test.ts tests/render-children.test.ts tests/source-mode-tokenization-cache.test.ts tests/startup-boundary.test.ts tests/theme-bridge.test.ts",
+		"test:unit": "bun test tests/architecture-boundaries.test.ts tests/block-horizontal-scroll.test.ts tests/codeblock-parser.test.ts tests/render-children.test.ts tests/source-mode-tokenization-cache.test.ts tests/startup-boundary.test.ts tests/theme-bridge.test.ts",
 		"test:artifacts": "bun test tests/startup-bundle.test.ts tests/integration",
 		"test:integration": "bun run build && bun run test:artifacts",
 		"test:log": "LOG_TESTS=true bun run test:unit",
@@ -20,6 +20,7 @@
 		"test:bdd": "bun run build && wdio run ./wdio.conf.mts",
 		"test:bdd:desktop": "bun run build && WDIO_CUCUMBER_TAGS='not @mobile' wdio run ./wdio.conf.mts",
 		"test:bdd:mobile": "bun run build && WDIO_CUCUMBER_TAGS='@mobile' wdio run ./wdio.conf.mts",
+		"test:bdd:scroll": "bun run build && WDIO_CUCUMBER_TAGS='@horizontal-scroll' wdio run ./wdio.conf.mts",
 		"test:e2e": "bun run test:bdd:desktop",
 		"test:e2e:mobile": "bun run test:bdd:mobile",
 		"test:e2e:cdp": "bun run build && OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-advanced-codeblock-integration",
@@ -29,7 +30,7 @@
 		"verify:obsidian-advanced-codeblock-mobile-rendering": "node tests/runtime/obsidian-advanced-codeblock-mobile-rendering.mjs",
 		"verify:obsidian-live-preview-redraw-loop": "bun run verify:obsidian-advanced-codeblock-redraw-loop",
 		"verify:obsidian-monaco-mobile-rendering": "bun run verify:obsidian-advanced-codeblock-mobile-rendering",
-		"verify:obsidian-codeblock-horizontal-scroll-regression": "node tests/runtime/obsidian-codeblock-horizontal-scroll-regression.mjs",
+		"verify:obsidian-codeblock-horizontal-scroll-regression": "bun run test:bdd:scroll",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"lint": "eslint --max-warnings=0 packages/**",

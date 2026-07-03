@@ -3,9 +3,8 @@ name: Run Checks and Tests
 on:
     workflow_dispatch:
     pull_request:
-    push:
         branches:
-            - '**'
+            - master
 
 jobs:
     check:
@@ -28,3 +27,37 @@ jobs:
             - name: Run Checks
               run: |
                   bun run ci
+
+    gui-bdd:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Install Bun
+              uses: oven-sh/setup-bun@v1
+              with:
+                  bun-version: latest
+
+            - name: Install Linux GUI dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y xvfb libgtk-3-0 libnss3 libxss1 libgbm1 libdrm2 libatk-bridge2.0-0 libatspi2.0-0 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2
+                  sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
+
+            - name: Install Dependencies
+              run: |
+                  bun install
+
+            - name: Run horizontal scroll BDD
+              run: |
+                  xvfb-run -a bun run test:bdd:scroll
+
+            - name: Upload WDIO artifacts
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: wdio-artifacts
+                  path: tests/runtime-session/wdio-artifacts
+                  if-no-files-found: ignore

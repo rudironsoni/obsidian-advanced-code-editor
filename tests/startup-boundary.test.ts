@@ -76,6 +76,8 @@ describe('startup module boundary', () => {
 		expect(sourceMode).toContain('block.codeFrom + token.offset');
 		expect(sourceMode).not.toContain('lineOffset += this.lineLength(block.code, lineOffset) + 1');
 		expect(sourceMode).toContain('this.plugin.highlighter.getTokenStyle(token)');
+		expect(sourceMode).toContain('Decoration.set(ranges, true)');
+		expect(sourceMode).not.toContain('RangeSetBuilder');
 	});
 
 	test('language listing is static and startup-safe', () => {

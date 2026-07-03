@@ -2,6 +2,7 @@ import { Prec, type Range } from '@codemirror/state';
 import { Decoration, ViewPlugin, type EditorView, type ViewUpdate } from '@codemirror/view';
 import { editorLivePreviewField } from 'obsidian';
 import { Cm6_Util } from 'packages/obsidian/src/codemirror/Cm6_Util';
+import { createBlockHorizontalScrollPlugin } from 'packages/obsidian/src/codemirror/BlockHorizontalScroll';
 import { SHIKI_INLINE_REGEX } from 'packages/obsidian/src/InlineCodeRegex';
 import type ShikiPlugin from 'packages/obsidian/src/main';
 import { syntaxTree } from '@codemirror/language';
@@ -204,5 +205,5 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 		plugin.app.workspace.updateOptions();
 	};
 
-	return Prec.highest([createLivePreviewStructureExtension(plugin), cm6Plugin]);
+	return Prec.highest([createLivePreviewStructureExtension(plugin), createBlockHorizontalScrollPlugin(), cm6Plugin]);
 }

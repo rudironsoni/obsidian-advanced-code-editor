@@ -2,9 +2,9 @@ import { After } from '@wdio/cucumber-framework';
 import { browser } from '@wdio/globals';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { horizontalScrollPage, type HorizontalScrollMode, type HorizontalScrollState } from '../pages/HorizontalScroll.page.js';
+import { artifactDir, sanitizeArtifactName, writeJsonArtifact } from './artifacts.js';
 import { obsidianApp } from '../pages/ObsidianApp.page.js';
-
-const artifactDir = path.resolve('tests/runtime-session/wdio-artifacts');
 
 type ScenarioResult = {
 	pickle?: {
@@ -17,21 +17,47 @@ type ScenarioResult = {
 };
 
 After(async function (scenario: ScenarioResult) {
-	if (scenario.result?.status === 'PASSED') return;
+	const scenarioName = sanitizeArtifactName(scenario.pickle?.name ?? 'scenario');
+	const tags = scenario.pickle?.tags ?? [];
+	const isMobileScenario = tags.some(tag => tag.name === '@mobile');
+	const isHorizontalScrollScenario = tags.some(tag => tag.name === '@horizontal-scroll');
+	const didFail = scenario.result?.status !== 'PASSED';
 
-	mkdirSync(artifactDir, { recursive: true });
-	const scenarioName = scenario.pickle?.name ?? 'scenario';
-	const fileName =
-		scenarioName
-			.toLowerCase()
-			.replace(/[^a-z0-9]+/g, '-')
-			.replace(/^-|-$/g, '') || 'scenario';
-	await browser.saveScreenshot(path.join(artifactDir, `${fileName}.png`));
-});
-
-After(async function (scenario: ScenarioResult) {
-	const isMobileScenario = scenario.pickle?.tags?.some(tag => tag.name === '@mobile') ?? false;
-	if (isMobileScenario) {
-		await obsidianApp.resetMobileEmulation();
+	try {
+		if (didFail) {
+			mkdirSync(artifactDir, { recursive: true });
+			await browser.saveScreenshot(path.join(artifactDir, `${scenarioName}.png`));
+			if (isHorizontalScrollScenario) {
+				const states = await collectFailureStates();
+				writeJsonArtifact(`${scenarioName}-scroll-state`, {
+					scenario: scenario.pickle?.name ?? 'scenario',
+					status: scenario.result?.status ?? 'UNKNOWN',
+					states,
+				});
+			}
+		}
+	} finally {
+		if (isMobileScenario) {
+			await obsidianApp.resetMobileEmulation();
+		}
+		if (isHorizontalScrollScenario) {
+			await horizontalScrollPage.resetFixtureNotes();
+		}
 	}
 });
+
+async function collectFailureStates(): Promise<HorizontalScrollState[]> {
+	const states: HorizontalScrollState[] = [];
+	const modes: HorizontalScrollMode[] = ['reading', 'live-preview', 'source'];
+	for (const mode of modes) {
+		try {
+			states.push(await horizontalScrollPage.collectScrollState(mode, 'failure'));
+		} catch (error) {
+			writeJsonArtifact(`horizontal-scroll-${mode}-failure-collection-error`, {
+				mode,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+	return states;
+}
