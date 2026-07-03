@@ -123,7 +123,15 @@ class ObsidianAppPage {
 	}
 
 	async resetMobileEmulation(): Promise<void> {
+		if (!(await this.isMobileEmulationActive())) {
+			return;
+		}
+
 		await this.setMobileEmulation(false);
+		await browser.waitUntil(async () => !(await this.isMobileEmulationActive()), {
+			timeout: 30000,
+			timeoutMsg: 'Obsidian mobile emulation did not reset',
+		});
 		await waitForObsidianServiceHelper();
 	}
 
