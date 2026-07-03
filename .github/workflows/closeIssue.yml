@@ -1,8 +1,10 @@
 name: Close Invalid Issue
+
 on:
     issues:
         types:
             - labeled
+
 jobs:
     closeIssue:
         if: github.event.label.name == 'invalid'
@@ -11,7 +13,12 @@ jobs:
             issues: write
         steps:
             - name: Close Issue
-              uses: peter-evans/close-issue@v2
-              with:
-                  comment: This issue is invalid. Please conform to the issue templates.
-                  close-reason: not_planned
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+                  ISSUE_NUMBER: ${{ github.event.issue.number }}
+              run: >
+                  gh issue close "$ISSUE_NUMBER"
+                  --repo "$GH_REPO"
+                  --comment "This issue is invalid. Please conform to the issue templates."
+                  --reason "not planned"

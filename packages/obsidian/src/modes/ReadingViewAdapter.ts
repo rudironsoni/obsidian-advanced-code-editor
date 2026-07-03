@@ -85,23 +85,53 @@ export class ReadingViewAdapter {
 
 		const wrapper = container.tagName === 'PRE' ? (container.parentElement ?? container) : container;
 		const existingBody = wrapper.querySelector<HTMLElement>(':scope > .shiki-block-body');
-
-		if (existingBody) {
-			void this.applyShikiHighlight(state, codeElement);
-			return;
-		}
+		const existingHeader = wrapper.querySelector<HTMLElement>(':scope > .shiki-block-header');
+		const doc = container.ownerDocument;
 
 		wrapper.classList.add('shiki-reading-block');
+		wrapper.dataset.shikiBlockId = state.block.id;
+		wrapper.dataset.shikiScrollOwner = 'false';
 		wrapper.classList.remove('wrap-lines');
 		if (this.plugin.loadedSettings.wrapLines) {
 			wrapper.classList.add('wrap-lines');
+		}
+		pre.dataset.shikiBlockId = state.block.id;
+		codeElement.dataset.shikiBlockId = state.block.id;
+		if (existingHeader) {
+			existingHeader.dataset.shikiBlockId = state.block.id;
+			existingHeader.dataset.shikiScrollOwner = 'false';
+		}
+		if (existingBody) {
+			existingBody.dataset.shikiBlockId = state.block.id;
+			existingBody.dataset.shikiScrollOwner = 'false';
+		}
+		const existingScroll = existingBody?.querySelector<HTMLElement>(':scope > .shiki-code-scroll');
+		if (existingScroll) {
+			existingScroll.classList.add('shiki-block-horizontal-scrollbar');
+			existingScroll.dataset.shikiBlockId = state.block.id;
+			existingScroll.dataset.shikiScrollOwner = 'true';
+			if (this.plugin.loadedSettings.wrapLines) {
+				existingScroll.dataset.shikiScrollDisabled = 'true';
+				pre.style.whiteSpace = '';
+				codeElement.style.whiteSpace = '';
+			} else {
+				delete existingScroll.dataset.shikiScrollDisabled;
+				pre.style.whiteSpace = 'pre';
+				codeElement.style.whiteSpace = 'pre';
+			}
+		}
+		if (existingBody) {
+			void this.applyShikiHighlight(state, codeElement);
+			return;
 		}
 		for (const stale of wrapper.querySelectorAll(':scope > .shiki-block-header, :scope > .shiki-block-body, :scope > .shiki-code-scroll')) {
 			stale.remove();
 		}
 
-		const header = document.createElement('div');
+		const header = doc.createElement('div');
 		header.className = 'shiki-block-header';
+		header.dataset.shikiBlockId = state.block.id;
+		header.dataset.shikiScrollOwner = 'false';
 		const left = header.createDiv({ cls: 'shiki-header-left' });
 		left.createSpan({ cls: 'shiki-lang-name', text: state.language });
 		const right = header.createDiv({ cls: 'shiki-header-right' });
@@ -110,9 +140,16 @@ export class ReadingViewAdapter {
 			navigator.clipboard.writeText(state.block.code).catch(() => {});
 		};
 
-		const body = document.createElement('div');
+		const body = doc.createElement('div');
 		body.className = 'shiki-block-body';
-		const scroll = body.createDiv({ cls: 'shiki-code-scroll' });
+		body.dataset.shikiBlockId = state.block.id;
+		body.dataset.shikiScrollOwner = 'false';
+		const scroll = body.createDiv({ cls: 'shiki-code-scroll shiki-block-horizontal-scrollbar' });
+		scroll.dataset.shikiBlockId = state.block.id;
+		scroll.dataset.shikiScrollOwner = 'true';
+		if (this.plugin.loadedSettings.wrapLines) {
+			scroll.dataset.shikiScrollDisabled = 'true';
+		}
 		pre.remove();
 		if (container !== wrapper && container !== pre && container.childElementCount === 0 && container.textContent?.trim() === '') {
 			container.remove();
@@ -124,6 +161,9 @@ export class ReadingViewAdapter {
 		if (!this.plugin.loadedSettings.wrapLines) {
 			pre.style.whiteSpace = 'pre';
 			codeElement.style.whiteSpace = 'pre';
+		} else {
+			pre.style.whiteSpace = '';
+			codeElement.style.whiteSpace = '';
 		}
 
 		void this.applyShikiHighlight(state, codeElement);
@@ -146,7 +186,7 @@ export class ReadingViewAdapter {
 		for (let i = 0; i < lines.length; i++) {
 			const lineTokens = highlight.tokens[i];
 			if (!lineTokens) {
-				codeElement.appendChild(document.createTextNode(lines[i] ?? ''));
+				codeElement.appendChild(codeElement.ownerDocument.createTextNode(lines[i] ?? ''));
 			} else {
 				for (const token of lineTokens) {
 					const tokenStyle = this.plugin.highlighter.getTokenStyle(token);
@@ -154,7 +194,7 @@ export class ReadingViewAdapter {
 				}
 			}
 			if (i < lines.length - 1) {
-				codeElement.appendChild(document.createTextNode('\n'));
+				codeElement.appendChild(codeElement.ownerDocument.createTextNode('\n'));
 			}
 		}
 
@@ -174,8 +214,10 @@ export class ReadingViewAdapter {
 		if (this.plugin.loadedSettings.showLineNumbers) {
 			if (bodyEl && !bodyEl.querySelector('.shiki-line-numbers')) {
 				bodyEl.style.display = 'flex';
-				const lineNumbers = document.createElement('div');
+				const lineNumbers = codeElement.ownerDocument.createElement('div');
 				lineNumbers.className = 'shiki-line-numbers';
+				lineNumbers.dataset.shikiBlockId = state.block.id;
+				lineNumbers.dataset.shikiScrollOwner = 'false';
 				for (let i = 1; i <= lines.length; i++) {
 					lineNumbers.createSpan({ text: String(i) });
 				}

@@ -6,7 +6,14 @@ const cacheDir = path.resolve('tests/runtime-session/wdio-cache');
 export const config: WebdriverIO.Config = {
 	runner: 'local',
 	framework: 'cucumber',
-	specs: [['./tests/bdd/features/plugin-loads.feature', './tests/bdd/features/rendering.feature', './tests/bdd/features/mobile-emulation.feature']],
+	specs: [
+		[
+			'./tests/bdd/features/plugin-loads.feature',
+			'./tests/bdd/features/rendering.feature',
+			'./tests/bdd/features/mobile-emulation.feature',
+			'./tests/bdd/features/horizontal-scroll.feature',
+		],
+	],
 	maxInstances: 1,
 	capabilities: [
 		{

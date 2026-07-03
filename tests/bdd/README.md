@@ -2,6 +2,8 @@
 
 This harness uses WebdriverIO Cucumber with `wdio-obsidian-service` to run real Obsidian against built plugin artifacts.
 
+For domain language, read `CONTEXT.md`. For durable test and scroll decisions, read `docs/adr/`.
+
 ## Commands
 
 ```bash
@@ -10,11 +12,15 @@ bun run build
 bun run test:bdd
 bun run test:bdd:desktop
 bun run test:bdd:mobile
+bun run test:bdd:scroll
+bun run verify:obsidian-codeblock-horizontal-scroll-regression
 ```
 
 `bun run test:e2e` aliases `bun run test:bdd:desktop`. `bun run test:e2e:mobile` aliases `bun run test:bdd:mobile`.
 
 Prefer `bun run test:bdd` when validating the full BDD layer. It groups the desktop and mobile-emulated feature files into one WebdriverIO worker so one Obsidian session is reused.
+
+`bun run verify:obsidian-codeblock-horizontal-scroll-regression` is the canonical horizontal-scroll acceptance verifier. It aliases `bun run test:bdd:scroll`, which builds the plugin and runs WDIO Cucumber scenarios tagged `@horizontal-scroll`. Keep the horizontal-scroll desktop and mobile-emulated scenarios in the grouped WDIO run so the same Obsidian session is reused.
 
 ## Structure
 
@@ -31,6 +37,8 @@ The package scripts build `dist/` first. `wdio-obsidian-service` then launches a
 Desktop and mobile-emulated scenarios run from `wdio.conf.mts`. The config groups the feature files so WDIO keeps them in one worker/session instead of launching Obsidian once per feature file. Mobile-emulated scenarios are tagged `@mobile`; the step calls `app.emulateMobile(true)` and teardown resets it with `app.emulateMobile(false)`. This is Obsidian desktop mobile emulation. It is not real Android or iOS coverage.
 
 Failure screenshots are saved to `tests/runtime-session/wdio-artifacts/`.
+
+CI runs the non-GUI `bun run ci` gate and a GUI `bun run test:bdd:scroll` job on pull requests to `master` and on manual dispatch. The GUI job runs under Xvfb and uploads `tests/runtime-session/wdio-artifacts/` when artifacts exist.
 
 ## Migration Map
 
@@ -66,4 +74,4 @@ Agents that support MCP should restart after loading the repo config, then use `
 - If Obsidian cannot launch locally, check for a conflicting instance on CDP port `9230` and stop the personal vault before running WDIO.
 - If a Cucumber step is undefined, compare the exact Gherkin sentence with `tests/bdd/steps/*.ts`.
 - If rendering times out, inspect screenshots in `tests/runtime-session/wdio-artifacts/` and then use the custom CDP verifiers for deeper Live Preview or Monaco diagnosis.
-- CI should run non-GUI checks by default. Desktop Obsidian E2E needs a runner that can launch Electron.
+- CI should run non-GUI checks by default. Desktop Obsidian E2E and mobile-emulated WDIO scenarios need a runner that can launch Electron.

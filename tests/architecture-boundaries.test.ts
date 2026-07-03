@@ -81,7 +81,8 @@ describe('architecture boundaries', () => {
 		const sourceMode = readSource('packages/obsidian/src/modes/SourceModeAdapter.ts');
 
 		expect(sourceMode).toContain('Decoration');
-		expect(sourceMode).toContain('RangeSetBuilder');
+		expect(sourceMode).toContain('Decoration.set(ranges, true)');
+		expect(sourceMode).not.toContain('RangeSetBuilder');
 		expect(sourceMode).not.toContain('MonacoCodeBlockSurface');
 		expect(sourceMode).not.toContain('MonacoSurfaceRegistry');
 		expect(sourceMode).not.toContain('monaco.editor.create');
