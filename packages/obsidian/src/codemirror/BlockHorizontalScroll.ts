@@ -76,17 +76,12 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private measureTimer: number | undefined;
 			private readonly observedScrollTargets = new Set<HTMLElement>();
 			private readonly domObserver: MutationObserver;
-			private readonly scrollLeftByRenderedBlock = new Map<string, number>();
 			private readonly blockCacheById = new Map<string, BlockScrollCache>();
 			private readonly pendingScrollLeftByBlock = new Map<string, number>();
-			private readonly styleElement: HTMLStyleElement;
 			private scrollFlushFrame: number | undefined;
 
 			constructor(private readonly view: EditorView) {
 				this.domObserver = new MutationObserver(this.onDomMutations);
-				this.styleElement = this.view.dom.ownerDocument.createElement('style');
-				this.styleElement.dataset.shikiBlockHorizontalScroll = 'true';
-				this.view.dom.ownerDocument.head.appendChild(this.styleElement);
 				this.view.scrollDOM.addEventListener('scroll', this.onScroll, true);
 				this.view.scrollDOM.addEventListener('wheel', this.onWheel, { capture: true, passive: false });
 				this.view.scrollDOM.addEventListener('pointerdown', this.onPointerDown, true);
@@ -110,7 +105,6 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 
 			destroy(): void {
 				this.domObserver.disconnect();
-				this.styleElement.remove();
 				this.view.scrollDOM.removeEventListener('scroll', this.onScroll, true);
 				this.view.scrollDOM.removeEventListener('wheel', this.onWheel, true);
 				this.view.scrollDOM.removeEventListener('pointerdown', this.onPointerDown, true);
@@ -280,56 +274,23 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private flushPendingScrolls(): void {
 				const pending = [...this.pendingScrollLeftByBlock];
 				this.pendingScrollLeftByBlock.clear();
-				let didChangeRules = false;
 				this.syncing = true;
 				try {
 					for (const [blockId, scrollLeft] of pending) {
-						didChangeRules = this.applyBlockScroll(blockId, scrollLeft) || didChangeRules;
-					}
-					if (didChangeRules) {
-						this.renderScrollRules();
+						this.applyBlockScroll(blockId, scrollLeft);
 					}
 				} finally {
 					this.syncing = false;
 				}
 			}
 
-			private applyBlockScroll(blockId: string, scrollLeft: number): boolean {
+			private applyBlockScroll(blockId: string, scrollLeft: number): void {
 				const cache = this.cacheForBlock(blockId);
-				const didChangeRules = this.setBlockScrollRule(blockId, scrollLeft);
 				for (const row of cache.rows) {
-					if (row.dataset.shikiScrollOwner === 'true') {
-						this.setScrollLeft(row, scrollLeft);
-					} else {
-						this.setScrollLeft(row, 0);
-					}
+					this.setScrollLeft(row, scrollLeft);
 				}
 				for (const scrollbar of cache.scrollbars) {
 					this.setScrollLeft(scrollbar, scrollLeft);
-				}
-				return didChangeRules;
-			}
-
-			private setBlockScrollRule(blockId: string, scrollLeft: number): boolean {
-				if (scrollLeft <= 0) {
-					return this.scrollLeftByRenderedBlock.delete(blockId);
-				}
-				if (this.scrollLeftByRenderedBlock.get(blockId) === scrollLeft) {
-					return false;
-				}
-				this.scrollLeftByRenderedBlock.set(blockId, scrollLeft);
-				return true;
-			}
-
-			private renderScrollRules(): void {
-				const rules = [...this.scrollLeftByRenderedBlock]
-					.map(
-						([blockId, scrollLeft]) =>
-							`.shiki-live-preview-code-content[data-shiki-block-id=${CSS.escape(blockId)}] { --shiki-block-scroll-left: ${scrollLeft}px; }`,
-					)
-					.join('\n');
-				if (this.styleElement.textContent !== rules) {
-					this.styleElement.textContent = rules;
 				}
 			}
 
@@ -347,6 +308,18 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 						this.syncBlock(blockId, scrollLeft);
 					}
 				}
+				this.flushScheduledScrolls();
+			}
+
+			private flushScheduledScrolls(): void {
+				if (this.pendingScrollLeftByBlock.size === 0) {
+					return;
+				}
+				if (this.scrollFlushFrame !== undefined) {
+					window.cancelAnimationFrame(this.scrollFlushFrame);
+					this.scrollFlushFrame = undefined;
+				}
+				this.flushPendingScrolls();
 			}
 
 			private readonly scheduleMeasure = (): void => {
