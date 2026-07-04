@@ -1,9 +1,30 @@
+import { EditorView } from '@codemirror/view';
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { stableBlockScrollMemoryKey } from 'packages/obsidian/src/codemirror/BlockHorizontalScroll';
+import {
+	createBlockHorizontalScrollPlugin,
+	SHIKI_BLOCK_SCROLL_ROW_CLASS,
+	stableBlockScrollMemoryKey,
+} from 'packages/obsidian/src/codemirror/BlockHorizontalScroll';
+import './happydom';
 
 function read(path: string): string {
 	return readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+}
+
+function defineLayout(element: HTMLElement, layout: { clientWidth: number; scrollWidth: number }): void {
+	Object.defineProperty(element, 'clientWidth', { configurable: true, get: () => layout.clientWidth });
+	Object.defineProperty(element, 'scrollWidth', { configurable: true, get: () => layout.scrollWidth });
+}
+
+function dispatchTouch(target: HTMLElement, type: string, clientX: number, clientY: number): Event {
+	const event = new Event(type, { bubbles: true, cancelable: true });
+	Object.defineProperty(event, 'changedTouches', {
+		configurable: true,
+		value: [{ clientX, clientY, identifier: 1, target }],
+	});
+	target.dispatchEvent(event);
+	return event;
 }
 
 describe('block horizontal scroll identity', () => {
@@ -126,6 +147,49 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('private readonly onPointerDown = (event: PointerEvent): void => {');
 		expect(source).toContain('private readonly onTouchStart = (event: TouchEvent): void => {');
 		expect(source).toContain('event.preventDefault();');
+		expect(source).toContain('this.pointerCaptureTarget?.setPointerCapture(event.pointerId);');
+		expect(source).toContain('this.pointerCaptureTarget?.releasePointerCapture(this.pointerId);');
+		expect(source).toContain('private syncBlockImmediate(blockId: string, scrollLeft: number): void {');
+		expect(source).toContain('this.syncBlockImmediate(this.pointerBlockId, this.pointerStartScrollLeft - deltaX);');
+		expect(source).toContain('this.syncBlockImmediate(this.touchBlockId, this.touchStartScrollLeft - deltaX);');
+		expect(source).toContain('this.applyBlockScroll(blockId, nextScrollLeft);');
+	});
+
+	test('moves every Live Preview row immediately from a horizontal touch gesture', () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const view = new EditorView({
+			doc: '',
+			extensions: [createBlockHorizontalScrollPlugin()],
+			parent,
+		});
+		const blockId = 'Note.md::live-preview::5::120::5::ts::abc123';
+		const longRow = document.createElement('div');
+		const shortRow = document.createElement('div');
+		const content = document.createElement('span');
+
+		for (const row of [longRow, shortRow]) {
+			row.className = `${SHIKI_BLOCK_SCROLL_ROW_CLASS} shiki-live-preview-code-line`;
+			row.dataset.shikiBlockId = blockId;
+			view.scrollDOM.appendChild(row);
+			defineLayout(row, { clientWidth: 300, scrollWidth: 1000 });
+		}
+
+		content.className = 'shiki-live-preview-code-content';
+		content.textContent = 'longLineThatReceivesTheFinger';
+		longRow.appendChild(content);
+
+		try {
+			dispatchTouch(content, 'touchstart', 260, 20);
+			const move = dispatchTouch(content, 'touchmove', 60, 22);
+
+			expect(move.defaultPrevented).toBe(true);
+			expect(longRow.scrollLeft).toBe(200);
+			expect(shortRow.scrollLeft).toBe(200);
+		} finally {
+			view.destroy();
+			parent.remove();
+		}
 	});
 
 	test('keeps raw Source mode out of rendered block scroll chrome', () => {
