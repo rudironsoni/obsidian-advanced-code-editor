@@ -10,12 +10,12 @@
       "enabled": true,
       "environment": {}
     },
-    "electron-devtools": {
+    "wdio-mcp": {
       "type": "local",
       "command": [
         "npx",
         "-y",
-        "github:sh3ll3x3c/native-devtools-mcp"
+        "@wdio/mcp"
       ],
       "enabled": true,
       "environment": {}

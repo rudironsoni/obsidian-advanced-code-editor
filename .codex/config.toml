@@ -1,9 +1,9 @@
 default_permissions = "rulesync"
 
-[mcp_servers.electron-devtools]
+[mcp_servers.wdio-mcp]
 type = "stdio"
 command = "npx"
-args = [ "-y", "native-devtools-mcp" ]
+args = [ "-y", "@wdio/mcp" ]
 
 [features]
 hooks = true

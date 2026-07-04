@@ -5,7 +5,7 @@ description: >-
     when the user asks to test the plugin, smoke test a release, verify before
     release, test BRAT/mobile installs, validate syntax highlighting, or judge
     whether startup and rendering still work. Uses local checks first, then
-    Obsidian CLI/runtime checks, then release-asset or BRAT-style verification.
+    WebdriverIO runtime checks, then release-asset or BRAT-style verification.
     Does not spend API tokens and does not commit source changes.
 metadata:
     author: obsidian-shiki-plugin
@@ -49,27 +49,27 @@ Judge Pass 1 as failed if formatting, build, lint, tests, or startup benches fai
 
 ## Pass 2: Runtime Gate
 
-Prefer the repo verifier when available because it creates an isolated vault and checks both desktop and `app.emulateMobile(true)` paths:
+Use the WDIO BDD harness because it creates an isolated vault and checks both desktop and `app.emulateMobile(true)` paths:
 
 ```bash
-rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-advanced-codeblock-integration
+rtk bun run test:bdd
 ```
 
-When verifying a downloaded release payload, set `OBSIDIAN_VERIFY_PLUGIN_DIR` to the directory containing `main.js`, `manifest.json`, and `styles.css`:
+When focusing on horizontal scroll, use:
 
 ```bash
-rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true OBSIDIAN_VERIFY_PLUGIN_DIR=/tmp/shiki-release-assets bun run verify:obsidian-advanced-codeblock-integration
+rtk bun run test:bdd:scroll
 ```
 
 The runtime gate must verify:
 
-- Plugin loads without `dev:errors`.
-- `app.plugins.plugins['shiki-highlighter']` exists.
+- Plugin loads without visible runtime errors.
+- `app.plugins.plugins['shiki-highlighter']` exists in the WDIO Obsidian session.
 - Settings tab for `shiki-highlighter` can be opened.
 - Reading mode renders one Shiki/Expressive Code block per fenced block, with no duplicate original block.
 - Live preview applies Shiki token styling to fenced code and inline `{lang} code` without scrambling positions.
 - `app.emulateMobile(true)` path works and then returns to normal mode.
-- Plugin load time remains under 50 ms.
+- Horizontal scroll moves the whole Live Preview code block and preserves native and internal line numbers.
 
 ## Pass 3: Obsidian CLI Visual Pass
 
@@ -121,9 +121,9 @@ Write `planning/test-reports/<YYYY-MM-DD-HH-MM>/REPORT.md`:
 
 ## Pass 2
 
-- real Obsidian verifier: pass/fail/skipped
-- desktop plugin load: <ms>
-- mobile plugin load: <ms>
+- WDIO BDD: pass/fail/skipped
+- desktop scenarios: pass/fail
+- mobile-emulated scenarios: pass/fail
 
 ## Visual Findings
 

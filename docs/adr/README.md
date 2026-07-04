@@ -8,3 +8,4 @@ Architecture decision records for this repository.
 - `0004-reuse-one-obsidian-session-for-bdd.md`: run related BDD scenarios in one reused Obsidian session.
 - `0005-mobile-coverage-is-emulated-until-device-automation-exists.md`: label mobile coverage as desktop Obsidian mobile emulation until real device automation exists.
 - `0006-pr-only-gui-bdd-ci.md`: run GUI WDIO BDD on pull requests to `master` and manual dispatch, not on every branch push.
+- `0007-live-preview-native-gutter-and-row-scroll.md`: keep native Obsidian note gutters visible and synchronize Live Preview code rows so short and long lines scroll together.

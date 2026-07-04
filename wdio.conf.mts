@@ -1,7 +1,14 @@
 import path from 'node:path';
 import { env } from 'node:process';
 
-const cacheDir = path.resolve('tests/runtime-session/wdio-cache');
+const cacheDir = path.resolve(env.OBSIDIAN_WDIO_CACHE_DIR ?? 'tests/runtime-session/wdio-cache');
+const obsidianOptions = {
+	installerVersion: env.OBSIDIAN_WDIO_INSTALLER_VERSION ?? 'latest',
+	plugins: ['dist'],
+	vault: 'tests/wdio-vault/basic',
+	...(env.OBSIDIAN_APP ? { binaryPath: env.OBSIDIAN_APP } : {}),
+	...(env.OBSIDIAN_APP_ASAR ? { appPath: env.OBSIDIAN_APP_ASAR } : {}),
+};
 
 export const config: WebdriverIO.Config = {
 	runner: 'local',
@@ -19,11 +26,7 @@ export const config: WebdriverIO.Config = {
 		{
 			browserName: 'obsidian',
 			browserVersion: env.OBSIDIAN_WDIO_APP_VERSION ?? 'latest',
-			'wdio:obsidianOptions': {
-				installerVersion: env.OBSIDIAN_WDIO_INSTALLER_VERSION ?? 'latest',
-				plugins: ['dist'],
-				vault: 'tests/wdio-vault/basic',
-			},
+			'wdio:obsidianOptions': obsidianOptions,
 		},
 	],
 	services: ['obsidian'],

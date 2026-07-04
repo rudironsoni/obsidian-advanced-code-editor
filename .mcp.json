@@ -1,11 +1,5 @@
 {
 	"mcpServers": {
-		"electron-devtools": {
-			"type": "stdio",
-			"command": "npx",
-			"args": ["-y", "native-devtools-mcp"],
-			"env": {}
-		},
 		"wdio-mcp": {
 			"type": "stdio",
 			"command": "npx",

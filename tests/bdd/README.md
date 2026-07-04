@@ -13,14 +13,13 @@ bun run test:bdd
 bun run test:bdd:desktop
 bun run test:bdd:mobile
 bun run test:bdd:scroll
-bun run verify:obsidian-codeblock-horizontal-scroll-regression
 ```
 
 `bun run test:e2e` aliases `bun run test:bdd:desktop`. `bun run test:e2e:mobile` aliases `bun run test:bdd:mobile`.
 
 Prefer `bun run test:bdd` when validating the full BDD layer. It groups the desktop and mobile-emulated feature files into one WebdriverIO worker so one Obsidian session is reused.
 
-`bun run verify:obsidian-codeblock-horizontal-scroll-regression` is the canonical horizontal-scroll acceptance verifier. It aliases `bun run test:bdd:scroll`, which builds the plugin and runs WDIO Cucumber scenarios tagged `@horizontal-scroll`. Keep the horizontal-scroll desktop and mobile-emulated scenarios in the grouped WDIO run so the same Obsidian session is reused.
+`bun run test:bdd:scroll` is the canonical horizontal-scroll acceptance verifier. It builds the plugin and runs WDIO Cucumber scenarios tagged `@horizontal-scroll`. Keep the horizontal-scroll desktop and mobile-emulated scenarios in the grouped WDIO run so the same Obsidian session is reused.
 
 ## Structure
 
@@ -71,7 +70,7 @@ Agents that support MCP should restart after loading the repo config, then use `
 
 - Override Obsidian version with `OBSIDIAN_WDIO_APP_VERSION` or installer version with `OBSIDIAN_WDIO_INSTALLER_VERSION`.
 - Keep `WDIO_MAX_INSTANCES=1` unless the suite is explicitly made parallel-safe.
-- If Obsidian cannot launch locally, check for a conflicting instance on CDP port `9230` and stop the personal vault before running WDIO.
+- If Obsidian cannot launch locally, stop any personal Obsidian instance before running WDIO so the suite owns one isolated Obsidian session.
 - If a Cucumber step is undefined, compare the exact Gherkin sentence with `tests/bdd/steps/*.ts`.
-- If rendering times out, inspect screenshots in `tests/runtime-session/wdio-artifacts/` and then use the custom CDP verifiers for deeper Live Preview or Monaco diagnosis.
+- If rendering times out, inspect screenshots and structured JSON in `tests/runtime-session/wdio-artifacts/`, then add or tighten the WDIO page-object assertions that cover the missing behavior.
 - CI should run non-GUI checks by default. Desktop Obsidian E2E and mobile-emulated WDIO scenarios need a runner that can launch Electron.
