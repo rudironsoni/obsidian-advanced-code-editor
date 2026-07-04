@@ -95,7 +95,7 @@ rtk obsidian dev:dom selector=".cm-content [style*='color'], .cm-content [class*
 Write `planning/test-reports/<YYYY-MM-DD-HH-MM>/REPORT.md`:
 
 ```markdown
-# Shiki plugin acceptance test
+# Advanced Code Block acceptance test
 
 ## Scope
 

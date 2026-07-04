@@ -5,7 +5,7 @@ export interface Settings {
 	customThemeFolder: string;
 	customLanguageFolder: string;
 	/**
-	 * Old theme setting, from before we had separate light/dark theme settings. Will me migrated on load.
+	 * Old theme setting, from before we had separate light/dark theme settings. Will be migrated on load.
 	 */
 	theme: string | undefined;
 	darkTheme: string;

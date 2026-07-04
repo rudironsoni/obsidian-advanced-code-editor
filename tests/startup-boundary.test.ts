@@ -23,6 +23,18 @@ describe('startup module boundary', () => {
 		expect(source).toContain('saveSettingsAndReloadHighlighter');
 	});
 
+	test('settings tab uses renamed code block defaults', () => {
+		const settingsTab = read('packages/obsidian/src/settings/SettingsTab.ts');
+		const settings = read('packages/obsidian/src/settings/Settings.ts');
+
+		expect(settingsTab).toContain("setName('Code block defaults')");
+		expect(settingsTab).not.toContain('EC defaults');
+		expect(settings).toContain('showLineNumbers: boolean');
+		expect(settings).toContain('wrapLines: boolean');
+		expect(settings).not.toContain('ecDefaultShowLineNumbers');
+		expect(settings).not.toContain('ecDefaultWrap');
+	});
+
 	test('default settings do not import theme mapper', () => {
 		const source = read('packages/obsidian/src/settings/Settings.ts');
 

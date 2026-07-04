@@ -6,17 +6,17 @@ This plugin works in reading, live preview and edit mode, providing a consistent
 
 Below is an example with line numbers, a custom header, and line highlighting.
 
-![exampleImage](https://raw.githubusercontent.com/mProjectsCode/obsidian-shiki-plugin/master/exampleImage.png)
+![exampleImage](https://raw.githubusercontent.com/rudironsoni/obsidian-shiki-plugin/master/exampleImage.png)
 
 ## Comparison
 
 Default Obsidian syntax highlighting:
 
-![exampleImageObsidian](https://raw.githubusercontent.com/mProjectsCode/obsidian-shiki-plugin/master/exampleImageObsidian.png)
+![exampleImageObsidian](https://raw.githubusercontent.com/rudironsoni/obsidian-shiki-plugin/master/exampleImageObsidian.png)
 
-Shiki Plugin syntax highlighting:
+Advanced Code Block syntax highlighting:
 
-![exampleImagePlain](https://raw.githubusercontent.com/mProjectsCode/obsidian-shiki-plugin/master/exampleImagePlain.png)
+![exampleImagePlain](https://raw.githubusercontent.com/rudironsoni/obsidian-shiki-plugin/master/exampleImagePlain.png)
 
 ## Usage
 
@@ -95,7 +95,7 @@ When the language is set to `diff`, the plugin will automatically enable diff hi
 
 ## License
 
-[MIT](https://github.com/mProjectsCode/obsidian-shiki-plugin/blob/master/LICENSE)
+[MIT](https://github.com/rudironsoni/obsidian-shiki-plugin/blob/master/LICENSE)
 
 ## Installation
 

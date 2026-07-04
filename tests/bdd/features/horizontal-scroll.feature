@@ -2,7 +2,7 @@
 Feature: Block-owned horizontal scroll
 
   Background:
-    Given the built Shiki plugin is enabled in the fixture vault
+    Given the built Advanced Code Block plugin is enabled in the fixture vault
     And the horizontal scroll fixture notes are reset
 
   @desktop

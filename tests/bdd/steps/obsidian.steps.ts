@@ -23,7 +23,7 @@ let lastExactEdit: ExactEditResult | undefined;
 let lastHorizontalScrollPerformance: HorizontalScrollPerformanceResult | undefined;
 let lastHorizontalScrollLineNumberLayout: HorizontalScrollLineNumberLayoutComparison | undefined;
 
-Given('the built Shiki plugin is enabled in the fixture vault', async () => {
+Given('the built Advanced Code Block plugin is enabled in the fixture vault', async () => {
 	await obsidianApp.waitForPluginLoaded();
 });
 
@@ -42,7 +42,7 @@ When('Obsidian renders the active note', async () => {
 	await obsidianApp.waitForReadingRender(lastExpectedRenderText);
 });
 
-Then('the Shiki plugin should be loaded from the built payload', async () => {
+Then('the Advanced Code Block plugin should be loaded from the built payload', async () => {
 	const state = await obsidianApp.waitForPluginLoaded();
 
 	assert.equal(state.loaded, true);
