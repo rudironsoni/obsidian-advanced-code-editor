@@ -56,17 +56,21 @@ class ShikiLivePreviewHeaderWidget extends WidgetType {
 }
 
 class ShikiLivePreviewLineNumberWidget extends WidgetType {
-	constructor(private readonly lineNumber: number) {
+	constructor(
+		private readonly blockId: string,
+		private readonly lineNumber: number,
+	) {
 		super();
 	}
 
 	eq(other: ShikiLivePreviewLineNumberWidget): boolean {
-		return other.lineNumber === this.lineNumber;
+		return other.blockId === this.blockId && other.lineNumber === this.lineNumber;
 	}
 
 	toDOM(): HTMLElement {
 		const span = document.createElement('span');
 		span.className = 'shiki-live-preview-line-number';
+		span.dataset.shikiBlockId = this.blockId;
 		span.textContent = String(this.lineNumber);
 		span.setAttribute('aria-hidden', 'true');
 		return span;
@@ -182,9 +186,10 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 
 				if (!isOpeningFence && !isClosingFence && plugin.loadedSettings.showLineNumbers) {
 					ranges.push(
-						Decoration.widget({ widget: new ShikiLivePreviewLineNumberWidget(lineNumber - parsedBlock.openingFenceLine), side: -1 }).range(
-							line.from,
-						),
+						Decoration.widget({
+							widget: new ShikiLivePreviewLineNumberWidget(block.id, lineNumber - parsedBlock.openingFenceLine),
+							side: -1,
+						}).range(line.from),
 					);
 				}
 			}
