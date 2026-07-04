@@ -78,12 +78,19 @@ export type HorizontalScrollBlockState = {
 	rowScrollLeftMin: number;
 	rowScrollLeftMax: number;
 	rowScrollLeftValues: number[];
+	rowClientWidthValues: number[];
+	rowScrollWidthValues: number[];
+	rowSpacerWidthValues: number[];
+	rowTextValues: string[];
 	livePreviewContentCount: number;
 	livePreviewContentTranslateXValues: number[];
 	livePreviewContentTranslateXSpread: number;
 	visibleCodeContentCount: number;
 	hitTestableCodeContentCount: number;
 	visibleCodeGlyphCount: number;
+	overflowingCodeGlyphCount: number;
+	maxCodeGlyphRight: number | null;
+	blockClipRight: number | null;
 	transparentCodeContentCount: number;
 	zeroRectCodeContentCount: number;
 	hasShortLineContent: boolean;
@@ -130,6 +137,8 @@ export type HorizontalScrollPerformanceMetrics = {
 	rowScrollLeftMax: number;
 	noteScrollLeft: number;
 	documentScrollLeft: number;
+	backtrackCount: number;
+	maxBacktrackPx: number;
 };
 
 export type HorizontalScrollPerformanceResult = {
@@ -503,6 +512,9 @@ class HorizontalScrollPage {
 				const dispatchDurations: number[] = [];
 				let maxFrameGapMs = 0;
 				let lastFrame = performance.now();
+				let lastObservedScrollLeft = 0;
+				let backtrackCount = 0;
+				let maxBacktrackPx = 0;
 
 				for (let index = 0; index < input.frames; index++) {
 					await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
@@ -520,6 +532,13 @@ class HorizontalScrollPage {
 						}),
 					);
 					dispatchDurations.push(performance.now() - beforeDispatch);
+					await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+					const observedScrollLeft = Math.max(0, target.scrollLeft, block.scrollbar?.scrollLeft ?? 0, ...block.rows.map(row => row.scrollLeft));
+					if (observedScrollLeft + 1 < lastObservedScrollLeft) {
+						backtrackCount++;
+						maxBacktrackPx = Math.max(maxBacktrackPx, lastObservedScrollLeft - observedScrollLeft);
+					}
+					lastObservedScrollLeft = observedScrollLeft;
 				}
 
 				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
@@ -551,6 +570,8 @@ class HorizontalScrollPage {
 					rowScrollLeftMax: Math.max(0, ...block.rows.map(row => row.scrollLeft)),
 					noteScrollLeft: noteScroller?.scrollLeft ?? 0,
 					documentScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
+					backtrackCount,
+					maxBacktrackPx,
 				};
 			},
 			{ mode, blockIndex, frames: 60, deltaX: 24 },
@@ -709,6 +730,13 @@ class HorizontalScrollPage {
 					const contentElements = [
 						...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-code-content[data-shiki-block-id="${CSS.escape(block.blockId)}"]`),
 					];
+					const visualBlockRightCandidates = [
+						block.header?.getBoundingClientRect().right,
+						block.scrollbar?.getBoundingClientRect().right,
+						block.row?.getBoundingClientRect().right,
+						block.root.getBoundingClientRect().right,
+					].filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+					const blockClipRight = visualBlockRightCandidates.length ? Math.min(...visualBlockRightCandidates) : null;
 					const contentVisibility = contentElements.map(element => {
 						const style = getComputedStyle(element);
 						const textFillColor = style.getPropertyValue('-webkit-text-fill-color');
@@ -782,6 +810,41 @@ class HorizontalScrollPage {
 						return visibleGlyphs;
 					};
 					const visibleCodeGlyphCount = contentElements.reduce((count, element) => count + countVisibleGlyphs(element), 0);
+					let overflowingCodeGlyphCount = 0;
+					let maxCodeGlyphRight: number | null = null;
+					for (const element of contentElements) {
+						const row = element.closest<HTMLElement>('.shiki-block-scroll-row');
+						const rowRect = row?.getBoundingClientRect() ?? block.root.getBoundingClientRect();
+						const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+						const range = document.createRange();
+						let node = walker.nextNode();
+						while (node) {
+							const text = node.textContent ?? '';
+							for (let offset = 0; offset < text.length; offset++) {
+								if (!/\S/.test(text[offset] ?? '')) {
+									continue;
+								}
+								range.setStart(node, offset);
+								range.setEnd(node, offset + 1);
+								for (const rect of range.getClientRects()) {
+									const left = Math.max(rect.left, rowRect.left, lineNumberRect?.right ?? rowRect.left);
+									const right = Math.min(rect.right, rowRect.right);
+									const top = Math.max(rect.top, rowRect.top);
+									const bottom = Math.min(rect.bottom, rowRect.bottom);
+									if (right - left <= 0.5 || bottom - top <= 0.5) {
+										continue;
+									}
+									const paintedRight = Math.min(rect.right, rowRect.right);
+									maxCodeGlyphRight = Math.max(maxCodeGlyphRight ?? Number.NEGATIVE_INFINITY, paintedRight);
+									if (blockClipRight !== null && paintedRight > blockClipRight + 1) {
+										overflowingCodeGlyphCount++;
+									}
+								}
+							}
+							node = walker.nextNode();
+						}
+						range.detach();
+					}
 					const parseZIndex = (value: string | null): number => {
 						const parsed = Number.parseInt(value ?? '', 10);
 						return Number.isFinite(parsed) ? parsed : 0;
@@ -848,12 +911,23 @@ class HorizontalScrollPage {
 						rowScrollLeftMin: rowScrollLeftValues.length ? Math.min(...rowScrollLeftValues) : 0,
 						rowScrollLeftMax: Math.max(0, ...block.rows.map(element => element.scrollLeft)),
 						rowScrollLeftValues,
+						rowClientWidthValues: block.rows.map(element => element.clientWidth),
+						rowScrollWidthValues: block.rows.map(element => element.scrollWidth),
+						rowSpacerWidthValues: block.rows.map(element => {
+							const value = getComputedStyle(element).getPropertyValue('--shiki-block-scroll-spacer-width').trim();
+							const parsed = Number.parseFloat(value);
+							return Number.isFinite(parsed) ? parsed : 0;
+						}),
+						rowTextValues: block.rows.map(element => (element.textContent ?? '').slice(0, 120)),
 						livePreviewContentCount: contentElements.length,
 						livePreviewContentTranslateXValues: contentTranslateXValues,
 						livePreviewContentTranslateXSpread: contentTranslateXSpread,
 						visibleCodeContentCount: contentVisibility.filter(result => result.hasVisibleRect && result.hasVisibleStyle).length,
 						hitTestableCodeContentCount: contentVisibility.filter(result => result.hitTestable).length,
 						visibleCodeGlyphCount,
+						overflowingCodeGlyphCount,
+						maxCodeGlyphRight,
+						blockClipRight,
 						transparentCodeContentCount: contentVisibility.filter(result => !result.hasVisibleStyle).length,
 						zeroRectCodeContentCount: contentVisibility.filter(result => !result.hasVisibleRect).length,
 						hasShortLineContent: shortLineContent !== undefined,

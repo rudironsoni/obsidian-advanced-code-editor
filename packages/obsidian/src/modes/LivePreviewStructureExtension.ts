@@ -1,6 +1,10 @@
 import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state';
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view';
-import { createBlockHorizontalScrollbarDecoration, SHIKI_BLOCK_SCROLL_ROW_CLASS } from 'packages/obsidian/src/codemirror/BlockHorizontalScroll';
+import {
+	createBlockHorizontalScrollbarDecoration,
+	createBlockHorizontalScrollSpacerDecoration,
+	SHIKI_BLOCK_SCROLL_ROW_CLASS,
+} from 'packages/obsidian/src/codemirror/BlockHorizontalScroll';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
@@ -182,6 +186,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 							},
 						}).range(line.from, line.to),
 					);
+					ranges.push(createBlockHorizontalScrollSpacerDecoration(block.id).range(line.to));
 				}
 
 				if (!isOpeningFence && !isClosingFence && plugin.loadedSettings.showLineNumbers) {

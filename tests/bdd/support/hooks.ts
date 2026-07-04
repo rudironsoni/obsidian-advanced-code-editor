@@ -2,9 +2,10 @@ import { After } from '@wdio/cucumber-framework';
 import { browser } from '@wdio/globals';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { env } from 'node:process';
 import { horizontalScrollPage, type HorizontalScrollMode, type HorizontalScrollState } from '../pages/HorizontalScroll.page.js';
-import { artifactDir, sanitizeArtifactName, writeJsonArtifact } from './artifacts.js';
 import { obsidianApp } from '../pages/ObsidianApp.page.js';
+import { artifactDir, sanitizeArtifactName, writeJsonArtifact } from './artifacts.js';
 
 type ScenarioResult = {
 	pickle?: {
@@ -35,6 +36,7 @@ After(async function (scenario: ScenarioResult) {
 				});
 			}
 		}
+		await pauseForScrollDebug(isHorizontalScrollScenario, scenarioName);
 	} finally {
 		await obsidianApp.resetMobileEmulation();
 		if (isHorizontalScrollScenario) {
@@ -51,10 +53,24 @@ async function collectFailureStates(): Promise<HorizontalScrollState[]> {
 			states.push(await horizontalScrollPage.collectScrollState(mode, 'failure'));
 		} catch (error) {
 			writeJsonArtifact(`horizontal-scroll-${mode}-failure-collection-error`, {
-				mode,
-				error: error instanceof Error ? error.message : String(error),
+				message: error instanceof Error ? error.message : String(error),
 			});
 		}
 	}
 	return states;
+}
+
+async function pauseForScrollDebug(isHorizontalScrollScenario: boolean, scenarioName: string): Promise<void> {
+	if (!isHorizontalScrollScenario) {
+		return;
+	}
+	const pauseMs = Number.parseInt(env.WDIO_OBSIDIAN_DEBUG_PAUSE_MS ?? '', 10);
+	if (!Number.isFinite(pauseMs) || pauseMs <= 0) {
+		return;
+	}
+	writeJsonArtifact(`${scenarioName}-debug-pause`, {
+		pauseMs,
+		message: 'Paused before cleanup so the sandboxed WDIO Obsidian window can be inspected.',
+	});
+	await browser.pause(pauseMs);
 }

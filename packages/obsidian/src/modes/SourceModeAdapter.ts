@@ -30,7 +30,7 @@ export class SourceModeAdapter {
 			this.decorations = Decoration.none;
 			return;
 		}
-		if (update.docChanged || update.viewportChanged || update.selectionSet) {
+		if (update.docChanged || update.viewportChanged) {
 			void this.retokenize();
 		}
 	}

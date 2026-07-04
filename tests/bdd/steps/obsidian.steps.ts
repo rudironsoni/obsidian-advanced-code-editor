@@ -179,6 +179,8 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	assert.ok(metrics.eventCount >= 55, `expected at least 55 measured wheel events: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(metrics.p95DispatchMs <= 12, `expected p95 wheel dispatch under 12ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(metrics.maxDispatchMs <= 50, `expected max wheel dispatch under 50ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.equal(metrics.backtrackCount, 0, `expected horizontal scroll not to jump backward: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.equal(metrics.maxBacktrackPx, 0, `expected no horizontal scroll backtrack distance: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(first.scrollLeft > 0, `expected first block to scroll horizontally: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
@@ -290,6 +292,7 @@ function assertLivePreviewBlockUsesSharedRowScroll(state: HorizontalScrollState,
 	assert.ok(block.visibleCodeContentCount > 0, `expected Live Preview code content to keep a visible clipped rect: ${JSON.stringify(state)}`);
 	assert.ok(block.hitTestableCodeContentCount > 0, `expected Live Preview code content to remain hit-testable after scroll: ${JSON.stringify(state)}`);
 	assert.ok(block.visibleCodeGlyphCount > 0, `expected Live Preview code glyphs to remain visible after scroll: ${JSON.stringify(state)}`);
+	assert.equal(block.overflowingCodeGlyphCount, 0, `expected Live Preview code glyphs not to escape the block clip rect: ${JSON.stringify(state)}`);
 	assert.equal(block.transparentCodeContentCount, 0, `expected Live Preview code content not to become transparent after scroll: ${JSON.stringify(state)}`);
 	assert.equal(block.gutterMasksScrolledContent, true, `expected Live Preview gutter to mask scrolled code content: ${JSON.stringify(state)}`);
 	if (block.hasShortLineContent) {

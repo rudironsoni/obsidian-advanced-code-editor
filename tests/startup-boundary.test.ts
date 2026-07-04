@@ -55,6 +55,16 @@ describe('startup module boundary', () => {
 		expect(sourceMode).not.toContain('view.dispatch(this.view.state.update({}))');
 	});
 
+	test('selection-only updates do not rebuild code block decorations', () => {
+		const cm6Plugin = read('packages/obsidian/src/codemirror/Cm6_ViewPlugin.ts');
+		const livePreview = read('packages/obsidian/src/modes/LivePreviewAdapter.ts');
+		const sourceMode = read('packages/obsidian/src/modes/SourceModeAdapter.ts');
+
+		expect(cm6Plugin).not.toContain('update.docChanged || update.viewportChanged || update.selectionSet');
+		expect(livePreview).not.toContain('!update.docChanged && !update.viewportChanged && !update.selectionSet');
+		expect(sourceMode).not.toContain('update.docChanged || update.viewportChanged || update.selectionSet');
+	});
+
 	test('live preview adapter owns a single widget overlay per editor view', () => {
 		const livePreview = read('packages/obsidian/src/modes/LivePreviewAdapter.ts');
 		const main = read('packages/obsidian/src/main.ts');
@@ -134,7 +144,7 @@ describe('startup module boundary', () => {
 		expect(structure).toContain('ShikiLivePreviewLineNumberWidget');
 		expect(structure).not.toContain('isBlockSelected');
 		expect(structure).not.toContain('shiki-note-line-numbers');
-		expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged && !update.selectionSet)');
+		expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged)');
 		expect(livePreview).toContain('retokenizeBlocks');
 		expect(livePreview).toContain('this.plugin.highlighter.getTokenStyle(token)');
 		expect(livePreview).not.toContain('shiki-editing-codeblock-active-line');

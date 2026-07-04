@@ -66,8 +66,10 @@ describe('Live Preview structure extension', () => {
 
 	test('keeps Obsidian native note gutters visible', () => {
 		const livePreviewAdapter = readFileSync(new URL('../packages/obsidian/src/modes/LivePreviewAdapter.ts', import.meta.url), 'utf8');
+		const structure = readFileSync(new URL('../packages/obsidian/src/modes/LivePreviewStructureExtension.ts', import.meta.url), 'utf8');
 		const styles = readFileSync(new URL('../packages/obsidian/src/styles.css', import.meta.url), 'utf8');
 
+		expect(structure).toContain('createBlockHorizontalScrollSpacerDecoration');
 		expect(livePreviewAdapter).not.toContain('fencedBlockLineNumbers');
 		expect(livePreviewAdapter).not.toContain('gutter.classList.add(LivePreviewAdapter.HIDDEN_GUTTER_CLASS)');
 		expect(styles).not.toContain('.cm-lineNumbers .cm-gutterElement.shiki-gutter-line-hidden');

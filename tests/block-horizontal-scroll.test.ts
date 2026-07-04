@@ -70,10 +70,17 @@ describe('block horizontal scroll identity', () => {
 		const styles = read('packages/obsidian/src/styles.css');
 
 		expect(source).toContain("this.setStyleProperty(row, '--shiki-block-scroll-spacer-width',");
+		expect(source).toContain("this.setStyleProperty(row, '--shiki-block-clip-width',");
 		expect(source).toContain('this.updateRowScrollSpacers(cache)');
-		expect(source).toContain('cache.disabled ? 0 : cache.maxScrollWidth + row.clientWidth');
-		expect(styles).toContain('.cm-line.shiki-block-scroll-row::after');
-		expect(styles).toContain('padding-inline-end: var(--shiki-block-scroll-spacer-width, 0px)');
+		expect(source).toContain('const naturalScrollWidth = row.scrollWidth');
+		expect(source).not.toContain("querySelectorAll<HTMLElement>('.shiki-live-preview-code-content')).map(element => element.scrollWidth)");
+		expect(source).toContain('cache.disabled ? 0 : cache.maxScrollWidth');
+		expect(source).not.toContain('rowNaturalScrollWidths');
+		expect(source).toContain('SHIKI_BLOCK_SCROLL_SPACER_CLASS');
+		expect(styles).toContain('.cm-line.shiki-block-scroll-row:not(.shiki-live-preview-code-line)::after');
+		expect(styles).toContain('.shiki-block-scroll-spacer');
+		expect(styles).toContain('width: var(--shiki-block-clip-width, 100%)');
+		expect(styles).toContain('padding-inline-end: 0 !important');
 		expect(styles).toContain('var(--shiki-block-scroll-spacer-width, 0px)');
 		expect(styles).not.toContain('--shiki-block-scroll-width');
 		expect(styles).not.toContain('transform: translateX(calc(-1 * var(--shiki-block-scroll-left, 0px)))');
@@ -85,6 +92,7 @@ describe('block horizontal scroll identity', () => {
 			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.cm-line\.shiki-live-preview-code-line \{([\s\S]*?)\n\}/)?.[1] ?? '';
 
 		expect(livePreviewCodeLineRule).toContain('overflow-x: hidden');
+		expect(livePreviewCodeLineRule).toContain('clip-path: inset(0)');
 		expect(livePreviewCodeLineRule).not.toContain('contain: paint');
 	});
 });

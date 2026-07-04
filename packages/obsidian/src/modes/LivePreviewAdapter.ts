@@ -58,7 +58,7 @@ export class LivePreviewAdapter {
 
 		this.livePreviewActive = true;
 
-		if (!update.docChanged && !update.viewportChanged && !update.selectionSet) {
+		if (!update.docChanged && !update.viewportChanged) {
 			return;
 		}
 

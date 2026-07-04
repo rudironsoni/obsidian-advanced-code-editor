@@ -4,6 +4,7 @@ import { Decoration, ViewPlugin, WidgetType, type EditorView, type ViewUpdate } 
 export const SHIKI_BLOCK_SCROLL_ROW_CLASS = 'shiki-block-scroll-row';
 export const SHIKI_BLOCK_SCROLLBAR_CLASS = 'shiki-block-horizontal-scrollbar';
 export const SHIKI_BLOCK_SCROLLBAR_INNER_CLASS = 'shiki-block-horizontal-scrollbar-inner';
+export const SHIKI_BLOCK_SCROLL_SPACER_CLASS = 'shiki-block-scroll-spacer';
 
 export class ShikiBlockHorizontalScrollbarWidget extends WidgetType {
 	constructor(
@@ -44,6 +45,35 @@ export function createBlockHorizontalScrollbarDecoration(blockId: string, wrapLi
 	});
 }
 
+class ShikiBlockScrollSpacerWidget extends WidgetType {
+	constructor(private readonly blockId: string) {
+		super();
+	}
+
+	eq(other: ShikiBlockScrollSpacerWidget): boolean {
+		return other.blockId === this.blockId;
+	}
+
+	toDOM(): HTMLElement {
+		const spacer = document.createElement('span');
+		spacer.className = SHIKI_BLOCK_SCROLL_SPACER_CLASS;
+		spacer.dataset.shikiBlockId = this.blockId;
+		spacer.setAttribute('aria-hidden', 'true');
+		return spacer;
+	}
+
+	ignoreEvent(): boolean {
+		return true;
+	}
+}
+
+export function createBlockHorizontalScrollSpacerDecoration(blockId: string): Decoration {
+	return Decoration.widget({
+		widget: new ShikiBlockScrollSpacerWidget(blockId),
+		side: 1,
+	});
+}
+
 export function stableBlockScrollMemoryKey(blockId: string): string {
 	const parts = blockId.split('::');
 	return parts.length > 1 ? parts.slice(0, -1).join('::') : blockId;
@@ -54,6 +84,7 @@ interface BlockScrollCache {
 	scrollbars: HTMLElement[];
 	maxScrollLeft: number;
 	maxScrollWidth: number;
+	clipWidth: number;
 	disabled: boolean;
 }
 
@@ -388,20 +419,20 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				const escapedBlockId = CSS.escape(blockId);
 				const rows = [...this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_BLOCK_SCROLL_ROW_CLASS}[data-shiki-block-id="${escapedBlockId}"]`)];
 				const scrollbars = [...this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_BLOCK_SCROLLBAR_CLASS}[data-shiki-block-id="${escapedBlockId}"]`)];
+				const headers = [...this.view.dom.querySelectorAll<HTMLElement>(`.shiki-live-preview-header[data-shiki-block-id="${escapedBlockId}"]`)];
+				const clipWidths = [...scrollbars, ...headers].map(element => element.clientWidth).filter(width => width > 0);
+				const clipWidth = clipWidths.length ? Math.min(...clipWidths) : 0;
 				const naturalScrollWidths: number[] = [];
 				for (const row of rows) {
 					this.setStyleProperty(row, '--shiki-block-scroll-spacer-width', '0px');
-					naturalScrollWidths.push(
-						Math.max(
-							row.scrollWidth,
-							...Array.from(row.querySelectorAll<HTMLElement>('.shiki-live-preview-code-content')).map(element => element.scrollWidth),
-						),
-					);
+					this.setStyleProperty(row, '--shiki-block-clip-width', clipWidth > 0 ? `${clipWidth}px` : '100%');
+					const naturalScrollWidth = row.scrollWidth;
+					naturalScrollWidths.push(naturalScrollWidth);
 				}
 				const maxScrollWidth = Math.max(0, ...naturalScrollWidths);
 				const maxScrollLeft = Math.max(0, ...rows.map(row => Math.max(row.scrollWidth, maxScrollWidth) - row.clientWidth));
 				const disabled = scrollbars.some(scrollbar => scrollbar.dataset.shikiScrollDisabled === 'true');
-				const cache = { rows, scrollbars, maxScrollLeft, maxScrollWidth, disabled };
+				const cache = { rows, scrollbars, maxScrollLeft, maxScrollWidth, clipWidth, disabled };
 				this.updateRowScrollSpacers(cache);
 				this.blockCacheById.set(blockId, cache);
 				return cache;
@@ -409,7 +440,8 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 
 			private updateRowScrollSpacers(cache: BlockScrollCache): void {
 				for (const row of cache.rows) {
-					const spacerWidth = cache.disabled ? 0 : cache.maxScrollWidth + row.clientWidth;
+					const spacerWidth = cache.disabled ? 0 : cache.maxScrollWidth;
+					this.setStyleProperty(row, '--shiki-block-clip-width', cache.clipWidth > 0 ? `${cache.clipWidth}px` : '100%');
 					this.setStyleProperty(row, '--shiki-block-scroll-spacer-width', `${spacerWidth}px`);
 					if (cache.disabled) {
 						this.setScrollLeft(row, 0);
