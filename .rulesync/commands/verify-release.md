@@ -3,7 +3,7 @@ targets:
   - '*'
 description: Run full release verification pipeline
 ---
-Run the complete release verification pipeline for `shiki-highlighter`.
+Run complete release verification pipeline for `shiki-highlighter`.
 
 ## Phase 1: Local Gate
 
@@ -11,14 +11,13 @@ Run the complete release verification pipeline for `shiki-highlighter`.
 rtk bun run check
 ```
 
-This runs: format check, build, lint, test, bench:startup, bench:startup:mobile.
-
+This runs format check, build, lint, tests, `bench:startup`, and `bench:startup:mobile`.
 Judge as failed if any step fails.
 
 ## Phase 2: Runtime Gate
 
 ```bash
-rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-advanced-codeblock-integration
+rtk bun run test:bdd
 ```
 
 Verifies:
@@ -26,9 +25,9 @@ Verifies:
 - Plugin loads without errors
 - Settings tab opens
 - Reading mode renders Shiki blocks
-- Live preview applies token styling
+- Live Preview applies token styling
 - Mobile emulation path works
-- Load time under 50 ms
+- Horizontal-scroll behavior passes WDIO scenarios
 
 ## Phase 3: Artifact Verification
 
@@ -37,8 +36,8 @@ Verify `dist/` contains:
 - `main.js`
 - `manifest.json`
 - `styles.css`
-- `highlighter.js` (if applicable)
-- `monaco-editor.js` (if applicable)
+- `highlighter.js` if applicable
+- `monaco-editor.js` if applicable
 
 Check manifest version matches `package.json` version.
 
@@ -57,9 +56,9 @@ Write `planning/test-reports/<YYYY-MM-DD-HH-MM>/RELEASE.md`:
 
 ## Phase 2: Runtime Gate
 
-- Obsidian verifier: <pass/fail>
-- Desktop load: <ms>
-- Mobile load: <ms>
+- WDIO BDD: <pass/fail>
+- Desktop scenarios: <pass/fail>
+- Mobile-emulated scenarios: <pass/fail>
 
 ## Phase 3: Artifacts
 

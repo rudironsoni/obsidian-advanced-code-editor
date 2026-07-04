@@ -15,221 +15,32 @@ prefix_rule(
     justification = "Generated from Rulesync permission.bash: bun run typecheck",
 )
 
-# bun run verify:*
+# bun run test:bdd
 prefix_rule(
-    pattern = ["bun", "run", "verify:*"],
+    pattern = ["bun", "run", "test:bdd"],
     decision = "allow",
-    justification = "Generated from Rulesync permission.bash: bun run verify:*",
+    justification = "Generated from Rulesync permission.bash: bun run test:bdd",
 )
 
-# OBSIDIAN_LAUNCH_MODE=* bun run verify:*
+# bun run test:bdd:desktop
 prefix_rule(
-    pattern = ["OBSIDIAN_LAUNCH_MODE=*", "bun", "run", "verify:*"],
+    pattern = ["bun", "run", "test:bdd:desktop"],
     decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_LAUNCH_MODE=* bun run verify:*",
+    justification = "Generated from Rulesync permission.bash: bun run test:bdd:desktop",
 )
 
-# OBSIDIAN_VERIFY_TARGET=* bun run verify:*
+# bun run test:bdd:mobile
 prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_TARGET=*", "bun", "run", "verify:*"],
+    pattern = ["bun", "run", "test:bdd:mobile"],
     decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_TARGET=* bun run verify:*",
+    justification = "Generated from Rulesync permission.bash: bun run test:bdd:mobile",
 )
 
-# OBSIDIAN_VERIFY_ENFORCE_STARTUP=* bun run verify:*
+# bun run test:bdd:scroll
 prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "bun", "run", "verify:*"],
+    pattern = ["bun", "run", "test:bdd:scroll"],
     decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_ENFORCE_STARTUP=* bun run verify:*",
-)
-
-# OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_TARGET=* bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_LAUNCH_MODE=*", "OBSIDIAN_VERIFY_TARGET=*", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_TARGET=* bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_LAUNCH_MODE=* bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_TARGET=*", "OBSIDIAN_LAUNCH_MODE=*", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_LAUNCH_MODE=* bun run verify:*",
-)
-
-# OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_LAUNCH_MODE=*", "OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_LAUNCH_MODE=* bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "OBSIDIAN_LAUNCH_MODE=*", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_LAUNCH_MODE=* bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_TARGET=*", "OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_VERIFY_TARGET=* bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "OBSIDIAN_VERIFY_TARGET=*", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_VERIFY_TARGET=* bun run verify:*",
-)
-
-# OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_LAUNCH_MODE=*", "OBSIDIAN_VERIFY_TARGET=*", "OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* bun run verify:*",
-)
-
-# OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_VERIFY_TARGET=* bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_LAUNCH_MODE=*", "OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "OBSIDIAN_VERIFY_TARGET=*", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_VERIFY_TARGET=* bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_TARGET=*", "OBSIDIAN_LAUNCH_MODE=*", "OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_LAUNCH_MODE=* bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_TARGET=*", "OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "OBSIDIAN_LAUNCH_MODE=*", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_LAUNCH_MODE=* bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_TARGET=* bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "OBSIDIAN_LAUNCH_MODE=*", "OBSIDIAN_VERIFY_TARGET=*", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_TARGET=* bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_LAUNCH_MODE=* bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "OBSIDIAN_VERIFY_TARGET=*", "OBSIDIAN_LAUNCH_MODE=*", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_LAUNCH_MODE=* bun run verify:*",
-)
-
-# OBSIDIAN_LAUNCH_MODE=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_LAUNCH_MODE=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_LAUNCH_MODE=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_TARGET=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_TARGET=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_TARGET=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_ENFORCE_STARTUP=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_ENFORCE_STARTUP=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_TARGET=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_LAUNCH_MODE=*", "OBSIDIAN_VERIFY_TARGET=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_TARGET=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_LAUNCH_MODE=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_TARGET=*", "OBSIDIAN_LAUNCH_MODE=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_LAUNCH_MODE=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_LAUNCH_MODE=*", "OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_LAUNCH_MODE=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "OBSIDIAN_LAUNCH_MODE=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_LAUNCH_MODE=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_TARGET=*", "OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_VERIFY_TARGET=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "OBSIDIAN_VERIFY_TARGET=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_VERIFY_TARGET=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_LAUNCH_MODE=*", "OBSIDIAN_VERIFY_TARGET=*", "OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_VERIFY_TARGET=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_LAUNCH_MODE=*", "OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "OBSIDIAN_VERIFY_TARGET=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_VERIFY_TARGET=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_TARGET=*", "OBSIDIAN_LAUNCH_MODE=*", "OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_LAUNCH_MODE=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_TARGET=*", "OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "OBSIDIAN_LAUNCH_MODE=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_LAUNCH_MODE=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_TARGET=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "OBSIDIAN_LAUNCH_MODE=*", "OBSIDIAN_VERIFY_TARGET=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_LAUNCH_MODE=* OBSIDIAN_VERIFY_TARGET=* rtk bun run verify:*",
-)
-
-# OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_LAUNCH_MODE=* rtk bun run verify:*
-prefix_rule(
-    pattern = ["OBSIDIAN_VERIFY_ENFORCE_STARTUP=*", "OBSIDIAN_VERIFY_TARGET=*", "OBSIDIAN_LAUNCH_MODE=*", "rtk", "bun", "run", "verify:*"],
-    decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_VERIFY_ENFORCE_STARTUP=* OBSIDIAN_VERIFY_TARGET=* OBSIDIAN_LAUNCH_MODE=* rtk bun run verify:*",
+    justification = "Generated from Rulesync permission.bash: bun run test:bdd:scroll",
 )
 
 # rtk bun run build
@@ -246,18 +57,32 @@ prefix_rule(
     justification = "Generated from Rulesync permission.bash: rtk bun run typecheck",
 )
 
-# rtk bun run verify:*
+# rtk bun run test:bdd
 prefix_rule(
-    pattern = ["rtk", "bun", "run", "verify:*"],
+    pattern = ["rtk", "bun", "run", "test:bdd"],
     decision = "allow",
-    justification = "Generated from Rulesync permission.bash: rtk bun run verify:*",
+    justification = "Generated from Rulesync permission.bash: rtk bun run test:bdd",
 )
 
-# OBSIDIAN_LAUNCH_MODE=fresh OBSIDIAN_VERIFY_TARGET=mobile bun run verify:obsidian-advanced-codeblock-integration > /tmp/verify-adv-full-mobile.log 2>&1; echo EXIT:$?
+# rtk bun run test:bdd:desktop
 prefix_rule(
-    pattern = ["OBSIDIAN_LAUNCH_MODE=fresh", "OBSIDIAN_VERIFY_TARGET=mobile", "bun", "run", "verify:obsidian-advanced-codeblock-integration", ">", "/tmp/verify-adv-full-mobile.log", "2>&1;", "echo", "EXIT:$?"],
+    pattern = ["rtk", "bun", "run", "test:bdd:desktop"],
     decision = "allow",
-    justification = "Generated from Rulesync permission.bash: OBSIDIAN_LAUNCH_MODE=fresh OBSIDIAN_VERIFY_TARGET=mobile bun run verify:obsidian-advanced-codeblock-integration > /tmp/verify-adv-full-mobile.log 2>&1; echo EXIT:$?",
+    justification = "Generated from Rulesync permission.bash: rtk bun run test:bdd:desktop",
+)
+
+# rtk bun run test:bdd:mobile
+prefix_rule(
+    pattern = ["rtk", "bun", "run", "test:bdd:mobile"],
+    decision = "allow",
+    justification = "Generated from Rulesync permission.bash: rtk bun run test:bdd:mobile",
+)
+
+# rtk bun run test:bdd:scroll
+prefix_rule(
+    pattern = ["rtk", "bun", "run", "test:bdd:scroll"],
+    decision = "allow",
+    justification = "Generated from Rulesync permission.bash: rtk bun run test:bdd:scroll",
 )
 
 # echo EXIT:*

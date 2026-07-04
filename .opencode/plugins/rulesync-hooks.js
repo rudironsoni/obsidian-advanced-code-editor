@@ -2,7 +2,7 @@ export const RulesyncHooksPlugin = async ({ $ }) => {
 	return {
 		event: async ({ event }) => {
 			if (event.type === 'session.created') {
-				await $`echo 'obsidian-shiki-plugin harness active | Desktop + Mobile emulation | MCPs: obsidian-cli, electron-devtools'`;
+				await $`echo 'obsidian-shiki-plugin harness active | Desktop + Mobile emulation | MCPs: obsidian-cli, wdio-mcp'`;
 			}
 		},
 		'tool.execute.after': async input => {

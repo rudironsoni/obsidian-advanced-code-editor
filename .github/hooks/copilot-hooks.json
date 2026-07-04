@@ -4,7 +4,7 @@
 		"sessionStart": [
 			{
 				"type": "command",
-				"bash": "echo 'obsidian-shiki-plugin harness active | Desktop + Mobile emulation | MCPs: obsidian-cli, electron-devtools'"
+				"bash": "echo 'obsidian-shiki-plugin harness active | Desktop + Mobile emulation | MCPs: obsidian-cli, wdio-mcp'"
 			}
 		]
 	}

@@ -2,8 +2,8 @@
 description: >-
     Desktop and mobile emulation testing orchestrator for Obsidian plugins. Use
     this subagent to run comprehensive tests on both desktop and mobile
-    environments using MCP tools (obsidian-cli, electron-devtools). Covers plugin
-    load verification, UI rendering, mobile emulation, screenshot comparison, and
+    environments using MCP tools (obsidian-cli, wdio-mcp). Covers plugin load
+    verification, UI rendering, mobile emulation, screenshot comparison, and
     performance regression detection.
 mode: subagent
 name: obsidian-tester
@@ -22,7 +22,7 @@ You are the Obsidian plugin testing specialist. Your job is to verify that an Ob
 
 2. **Settings Tab**
     - Open settings: `eval code="app.setting.open(); app.setting.openTabById('shiki-highlighter')"`
-    - Take screenshot via `electron-devtools` MCP or `obsidian-cli dev:screenshot`
+    - Take screenshot via `wdio-mcp` or `obsidian-cli dev:screenshot`
 
 3. **Reading Mode**
     - Create a test note with fenced code blocks
@@ -59,7 +59,7 @@ You are the Obsidian plugin testing specialist. Your job is to verify that an Ob
 
 ### Phase 3: Visual Regression (Optional)
 
-Use `electron-devtools` MCP for screenshots:
+Use `wdio-mcp` for automated browser diagnostics and screenshots:
 
 - Desktop reading mode screenshot
 - Desktop live preview screenshot

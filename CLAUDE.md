@@ -43,20 +43,16 @@ rtk pip list            rtk pnpm install        rtk npm run <script>
 
 ## Resource Rules
 
-- **One Obsidian instance only.** Never spawn second. Before launching, check `lsof -i :9230` or helper's `isObsidianRunning()` check.
+- **One Obsidian instance only.** Never spawn a second instance. WDIO tests must run with `maxInstances: 1` and reuse the same Obsidian session across setup, debugging, and verification.
 - If instance already running, reuse it: reload plugin, re-copy plugin files into existing vault, reload test note. Do not create new vault, user-data-dir, or `--user-data-dir`.
 - If you accidentally launch twice, kill duplicate. Never leave orphan processes.
 - Runtime reload is cheap and idempotent. Prefer it over relaunching Obsidian.
-- Visual-test scripts must probe CDP port first skip `spawn()` when target alive.
-- Reuse same test vault same Obsidian instance across setup, debugging, verification. Do not spin up extra instances.
+- Reuse the same test vault and same Obsidian instance across setup, debugging, and verification. Do not spin up extra instances.
 - Use `tests/obsidian-test-vault/` as the canonical Obsidian test vault for manual/runtime debugging unless a verifier script explicitly requires a different vault.
 - Keep all verification artifacts in one explicit runtime workspace, never scattered at top-level repo paths.
 - Always use model's vision capabilities screenshots from real Obsidian to verify actually rendered before concluding UI bug fixed or understood.
 - Preferred artifact root is `tests/runtime-session`.
-- Route verification output through runtime env vars instead of hard-coded test fixtures:
-  - `OBSIDIAN_VERIFY_VAULT`, `OBSIDIAN_VERIFY_USER_DATA`
-  - `OBSIDIAN_SCREENSHOT_VAULT`, `OBSIDIAN_SCREENSHOT_USER_DATA`, `OBSIDIAN_SCREENSHOT_DIR`
-  - `OBSIDIAN_LIVE_PREVIEW_REDRAW_REPORT_DIR`, `OBSIDIAN_MOBILE_RENDER_REPORT_DIR`
+- Route WDIO failure output to `tests/runtime-session/wdio-artifacts/`; do not scatter screenshots or JSON reports at the repo root.
 - Before and after runtime verification, confirm the workspace is either clean or fully removed.
 <!-- /headroom:rtk-instructions -->
 
@@ -100,30 +96,17 @@ rtk bun run build
 rtk bun run lint
 ```
 
-For Live Preview redraw, Monaco mounting, scrolling, mobile, or mode-switch bugs:
+For Live Preview scrolling, mobile-emulated, or mode-switch bugs:
 
 ```bash
-rtk bun run verify:obsidian-live-preview-redraw-loop
-rtk bun run verify:obsidian-monaco-mobile-rendering
-```
-
-For desktop real-Obsidian E2E:
-
-```bash
-rtk bun run test:bdd:desktop
-```
-
-For mobile-emulated real-Obsidian E2E:
-
-```bash
-rtk bun run test:bdd:mobile
+rtk bun run test:bdd:scroll
 ```
 
 For release-level confidence:
 
 ```bash
 rtk bun run check
-rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-advanced-codeblock-integration
+rtk bun run test:bdd
 ```
 
 ### Harness Layers
@@ -132,8 +115,8 @@ rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-advanced-codeb
 - `bun run test:bdd` runs desktop and mobile-emulated BDD scenarios in one grouped WebdriverIO worker so one Obsidian session is reused.
 - `bun run test:bdd:desktop` builds release artifacts and runs WebdriverIO Cucumber with `wdio-obsidian-service`, excluding `@mobile`.
 - `bun run test:bdd:mobile` builds release artifacts and runs only the `@mobile` WebdriverIO Cucumber scenarios. Prefer `bun run test:bdd` when validating both desktop and mobile so the same Obsidian session is reused.
+- `bun run test:bdd:scroll` builds release artifacts and runs the horizontal-scroll scenarios in real Obsidian through WebdriverIO.
 - `bun run test:e2e` and `bun run test:e2e:mobile` are compatibility aliases for the desktop and mobile BDD commands.
-- `bun run test:e2e:cdp` and `bun run test:e2e:mobile:cdp` keep the older custom CDP verifiers available for project-specific Live Preview, scrolling, and regression checks.
 - `bun run ci` runs the non-GUI CI gate: formatting check, production build, lint, unit tests, artifact integration, startup benches, and temporary-vault integration.
 - Android or iOS real-device automation is not part of this harness. Mobile coverage here is desktop Obsidian mobile emulation only.
 
@@ -148,22 +131,18 @@ rtk env OBSIDIAN_VERIFY_BRAT_INSTALL=true bun run verify:obsidian-advanced-codeb
 ### Runtime Harness Troubleshooting
 - Local Obsidian defaults to `/Applications/Obsidian.app/Contents/MacOS/Obsidian`. Override with `OBSIDIAN_APP` when needed.
 - WDIO Obsidian version can be overridden with `OBSIDIAN_WDIO_APP_VERSION`; installer version can be overridden with `OBSIDIAN_WDIO_INSTALLER_VERSION`.
-- CDP defaults to port `9230`. If a user vault owns that port, stop it or choose an explicit verifier vault/user-data pair with `OBSIDIAN_VERIFY_VAULT` and `OBSIDIAN_VERIFY_USER_DATA`.
-- Runtime reports should go under `planning/test-reports/` or an explicit env-var report directory. Do not scatter screenshots or JSON summaries at the repo root.
-- WDIO and `wdio-obsidian-service` are the default automated desktop and mobile-emulated E2E entrypoints. Keep the custom CDP verifiers for deeper project-specific Live Preview, scrolling, and regression checks.
+- Runtime reports should go under `planning/test-reports/` or `tests/runtime-session/wdio-artifacts/`. Do not scatter screenshots or JSON summaries at the repo root.
+- WDIO and `wdio-obsidian-service` are the automated desktop and mobile-emulated E2E entrypoints.
 - Do not spawn a second Obsidian instance.
-- Reuse the existing CDP port and `tests/obsidian-test-vault/` test vault for custom CDP verifier debugging.
 - If a runtime check is skipped, report it explicitly.
 
-### Live Preview Redraw-Loop Success Criteria
-A fix is not complete unless the runtime verifier proves:
+### Live Preview Scroll Success Criteria
+A fix is not complete unless the WDIO runtime verifier proves:
 
-- exactly one `.shiki-monaco-live-widget`
-- exactly one Monaco host inside that widget
-- exactly one `.monaco-editor`
-- raw CodeMirror code rows are hidden after Monaco is ready
-- Monaco host is not recreated during stability sampling
-- Monaco host height and top do not jitter
+- the whole Live Preview code block scrolls horizontally as one block
+- short lines move with long lines instead of scrolling independently
+- Obsidian native note line numbers remain visible
+- the block's internal Reading-mode-style line numbers remain visible
 - note horizontal scroll remains zero
 - desktop and mobile emulation both pass
 
@@ -172,5 +151,4 @@ A fix is not complete unless the runtime verifier proves:
 - Do not refactor unrelated code.
 - Do not add debug globals, console spam, or broad DOM polling.
 - Do not spawn a second Obsidian instance.
-- Reuse the existing CDP port and `tests/obsidian-test-vault/` test vault.
 - If a runtime check is skipped, report it explicitly.
