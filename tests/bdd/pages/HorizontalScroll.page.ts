@@ -193,6 +193,8 @@ type TouchGestureCoordinates = {
 	endX: number;
 	endY: number;
 	touchAction: string;
+	hitTargetClassName: string;
+	hitTargetTouchAction: string;
 };
 
 class HorizontalScrollPage {
@@ -467,6 +469,8 @@ class HorizontalScrollPage {
 				const startX = Math.round(Math.min(rect.right - inset, rect.left + rect.width * 0.8));
 				const endX = Math.round(Math.max(rect.left + inset, rect.left + rect.width * 0.2));
 				const startY = Math.round(rect.top + Math.min(Math.max(8, rect.height / 2), Math.max(8, rect.height - 4)));
+				const hitTarget = document.elementFromPoint(startX, startY);
+				const hitElement = hitTarget instanceof HTMLElement ? hitTarget : target;
 
 				return {
 					startX,
@@ -474,12 +478,14 @@ class HorizontalScrollPage {
 					endX,
 					endY: startY,
 					touchAction: getComputedStyle(target).touchAction,
+					hitTargetClassName: hitElement.className,
+					hitTargetTouchAction: getComputedStyle(hitElement).touchAction,
 				};
 			},
 			{ mode, blockIndex },
 		);
 
-		if (!coordinates.touchAction.includes('pan-y')) {
+		if (!coordinates.touchAction.includes('pan-y') || !coordinates.hitTargetTouchAction.includes('pan-y')) {
 			throw new Error(`Expected horizontal block touch target to reserve horizontal pan for JS: ${JSON.stringify(coordinates)}`);
 		}
 

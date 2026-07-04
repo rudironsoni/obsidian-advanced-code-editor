@@ -422,6 +422,7 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 .markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-live-preview-code-line .shiki-live-preview-code-content {
 	position: relative;
 	z-index: 1;
+	touch-action: pan-y;
 }
 
 .markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-live-preview-code-line .shiki-block-scroll-spacer {
@@ -496,6 +497,7 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 	font-size: var(--code-size);
 	line-height: var(--line-height-normal);
 	text-align: right;
+	touch-action: pan-y;
 	user-select: none;
 }
 

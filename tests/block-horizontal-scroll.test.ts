@@ -98,20 +98,34 @@ describe('block horizontal scroll identity', () => {
 
 	test('lets Live Preview handle horizontal touch pan inside blocks on mobile', () => {
 		const styles = read('packages/obsidian/src/styles.css');
+		const source = read('packages/obsidian/src/codemirror/BlockHorizontalScroll.ts');
 		const livePreviewRootRule = styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \{([\s\S]*?)\n\}/)?.[1] ?? '';
 		const livePreviewCodeLineRule =
 			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.cm-line\.shiki-live-preview-code-line \{([\s\S]*?)\n\}/)?.[1] ?? '';
+		const livePreviewCodeContentRule =
+			styles.match(
+				/\.markdown-source-view\.mod-cm6\.is-live-preview \.cm-line\.shiki-live-preview-code-line \.shiki-live-preview-code-content \{([\s\S]*?)\n\}/,
+			)?.[1] ?? '';
 		const livePreviewScrollerRule = styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.cm-scroller \{([\s\S]*?)\n\}/)?.[1] ?? '';
 		const livePreviewContentRule = styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.cm-content \{([\s\S]*?)\n\}/)?.[1] ?? '';
+		const livePreviewLineNumberRule =
+			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.shiki-live-preview-line-number \{([\s\S]*?)\n\}/)?.[1] ?? '';
 
 		expect(livePreviewRootRule).toContain('touch-action: pan-y');
 		expect(livePreviewCodeLineRule).toContain('touch-action: pan-y');
+		expect(livePreviewCodeContentRule).toContain('touch-action: pan-y');
 		expect(livePreviewScrollerRule).toContain('touch-action: pan-y');
 		expect(livePreviewContentRule).toContain('touch-action: pan-y');
+		expect(livePreviewLineNumberRule).toContain('touch-action: pan-y');
 		expect(livePreviewRootRule).not.toContain('touch-action: pan-x pan-y');
 		expect(livePreviewCodeLineRule).not.toContain('touch-action: pan-x pan-y');
+		expect(livePreviewCodeContentRule).not.toContain('touch-action: pan-x pan-y');
 		expect(livePreviewScrollerRule).not.toContain('touch-action: pan-x pan-y');
 		expect(livePreviewContentRule).not.toContain('touch-action: pan-x pan-y');
+		expect(livePreviewLineNumberRule).not.toContain('touch-action: pan-x pan-y');
+		expect(source).toContain('private readonly onPointerDown = (event: PointerEvent): void => {');
+		expect(source).toContain('private readonly onTouchStart = (event: TouchEvent): void => {');
+		expect(source).toContain('event.preventDefault();');
 	});
 
 	test('keeps raw Source mode out of rendered block scroll chrome', () => {
