@@ -62,10 +62,9 @@ This is an Obsidian plugin. Do not claim UI or runtime bugs are fixed from unit 
 ### Architecture
 - `packages/obsidian/src/main.ts` owns plugin lifecycle, registration, settings, and reload orchestration.
 - `packages/obsidian/src/codemirror/Cm6_ViewPlugin.ts` owns CodeMirror extension wiring and decoration refresh.
-- `packages/obsidian/src/modes/LivePreviewAdapter.ts` owns Live Preview code block discovery, Monaco widget mounting, raw-row hiding, surface syncing, and cleanup.
-- `packages/obsidian/src/modes/SourceModeAdapter.ts` owns source-mode token decorations only. It must not create Monaco editors.
+- `packages/obsidian/src/modes/LivePreviewAdapter.ts` owns Live Preview code block discovery, Shiki-rendered block mounting, raw-row preservation, surface syncing, and cleanup.
+- `packages/obsidian/src/modes/SourceModeAdapter.ts` owns source-mode token decorations only. It must not create rendered block chrome or editor replacements.
 - `packages/obsidian/src/modes/ReadingViewAdapter.ts` owns reading-mode rendering.
-- `packages/obsidian/src/monaco/MonacoCodeBlockSurface.ts` is the only place that may create Monaco editors.
 - `packages/obsidian/src/codeblocks/*` owns parsing, block identity, and block models.
 
 ### Required Verification Ladder
@@ -88,7 +87,7 @@ For built artifact and temporary-vault install checks:
 rtk bun run test:integration
 ```
 
-For architecture, source/live-preview, Monaco, or startup changes:
+For architecture, source/live-preview, rendering, or startup changes:
 
 ```bash
 rtk bun test tests/architecture-boundaries.test.ts

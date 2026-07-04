@@ -1,4 +1,4 @@
-# Shiki Highlighter
+# Advanced Code Block
 
 This plugin integrates [shiki](https://shiki.style/) via [Expressive Code](https://expressive-code.com/) into Obsidian, providing better syntax highlighting for over 100 languages.
 
@@ -103,14 +103,14 @@ When the language is set to `diff`, the plugin will automatically enable diff hi
 
 1. Open `Settings -> Community Plugins` in your vault
 2. Click on the `Browse` button in the `Community plugins` section
-3. Search for `Shiki Highlighter`
-4. Select `Shiki Highlighter` and click first `Install`, then `Enable`
+3. Search for `Advanced Code Block`
+4. Select `Advanced Code Block` and click first `Install`, then `Enable`
 
 ### BRAT
 
 1. Install and enable the `BRAT` plugin
 2. Run the `BRAT: Plugins: Add a beta plugin for testing` command
-3. Enter `https://github.com/mProjectsCode/obsidian-shiki-plugin` into the text field
+3. Enter `https://github.com/rudironsoni/obsidian-shiki-plugin` into the text field
 4. Click on `Add Pluign`
 
 ## Credits

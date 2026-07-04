@@ -10,9 +10,9 @@ Execute the following based on target:
 **desktop**:
 
 1. Run `bun run bench:startup` and capture output
-2. Use obsidian-cli MCP: `plugin:reload id=shiki-highlighter`
+2. Use obsidian-cli MCP: `plugin:reload id=advanced-code-block`
 3. Check `dev:errors`
-4. Verify settings tab: `eval code="app.setting.open(); app.setting.openTabById('shiki-highlighter')"`
+4. Verify settings tab: `eval code="app.setting.open(); app.setting.openTabById('advanced-code-block')"`
 5. Verify reading mode: `dev:dom selector="div.expressive-code" text`
 6. Verify live preview: `dev:dom selector=".cm-content [style*='color'], .cm-content [class*='shiki']" text`
 7. Report desktop results
@@ -21,7 +21,7 @@ Execute the following based on target:
 
 1. Run `bun run bench:startup:mobile` and capture output
 2. Use obsidian-cli MCP: `eval code="app.emulateMobile(true)"`
-3. `plugin:reload id=shiki-highlighter`
+3. `plugin:reload id=advanced-code-block`
 4. Check `dev:errors`
 5. Verify mobile settings tab
 6. Verify mobile reading mode

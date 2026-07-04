@@ -12,9 +12,9 @@ metadata:
     version: '1.1'
 ---
 
-# Shiki Plugin Acceptance Test
+# Advanced Code Block Acceptance Test
 
-Use this skill for release-level verification of `shiki-highlighter`. Keep the bar high: startup under 50 ms, Shiki highlighting working in reading mode and live preview, settings tab available, desktop and mobile paths covered.
+Use this skill for release-level verification of `advanced-code-block`. Keep the bar high: startup under 50 ms, Shiki highlighting working in reading mode and live preview, settings tab available, desktop and mobile paths covered.
 
 ## Guardrails
 
@@ -49,7 +49,7 @@ Judge Pass 1 as failed if formatting, build, lint, tests, or startup benches fai
 
 ## Pass 2: Runtime Gate
 
-Use the WDIO BDD harness because it creates an isolated vault and checks both desktop and `app.emulateMobile(true)` paths:
+Use the WDIO BDD harness because it creates isolated vaults and checks both desktop and service-booted mobile-emulated paths:
 
 ```bash
 rtk bun run test:bdd
@@ -64,11 +64,11 @@ rtk bun run test:bdd:scroll
 The runtime gate must verify:
 
 - Plugin loads without visible runtime errors.
-- `app.plugins.plugins['shiki-highlighter']` exists in the WDIO Obsidian session.
-- Settings tab for `shiki-highlighter` can be opened.
+- `app.plugins.plugins['advanced-code-block']` exists in the WDIO Obsidian session.
+- Settings tab for `advanced-code-block` can be opened.
 - Reading mode renders one Shiki/Expressive Code block per fenced block, with no duplicate original block.
 - Live preview applies Shiki token styling to fenced code and inline `{lang} code` without scrambling positions.
-- `app.emulateMobile(true)` path works and then returns to normal mode.
+- `@mobile` scenarios run through `wdio.mobile.conf.mts` and assert `app.isMobile === true`.
 - Horizontal scroll moves the whole Live Preview code block and preserves native and internal line numbers.
 
 ## Pass 3: Obsidian CLI Visual Pass
@@ -77,9 +77,9 @@ Use this when screenshots or manual visual evidence are needed. First use the `o
 
 ```bash
 rtk obsidian eval code="app.vault.getName()"
-rtk obsidian plugin:reload id=shiki-highlighter
+rtk obsidian plugin:reload id=advanced-code-block
 rtk obsidian dev:errors
-rtk obsidian eval code="app.setting.open(); app.setting.openTabById('shiki-highlighter')"
+rtk obsidian eval code="app.setting.open(); app.setting.openTabById('advanced-code-block')"
 rtk obsidian dev:screenshot path=planning/test-reports/<run>/settings.png
 ```
 
@@ -87,7 +87,7 @@ For mobile emulation, prefer the official runtime API or CLI equivalent:
 
 ```bash
 rtk obsidian eval code="app.emulateMobile(true)"
-rtk obsidian plugin:reload id=shiki-highlighter
+rtk obsidian plugin:reload id=advanced-code-block
 rtk obsidian dev:screenshot path=planning/test-reports/<run>/mobile-live-preview.png
 rtk obsidian eval code="app.emulateMobile(false)"
 ```

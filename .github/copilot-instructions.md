@@ -62,10 +62,9 @@ This is an Obsidian plugin. Do not claim UI or runtime bugs are fixed from unit 
 ### Architecture
 - `packages/obsidian/src/main.ts` owns plugin lifecycle, registration, settings, and reload orchestration.
 - `packages/obsidian/src/codemirror/Cm6_ViewPlugin.ts` owns CodeMirror extension wiring and decoration refresh.
-- `packages/obsidian/src/modes/LivePreviewAdapter.ts` owns Live Preview code block discovery, Monaco widget mounting, raw-row hiding, surface syncing, and cleanup.
-- `packages/obsidian/src/modes/SourceModeAdapter.ts` owns source-mode token decorations only. It must not create Monaco editors.
+- `packages/obsidian/src/modes/LivePreviewAdapter.ts` owns Live Preview code block discovery, Shiki-rendered block mounting, raw-row preservation, surface syncing, and cleanup.
+- `packages/obsidian/src/modes/SourceModeAdapter.ts` owns source-mode token decorations only. It must not create rendered block chrome or editor replacements.
 - `packages/obsidian/src/modes/ReadingViewAdapter.ts` owns reading-mode rendering.
-- `packages/obsidian/src/monaco/MonacoCodeBlockSurface.ts` is the only place that may create Monaco editors.
 - `packages/obsidian/src/codeblocks/*` owns parsing, block identity, and block models.
 
 ### Required Verification Ladder
@@ -88,7 +87,7 @@ For built artifact and temporary-vault install checks:
 rtk bun run test:integration
 ```
 
-For architecture, source/live-preview, Monaco, or startup changes:
+For architecture, source/live-preview, rendering, or startup changes:
 
 ```bash
 rtk bun test tests/architecture-boundaries.test.ts
@@ -116,6 +115,7 @@ rtk bun run test:bdd
 - `bun run test:bdd:desktop` builds release artifacts and runs WebdriverIO Cucumber with `wdio-obsidian-service`, excluding `@mobile`.
 - `bun run test:bdd:mobile` builds release artifacts and runs only the `@mobile` WebdriverIO Cucumber scenarios with `wdio.mobile.conf.mts`, which launches Obsidian through `wdio-obsidian-service` with `emulateMobile: true`.
 - `bun run test:bdd:scroll` builds release artifacts, runs desktop horizontal-scroll scenarios with `wdio.conf.mts`, then runs mobile-emulated horizontal-scroll scenarios with `wdio.mobile.conf.mts`.
+- `bun run test:bdd:scroll:debug` runs the same horizontal-scroll verifier with `WDIO_OBSIDIAN_DEBUG_PAUSE_MS=30000`, pausing before scenario cleanup so the sandboxed WDIO Obsidian window remains visible for manual flicker and clipping inspection.
 - `bun run test:e2e` and `bun run test:e2e:mobile` are compatibility aliases for the desktop and mobile BDD commands.
 - `bun run ci` runs the non-GUI CI gate: formatting check, production build, lint, unit tests, artifact integration, startup benches, and temporary-vault integration.
 - Android or iOS real-device automation is not part of this harness. Mobile coverage here is desktop Obsidian mobile emulation only.
@@ -134,6 +134,7 @@ rtk bun run test:bdd
 - Runtime reports should go under `planning/test-reports/` or `tests/runtime-session/wdio-artifacts/`. Do not scatter screenshots or JSON summaries at the repo root.
 - WDIO and `wdio-obsidian-service` are the automated desktop and mobile-emulated E2E entrypoints.
 - Run mobile-tagged WDIO scenarios with `wdio.mobile.conf.mts`; do not run `@mobile` scenarios through `wdio.conf.mts`.
+- WDIO launches the sandboxed vault `tests/wdio-vault/basic`, not the user's normal Obsidian vault. Normal runs may close the window before it is noticed; use `bun run test:bdd:scroll:debug` or set `WDIO_OBSIDIAN_DEBUG_PAUSE_MS=<ms>` for visible debugging.
 - Do not spawn a second Obsidian instance.
 - If a runtime check is skipped, report it explicitly.
 
