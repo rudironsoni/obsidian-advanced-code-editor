@@ -33,6 +33,7 @@ type RuntimeApp = {
 		create(path: string, content: string): Promise<unknown>;
 		modify(file: unknown, content: string): Promise<void>;
 		read(file: unknown): Promise<string>;
+		setConfig?(key: string, value: unknown): Promise<void> | void;
 	};
 	workspace: {
 		activeLeaf?: RuntimeLeaf;
@@ -74,10 +75,15 @@ export type HorizontalScrollBlockState = {
 	scrollbarCount: number;
 	scrollOwnerCount: number;
 	rowScrollSurfaceCount: number;
+	rowScrollLeftMin: number;
 	rowScrollLeftMax: number;
+	rowScrollLeftValues: number[];
 	livePreviewContentCount: number;
 	livePreviewContentTranslateXValues: number[];
 	livePreviewContentTranslateXSpread: number;
+	hasShortLineContent: boolean;
+	shortLineRowScrollLeft: number | null;
+	shortLineContentTranslateX: number | null;
 	visibleScrollbarCount: number;
 	disabledScrollbarCount: number;
 	scrollLeft: number;
@@ -115,6 +121,7 @@ export type HorizontalScrollPerformanceMetrics = {
 	maxDispatchMs: number;
 	maxFrameGapMs: number;
 	finalScrollLeft: number;
+	rowScrollLeftMin: number;
 	rowScrollLeftMax: number;
 	noteScrollLeft: number;
 	documentScrollLeft: number;
@@ -186,6 +193,7 @@ class HorizontalScrollPage {
 			plugin.settings.inlineHighlighting = true;
 			plugin.settings.preferThemeColors = true;
 			plugin.loadedSettings = structuredClone(plugin.settings);
+			await runtimeApp.vault.setConfig?.('showLineNumber', true);
 			await plugin.saveData?.(plugin.settings);
 			await plugin.updateCm6Plugin?.();
 		}, input);
@@ -292,6 +300,7 @@ class HorizontalScrollPage {
 							root: rootElement,
 							body,
 							row: rows[0] ?? null,
+							rows,
 							scrollbar: scrollbars[0] ?? null,
 						};
 					})
@@ -299,12 +308,13 @@ class HorizontalScrollPage {
 					root: HTMLElement;
 					body: HTMLElement | null;
 					row: HTMLElement | null;
+					rows: HTMLElement[];
 					scrollbar: HTMLElement | null;
 				}>;
 				const block = blocks[input.blockIndex];
 				if (!block) throw new Error(`Code block ${input.blockIndex + 1} was not found`);
 
-				const target = block.scrollbar ?? block.row ?? block.body;
+				const target = input.mode === 'live-preview' ? (block.row ?? block.scrollbar ?? block.body) : (block.scrollbar ?? block.row ?? block.body);
 				if (!target) throw new Error(`Code block ${input.blockIndex + 1} has no horizontal scroll target`);
 
 				const rect = target.getBoundingClientRect();
@@ -336,6 +346,12 @@ class HorizontalScrollPage {
 				const startX = clientX + Math.min(160, target.clientWidth / 2);
 				const endX = clientX - Math.min(160, target.clientWidth / 2);
 				const pointerId = 41;
+				const visualOffset = (): number => {
+					const content = block.rows[0]?.querySelector<HTMLElement>('.shiki-live-preview-code-content');
+					const transform = content ? getComputedStyle(content).transform : '';
+					if (!transform || transform === 'none') return 0;
+					return Math.max(0, -new DOMMatrixReadOnly(transform).m41);
+				};
 				target.dispatchEvent(
 					new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId, pointerType: 'touch', clientX: startX, clientY }),
 				);
@@ -344,6 +360,41 @@ class HorizontalScrollPage {
 				);
 				target.dispatchEvent(
 					new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId, pointerType: 'touch', clientX: endX, clientY }),
+				);
+				if (visualOffset() > 0) {
+					return;
+				}
+				if (typeof Touch === 'undefined' || typeof TouchEvent === 'undefined') {
+					throw new Error('TouchEvent is not available in this Obsidian renderer');
+				}
+				const startTouch = new Touch({ identifier: pointerId, target, clientX: startX, clientY });
+				const endTouch = new Touch({ identifier: pointerId, target, clientX: endX, clientY });
+				target.dispatchEvent(
+					new TouchEvent('touchstart', {
+						bubbles: true,
+						cancelable: true,
+						touches: [startTouch],
+						targetTouches: [startTouch],
+						changedTouches: [startTouch],
+					}),
+				);
+				target.dispatchEvent(
+					new TouchEvent('touchmove', {
+						bubbles: true,
+						cancelable: true,
+						touches: [endTouch],
+						targetTouches: [endTouch],
+						changedTouches: [endTouch],
+					}),
+				);
+				target.dispatchEvent(
+					new TouchEvent('touchend', {
+						bubbles: true,
+						cancelable: true,
+						touches: [],
+						targetTouches: [],
+						changedTouches: [endTouch],
+					}),
 				);
 			},
 			{ mode, blockIndex, gesture },
@@ -383,7 +434,7 @@ class HorizontalScrollPage {
 				const block = blocks[input.blockIndex];
 				if (!block) throw new Error(`Code block ${input.blockIndex + 1} was not found`);
 
-				const target = block.scrollbar ?? block.rows[0];
+				const target = input.mode === 'live-preview' ? (block.rows[0] ?? block.scrollbar) : (block.scrollbar ?? block.rows[0]);
 				if (!target) throw new Error(`Code block ${input.blockIndex + 1} has no horizontal scroll target`);
 				for (const row of block.rows) {
 					row.scrollLeft = 0;
@@ -431,6 +482,7 @@ class HorizontalScrollPage {
 					return matrix.m41;
 				});
 				const effectiveContentScrollLeft = Math.max(0, ...contentTranslateXValues.map(value => -value));
+				const rowScrollLeftValues = block.rows.map(row => row.scrollLeft);
 				const sortedDurations = [...dispatchDurations].sort((first, second) => first - second);
 				const p95Index = Math.max(0, Math.ceil(sortedDurations.length * 0.95) - 1);
 				return {
@@ -445,6 +497,7 @@ class HorizontalScrollPage {
 						...block.rows.map(row => row.scrollLeft),
 						effectiveContentScrollLeft,
 					),
+					rowScrollLeftMin: rowScrollLeftValues.length ? Math.min(...rowScrollLeftValues) : 0,
 					rowScrollLeftMax: Math.max(0, ...block.rows.map(row => row.scrollLeft)),
 					noteScrollLeft: noteScroller?.scrollLeft ?? 0,
 					documentScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
@@ -463,6 +516,7 @@ class HorizontalScrollPage {
 		await this.openFixture(notePath, 'reading');
 		await this.waitForHorizontalScrollReady('reading', 1, true);
 		await this.resetScrollPositions('reading');
+		await this.waitForHorizontalScrollReady('reading', 1, true);
 		const reading = await this.collectScrollState('reading', 'line-number-layout-reading');
 		await this.openFixture(notePath, 'live-preview');
 		await this.waitForHorizontalScrollReady('live-preview', 1, true);
@@ -589,6 +643,7 @@ class HorizontalScrollPage {
 
 				const blockStates = blocks.map((block, index): HorizontalScrollBlockState => {
 					const targets = block.targets;
+					const rowScrollLeftValues = block.rows.map(element => element.scrollLeft);
 					const rectProbe = block.code ?? block.row ?? block.body ?? block.scrollbar ?? block.root;
 					const beforeCodeLeft = block.code?.getBoundingClientRect().left ?? null;
 					const beforeGutterLeft = block.gutter?.getBoundingClientRect().left ?? null;
@@ -623,6 +678,11 @@ class HorizontalScrollPage {
 						const matrix = new DOMMatrixReadOnly(transform);
 						return matrix.m41;
 					});
+					const shortLineRow = block.rows.find(row => row.textContent?.includes('shortLineMustScrollWithBlock'));
+					const shortLineContent = shortLineRow?.querySelector<HTMLElement>('.shiki-live-preview-code-content');
+					const shortLineTransform = shortLineContent ? getComputedStyle(shortLineContent).transform : '';
+					const shortLineContentTranslateX =
+						!shortLineTransform || shortLineTransform === 'none' ? null : new DOMMatrixReadOnly(shortLineTransform).m41;
 					const contentTranslateXSpread = contentTranslateXValues.length
 						? Math.max(...contentTranslateXValues) - Math.min(...contentTranslateXValues)
 						: 0;
@@ -662,10 +722,15 @@ class HorizontalScrollPage {
 						scrollbarCount: block.scrollbars.length,
 						scrollOwnerCount: block.owners.length,
 						rowScrollSurfaceCount: block.rows.filter(element => element.scrollWidth > element.clientWidth).length,
+						rowScrollLeftMin: rowScrollLeftValues.length ? Math.min(...rowScrollLeftValues) : 0,
 						rowScrollLeftMax: Math.max(0, ...block.rows.map(element => element.scrollLeft)),
+						rowScrollLeftValues,
 						livePreviewContentCount: contentElements.length,
 						livePreviewContentTranslateXValues: contentTranslateXValues,
 						livePreviewContentTranslateXSpread: contentTranslateXSpread,
+						hasShortLineContent: shortLineContent !== undefined,
+						shortLineRowScrollLeft: shortLineRow?.scrollLeft ?? null,
+						shortLineContentTranslateX,
 						visibleScrollbarCount: block.scrollbars.filter(element => !element.hidden && getComputedStyle(element).display !== 'none').length,
 						disabledScrollbarCount: block.scrollbars.filter(element => element.dataset.shikiScrollDisabled === 'true').length,
 						scrollLeft: Math.max(0, ...targets.map(element => element.scrollLeft), effectiveContentScrollLeft),

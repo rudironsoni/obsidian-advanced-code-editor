@@ -99,7 +99,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			update(update: ViewUpdate): void {
 				if (update.docChanged || update.viewportChanged || update.geometryChanged) {
 					this.applyStoredScrolls();
-					this.scheduleMeasure();
+					this.rescheduleMeasure();
 				}
 			}
 
@@ -123,6 +123,15 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				for (const target of this.observedScrollTargets) {
 					target.removeEventListener('scroll', this.onScroll);
+					target.removeEventListener('wheel', this.onWheel, true);
+					target.removeEventListener('pointerdown', this.onPointerDown, true);
+					target.removeEventListener('pointermove', this.onPointerMove, true);
+					target.removeEventListener('pointerup', this.onPointerEnd, true);
+					target.removeEventListener('pointercancel', this.onPointerEnd, true);
+					target.removeEventListener('touchstart', this.onTouchStart, true);
+					target.removeEventListener('touchmove', this.onTouchMove, true);
+					target.removeEventListener('touchend', this.onTouchEnd, true);
+					target.removeEventListener('touchcancel', this.onTouchEnd, true);
 				}
 				this.observedScrollTargets.clear();
 			}
@@ -137,6 +146,9 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				const blockId = source.dataset.shikiBlockId;
 				if (!blockId || (!source.classList.contains(SHIKI_BLOCK_SCROLL_ROW_CLASS) && !source.classList.contains(SHIKI_BLOCK_SCROLLBAR_CLASS))) {
+					return;
+				}
+				if (source.classList.contains(SHIKI_BLOCK_SCROLL_ROW_CLASS)) {
 					return;
 				}
 				this.syncBlock(blockId, source.scrollLeft);
@@ -286,6 +298,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 
 			private applyBlockScroll(blockId: string, scrollLeft: number): void {
 				const cache = this.cacheForBlock(blockId);
+				this.updateRowScrollSpacers(cache);
 				for (const row of cache.rows) {
 					this.setScrollLeft(row, scrollLeft);
 				}
@@ -333,6 +346,14 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}, 0);
 			};
 
+			private rescheduleMeasure(): void {
+				if (this.measureTimer !== undefined) {
+					window.clearTimeout(this.measureTimer);
+					this.measureTimer = undefined;
+				}
+				this.scheduleMeasure();
+			}
+
 			private measureScrollbars(): void {
 				this.blockCacheById.clear();
 				for (const scrollbar of this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_BLOCK_SCROLLBAR_CLASS}[data-shiki-block-id]`)) {
@@ -364,20 +385,35 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				const escapedBlockId = CSS.escape(blockId);
 				const rows = [...this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_BLOCK_SCROLL_ROW_CLASS}[data-shiki-block-id="${escapedBlockId}"]`)];
 				const scrollbars = [...this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_BLOCK_SCROLLBAR_CLASS}[data-shiki-block-id="${escapedBlockId}"]`)];
-				const maxScrollWidth = Math.max(
-					0,
-					...rows.map(row =>
+				const naturalScrollWidths: number[] = [];
+				for (const row of rows) {
+					this.setStyleProperty(row, '--shiki-block-scroll-spacer-width', '0px');
+					this.setStyleProperty(row, '--shiki-block-scroll-width', 'auto');
+					naturalScrollWidths.push(
 						Math.max(
 							row.scrollWidth,
 							...Array.from(row.querySelectorAll<HTMLElement>('.shiki-live-preview-code-content')).map(element => element.scrollWidth),
 						),
-					),
-				);
+					);
+				}
+				const maxScrollWidth = Math.max(0, ...naturalScrollWidths);
 				const maxScrollLeft = Math.max(0, ...rows.map(row => Math.max(row.scrollWidth, maxScrollWidth) - row.clientWidth));
 				const disabled = scrollbars.some(scrollbar => scrollbar.dataset.shikiScrollDisabled === 'true');
 				const cache = { rows, scrollbars, maxScrollLeft, maxScrollWidth, disabled };
+				this.updateRowScrollSpacers(cache);
 				this.blockCacheById.set(blockId, cache);
 				return cache;
+			}
+
+			private updateRowScrollSpacers(cache: BlockScrollCache): void {
+				for (const row of cache.rows) {
+					const spacerWidth = cache.disabled ? 0 : cache.maxScrollWidth + row.clientWidth;
+					this.setStyleProperty(row, '--shiki-block-scroll-spacer-width', `${spacerWidth}px`);
+					this.setStyleProperty(row, '--shiki-block-scroll-width', cache.disabled ? 'auto' : `${cache.maxScrollWidth}px`);
+					if (cache.disabled) {
+						this.setScrollLeft(row, 0);
+					}
+				}
 			}
 
 			private setScrollLeft(target: HTMLElement, scrollLeft: number): void {
@@ -398,6 +434,15 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				this.observedScrollTargets.add(target);
 				target.addEventListener('scroll', this.onScroll);
+				target.addEventListener('wheel', this.onWheel, { capture: true, passive: false });
+				target.addEventListener('pointerdown', this.onPointerDown, true);
+				target.addEventListener('pointermove', this.onPointerMove, true);
+				target.addEventListener('pointerup', this.onPointerEnd, true);
+				target.addEventListener('pointercancel', this.onPointerEnd, true);
+				target.addEventListener('touchstart', this.onTouchStart, { capture: true, passive: false });
+				target.addEventListener('touchmove', this.onTouchMove, { capture: true, passive: false });
+				target.addEventListener('touchend', this.onTouchEnd, true);
+				target.addEventListener('touchcancel', this.onTouchEnd, true);
 			}
 
 			private scrollTargetFromEvent(target: EventTarget | null, clientX?: number, clientY?: number): { blockId: string; scrollLeft: number } | undefined {

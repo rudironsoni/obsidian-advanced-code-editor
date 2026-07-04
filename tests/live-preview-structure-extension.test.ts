@@ -1,6 +1,7 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { CodeBlockRegistry } from 'packages/obsidian/src/codeblocks/CodeBlockRegistry';
 import { createLivePreviewStructureExtension } from 'packages/obsidian/src/modes/LivePreviewStructureExtension';
 import './happydom';
@@ -61,5 +62,14 @@ describe('Live Preview structure extension', () => {
 		view.dispatch(view.state.update({}));
 		expect(createModelCalls).toBe(1);
 		view.destroy();
+	});
+
+	test('keeps Obsidian native note gutters visible', () => {
+		const livePreviewAdapter = readFileSync(new URL('../packages/obsidian/src/modes/LivePreviewAdapter.ts', import.meta.url), 'utf8');
+		const styles = readFileSync(new URL('../packages/obsidian/src/styles.css', import.meta.url), 'utf8');
+
+		expect(livePreviewAdapter).not.toContain('fencedBlockLineNumbers');
+		expect(livePreviewAdapter).not.toContain('gutter.classList.add(LivePreviewAdapter.HIDDEN_GUTTER_CLASS)');
+		expect(styles).not.toContain('.cm-lineNumbers .cm-gutterElement.shiki-gutter-line-hidden');
 	});
 });
