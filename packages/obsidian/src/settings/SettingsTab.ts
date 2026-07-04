@@ -32,7 +32,7 @@ export class ShikiSettingsTab extends PluginSettingTab {
 				});
 			});
 
-		new Setting(this.containerEl).setName('EC defaults').setHeading();
+		new Setting(this.containerEl).setName('Code block defaults').setHeading();
 
 		new Setting(this.containerEl)
 			.setName('Show line numbers')

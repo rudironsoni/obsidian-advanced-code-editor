@@ -37,7 +37,7 @@ on:
             - 'style-*'
 
 env:
-    PLUGIN_NAME: shiki-highlighter
+    PLUGIN_NAME: advanced-code-block
 
 jobs:
     build:
@@ -66,6 +66,14 @@ jobs:
                   node <<'NODE'
                   const { execSync } = require("node:child_process");
 
+                  const packageJson = require("./package.json");
+                  const baseMatch = String(packageJson.version).match(/^(\d+)\.(\d+)\.(\d+)/);
+                  if (!baseMatch) {
+                    throw new Error(`Package version is not SemVer: ${packageJson.version}`);
+                  }
+                  const [, baseMajor, baseMinor, basePatch] = baseMatch;
+                  const baseVersion = `${baseMajor}.${baseMinor}.${basePatch}`;
+
                   const tags = execSync("git tag --list", { encoding: "utf8" })
                     .split(/\r?\n/)
                     .map((tag) => tag.trim())
@@ -85,20 +93,15 @@ jobs:
                       };
                     })
                     .filter(Boolean)
+                    .filter((tag) => tag.major === Number(baseMajor) && tag.minor === Number(baseMinor) && tag.patch === Number(basePatch))
                     .sort((a, b) => {
-                      for (const key of ["major", "minor", "patch", "beta"]) {
-                        if (a[key] !== b[key]) return b[key] - a[key];
-                      }
-                      return 0;
+                      return b.beta - a.beta;
                     });
 
-                  if (betaTags.length === 0) {
-                    throw new Error("No existing beta tags found. Create the first beta tag manually.");
-                  }
-
-                  const latest = betaTags[0];
-                  const next = `${latest.major}.${latest.minor}.${latest.patch}-beta.${latest.beta + 1}`;
-                  console.log(`Latest beta tag: ${latest.tag}`);
+                  const latest = betaTags[0] ?? null;
+                  const next = `${baseVersion}-beta.${latest ? latest.beta + 1 : 1}`;
+                  console.log(`Base version: ${baseVersion}`);
+                  console.log(`Latest beta tag: ${latest?.tag ?? "(none)"}`);
                   console.log(`Next beta tag: ${next}`);
                   require("node:fs").appendFileSync(process.env.GITHUB_OUTPUT, `new_tag=${next}\n`);
                   NODE
@@ -121,18 +124,6 @@ jobs:
                   versions[version] = manifest.minAppVersion;
                   fs.writeFileSync("versions.json", `${JSON.stringify(versions, null, "\t")}\n`);
                   '
-
-            - name: Commit beta version for BRAT
-              run: |
-                  if git diff --quiet -- package.json manifest.json manifest-beta.json versions.json; then
-                    echo "Beta metadata already committed."
-                  else
-                    git config user.name "github-actions[bot]"
-                    git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-                    git add package.json manifest.json manifest-beta.json versions.json
-                    git commit -m "chore: publish ${{ steps.beta-version.outputs.new_tag }} metadata [skip ci]"
-                    git push origin HEAD:${{ github.ref_name }}
-                  fi
 
             - name: Build
               id: build

@@ -23,7 +23,7 @@ let lastExactEdit: ExactEditResult | undefined;
 let lastHorizontalScrollPerformance: HorizontalScrollPerformanceResult | undefined;
 let lastHorizontalScrollLineNumberLayout: HorizontalScrollLineNumberLayoutComparison | undefined;
 
-Given('the built Shiki plugin is enabled in the fixture vault', async () => {
+Given('the built Advanced Code Block plugin is enabled in the fixture vault', async () => {
 	await obsidianApp.waitForPluginLoaded();
 });
 
@@ -42,7 +42,7 @@ When('Obsidian renders the active note', async () => {
 	await obsidianApp.waitForReadingRender(lastExpectedRenderText);
 });
 
-Then('the Shiki plugin should be loaded from the built payload', async () => {
+Then('the Advanced Code Block plugin should be loaded from the built payload', async () => {
 	const state = await obsidianApp.waitForPluginLoaded();
 
 	assert.equal(state.loaded, true);
@@ -94,7 +94,7 @@ Given('the fixture note {string} is open in raw Source mode for horizontal scrol
 	activeHorizontalScrollMode = 'source';
 	activeHorizontalScrollNotePath = notePath;
 	await horizontalScrollPage.openFixture(notePath, activeHorizontalScrollMode);
-	lastHorizontalScrollState = await horizontalScrollPage.waitForHorizontalScrollReady(activeHorizontalScrollMode, 1, true);
+	lastHorizontalScrollState = await horizontalScrollPage.waitForRawSourceReady(notePath);
 });
 
 When('I scroll the first code block horizontally with its block scrollbar', async () => {
@@ -139,6 +139,13 @@ When('I edit the visible horizontal scroll marker', async () => {
 	writeJsonArtifact('horizontal-scroll-exact-edit', { edit: lastExactEdit, scroll: lastHorizontalScrollState });
 });
 
+When('I edit the raw Source mode horizontal scroll marker', async () => {
+	assert.equal(activeHorizontalScrollMode, 'source', 'expected raw Source mode before editing source marker');
+	lastExactEdit = await horizontalScrollPage.editMarkerAfterScroll();
+	lastHorizontalScrollState = await horizontalScrollPage.collectScrollState(activeHorizontalScrollMode, 'after-source-edit');
+	writeJsonArtifact('horizontal-scroll-source-exact-edit', { edit: lastExactEdit, scroll: lastHorizontalScrollState });
+});
+
 When('I repeatedly scroll the first code block horizontally with wheel gestures', async () => {
 	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
 	lastHorizontalScrollPerformance = await horizontalScrollPage.measureRepeatedWheelScroll(activeHorizontalScrollMode, 0);
@@ -170,6 +177,18 @@ Then('the active note should keep horizontal scroll inside the first code block'
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(state)}`);
 });
 
+Then('the Live Preview code text should remain visible inside the code block', async () => {
+	const state = await currentHorizontalScrollState('assert-code-visible');
+	const first = state.blocks[0];
+	assert.ok(first, 'expected a first code block');
+	assert.equal(state.mode, 'live-preview', `expected Live Preview mode: ${JSON.stringify(state)}`);
+	assert.ok(first.maxScrollLeft > 0, `expected overflowing Live Preview block content: ${JSON.stringify(state)}`);
+	assert.ok(first.visibleScrollbarCount >= 1, `expected visible Live Preview block scrollbar: ${JSON.stringify(state)}`);
+	assertLivePreviewCodeTextVisible(state, first);
+	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(state)}`);
+	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(state)}`);
+});
+
 Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	assert.ok(lastHorizontalScrollPerformance, 'expected Live Preview horizontal scroll performance result');
 	const { metrics, state } = lastHorizontalScrollPerformance;
@@ -179,6 +198,8 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	assert.ok(metrics.eventCount >= 55, `expected at least 55 measured wheel events: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(metrics.p95DispatchMs <= 12, `expected p95 wheel dispatch under 12ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(metrics.maxDispatchMs <= 50, `expected max wheel dispatch under 50ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.equal(metrics.backtrackCount, 0, `expected horizontal scroll not to jump backward: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.equal(metrics.maxBacktrackPx, 0, `expected no horizontal scroll backtrack distance: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(first.scrollLeft > 0, `expected first block to scroll horizontally: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
@@ -226,6 +247,23 @@ Then('raw Source mode should keep Markdown fences editable', async () => {
 	assert.equal(state.monacoEditorCount, 0, `expected Source mode not to mount Monaco: ${JSON.stringify(state)}`);
 });
 
+Then('raw Source mode should stay native without rendered block chrome', async () => {
+	const state = await currentHorizontalScrollState('assert-raw-source-native');
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `horizontal-scroll-source-raw-native-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+	assert.equal(activeHorizontalScrollMode, 'source');
+	assert.equal(state.rawFenceVisible, true, `expected raw Markdown fences to remain visible: ${JSON.stringify(state)}`);
+	assert.equal(state.monacoEditorCount, 0, `expected Source mode not to mount Monaco: ${JSON.stringify(state)}`);
+	assert.ok(state.sourceNativeGutterCount > 0, `expected native Obsidian editor line numbers to remain visible: ${JSON.stringify(state)}`);
+	assert.equal(state.sourceRenderedBlockChromeCount, 0, `expected Source mode not to render block header/copy/fence chrome: ${JSON.stringify(state)}`);
+	assert.equal(state.sourceInternalLineNumberCount, 0, `expected Source mode not to render internal block line numbers: ${JSON.stringify(state)}`);
+	assert.equal(state.sourceBlockScrollRowCount, 0, `expected Source mode rows not to use rendered block scroll classes: ${JSON.stringify(state)}`);
+	assert.equal(state.sourceBlockScrollbarCount, 0, `expected Source mode not to render a block scrollbar widget: ${JSON.stringify(state)}`);
+	assert.equal(state.blockCount, 0, `expected Source mode not to expose plugin-owned rendered blocks: ${JSON.stringify(state)}`);
+	assert.equal(state.noteScrollLeft, 0, `expected Source editor scrollLeft to remain 0 at rest: ${JSON.stringify(state)}`);
+	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0 at rest: ${JSON.stringify(state)}`);
+});
+
 Then('the exact edit should be written at the horizontal scroll marker', async () => {
 	assert.ok(lastExactEdit, 'expected exact edit result');
 	assert.equal(lastExactEdit.fileContainsEdit, true, `expected edit immediately after marker: ${JSON.stringify(lastExactEdit)}`);
@@ -234,7 +272,9 @@ Then('the exact edit should be written at the horizontal scroll marker', async (
 		`expected edited line to contain marker edit: ${JSON.stringify(lastExactEdit)}`,
 	);
 	const state = await currentHorizontalScrollState('assert-exact-edit-scroll');
-	assert.ok(state.blocks[0]?.scrollLeft > 0, `expected scroll to survive exact edit: ${JSON.stringify(state)}`);
+	if (state.mode !== 'source') {
+		assert.ok(state.blocks[0]?.scrollLeft > 0, `expected scroll to survive exact edit: ${JSON.stringify(state)}`);
+	}
 });
 
 Then('the first and second code blocks should keep independent horizontal scroll positions', async () => {
@@ -290,6 +330,7 @@ function assertLivePreviewBlockUsesSharedRowScroll(state: HorizontalScrollState,
 	assert.ok(block.visibleCodeContentCount > 0, `expected Live Preview code content to keep a visible clipped rect: ${JSON.stringify(state)}`);
 	assert.ok(block.hitTestableCodeContentCount > 0, `expected Live Preview code content to remain hit-testable after scroll: ${JSON.stringify(state)}`);
 	assert.ok(block.visibleCodeGlyphCount > 0, `expected Live Preview code glyphs to remain visible after scroll: ${JSON.stringify(state)}`);
+	assert.equal(block.overflowingCodeGlyphCount, 0, `expected Live Preview code glyphs not to escape the block clip rect: ${JSON.stringify(state)}`);
 	assert.equal(block.transparentCodeContentCount, 0, `expected Live Preview code content not to become transparent after scroll: ${JSON.stringify(state)}`);
 	assert.equal(block.gutterMasksScrolledContent, true, `expected Live Preview gutter to mask scrolled code content: ${JSON.stringify(state)}`);
 	if (block.hasShortLineContent) {
@@ -297,6 +338,29 @@ function assertLivePreviewBlockUsesSharedRowScroll(state: HorizontalScrollState,
 		assert.ok(
 			Math.abs((block.shortLineRowScrollLeft ?? 0) - block.scrollLeft) <= 1,
 			`expected short Live Preview row to move with the whole block: ${JSON.stringify(state)}`,
+		);
+	}
+}
+
+function assertLivePreviewCodeTextVisible(state: HorizontalScrollState, block: HorizontalScrollState['blocks'][number]): void {
+	assert.ok(block.rowScrollSurfaceCount > 0, `expected Live Preview block to expose horizontal scroll surfaces: ${JSON.stringify(state)}`);
+	assert.ok(
+		Math.abs(block.rowScrollLeftMin - block.rowScrollLeftMax) <= 1,
+		`expected Live Preview rows not to keep independent native scroll offsets: ${JSON.stringify(state)}`,
+	);
+	assert.ok(block.livePreviewContentCount > 0, `expected Live Preview code content marks to be measurable: ${JSON.stringify(state)}`);
+	assert.ok(block.livePreviewContentTranslateXSpread <= 1, `expected Live Preview code content to share one visual offset: ${JSON.stringify(state)}`);
+	assert.ok(block.visibleCodeContentCount > 0, `expected Live Preview code content to keep a visible clipped rect: ${JSON.stringify(state)}`);
+	assert.ok(block.hitTestableCodeContentCount > 0, `expected Live Preview code content to remain hit-testable: ${JSON.stringify(state)}`);
+	assert.ok(block.visibleCodeGlyphCount > 0, `expected Live Preview code glyphs to remain visible: ${JSON.stringify(state)}`);
+	assert.equal(block.overflowingCodeGlyphCount, 0, `expected Live Preview code glyphs not to escape the block clip rect: ${JSON.stringify(state)}`);
+	assert.equal(block.transparentCodeContentCount, 0, `expected Live Preview code content not to become transparent: ${JSON.stringify(state)}`);
+	assert.equal(block.gutterMasksScrolledContent, true, `expected Live Preview gutter to mask scrolled code content: ${JSON.stringify(state)}`);
+	if (block.hasShortLineContent) {
+		assert.notEqual(block.shortLineRowScrollLeft, null, `expected short Live Preview row to expose block scroll: ${JSON.stringify(state)}`);
+		assert.ok(
+			Math.abs((block.shortLineRowScrollLeft ?? 0) - block.rowScrollLeftMax) <= 1,
+			`expected short Live Preview row not to drift from the block rows: ${JSON.stringify(state)}`,
 		);
 	}
 }

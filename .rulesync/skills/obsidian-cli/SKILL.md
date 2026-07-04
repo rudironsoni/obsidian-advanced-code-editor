@@ -1,7 +1,7 @@
 ---
 name: obsidian-cli
 description: >-
-  Use the Obsidian CLI to inspect a running shiki-highlighter Obsidian plugin
+  Use the Obsidian CLI to inspect a running advanced-code-block Obsidian plugin
   session during development. Covers plugin reloads, console/errors, runtime
   evaluation, settings tab checks, reading-mode and live-preview syntax
   highlighting, screenshots, and mobile emulation with app.emulateMobile(true).
@@ -13,19 +13,19 @@ opencode:
     author: obsidian-shiki-plugin
     version: '1.2'
 ---
-# Obsidian CLI For Shiki Highlighter
+# Obsidian CLI For Advanced Code Block
 
-Use this skill to inspect a running Obsidian instance while developing `shiki-highlighter`.
+Use this skill to inspect a running Obsidian instance while developing `advanced-code-block`.
 Prefix shell commands with `rtk` in this repo.
 
 ## Essentials
 
 ```bash
-rtk obsidian plugin:reload id=shiki-highlighter
+rtk obsidian plugin:reload id=advanced-code-block
 rtk obsidian dev:errors
 rtk obsidian dev:console level=error
-rtk obsidian commands filter=shiki-highlighter
-rtk obsidian command id=shiki-highlighter:reload-highlighter
+rtk obsidian commands filter=advanced-code-block
+rtk obsidian command id=advanced-code-block:reload-highlighter
 ```
 
 `plugin:reload` can return success even when plugin load threw. Always follow with `dev:errors` or `dev:console level=error`.
@@ -33,16 +33,16 @@ rtk obsidian command id=shiki-highlighter:reload-highlighter
 ## Runtime State
 
 ```bash
-rtk obsidian eval code="app.plugins.plugins['shiki-highlighter'] !== undefined"
-rtk obsidian eval code="JSON.stringify(app.plugins.plugins['shiki-highlighter'].settings, null, 2)"
-rtk obsidian eval code="app.plugins.plugins['shiki-highlighter'].highlighter !== undefined"
+rtk obsidian eval code="app.plugins.plugins['advanced-code-block'] !== undefined"
+rtk obsidian eval code="JSON.stringify(app.plugins.plugins['advanced-code-block'].settings, null, 2)"
+rtk obsidian eval code="app.plugins.plugins['advanced-code-block'].highlighter !== undefined"
 rtk obsidian eval code="app.vault.getName()"
 ```
 
 Open settings:
 
 ```bash
-rtk obsidian eval code="app.setting.open(); app.setting.openTabById('shiki-highlighter')"
+rtk obsidian eval code="app.setting.open(); app.setting.openTabById('advanced-code-block')"
 rtk obsidian dev:screenshot path=planning/test-reports/settings.png
 ```
 
@@ -79,7 +79,7 @@ Use the official Obsidian runtime API when possible. This executes mobile-guarde
 
 ```bash
 rtk obsidian eval code="app.emulateMobile(true)"
-rtk obsidian plugin:reload id=shiki-highlighter
+rtk obsidian plugin:reload id=advanced-code-block
 rtk obsidian dev:screenshot path=planning/test-reports/mobile.png
 rtk obsidian eval code="app.emulateMobile(false)"
 ```
@@ -88,7 +88,7 @@ If using CLI support, pass an explicit state and never rely on toggle behavior:
 
 ```bash
 rtk obsidian dev:mobile on
-rtk obsidian plugin:reload id=shiki-highlighter
+rtk obsidian plugin:reload id=advanced-code-block
 rtk obsidian dev:mobile off
 ```
 

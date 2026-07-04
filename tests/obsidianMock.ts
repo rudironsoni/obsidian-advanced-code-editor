@@ -16,7 +16,7 @@ mock.module('obsidian', () => ({
 		hooks: { add: () => {} },
 	}),
 	Plugin: class {
-		manifest = { id: 'shiki-highlighter', name: 'Shiki Highlighter', version: '0.0.0', dir: '.obsidian/plugins/shiki-highlighter' };
+		manifest = { id: 'advanced-code-block', name: 'Advanced Code Block', version: '0.0.0', dir: '.obsidian/plugins/advanced-code-block' };
 		app = {
 			isDarkMode: () => true,
 			vault: {

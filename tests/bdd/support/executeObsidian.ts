@@ -1,5 +1,6 @@
 import { browser } from '@wdio/globals';
 import type * as Obsidian from 'obsidian';
+import { isWebDriverSessionGoneError } from './wdioSession.js';
 
 type ExecuteObsidianArg = {
 	app: Obsidian.App;
@@ -16,14 +17,39 @@ type BrowserWithExecuteObsidian = typeof browser & {
 };
 
 export async function waitForObsidianServiceHelper(): Promise<void> {
-	await browser.waitUntil(
-		async () =>
-			browser.execute(() => {
-				const runtimeWindow = window as unknown as { wdioObsidianService?: unknown };
-				return typeof runtimeWindow.wdioObsidianService === 'function';
-			}),
-		{ timeout: 30000, interval: 100, timeoutMsg: 'WDIO Obsidian service helper was not available' },
-	);
+	const deadline = Date.now() + 30000;
+	let lastError: unknown;
+	while (Date.now() < deadline) {
+		try {
+			if (await isObsidianServiceHelperAvailable({ failOnGoneSession: true })) {
+				return;
+			}
+		} catch (error) {
+			if (isWebDriverSessionGoneError(error)) {
+				throw error;
+			}
+			lastError = error;
+		}
+		await browser.pause(100);
+	}
+	throw new Error('WDIO Obsidian service helper was not available', { cause: lastError });
+}
+
+export async function isObsidianServiceHelperAvailable(options: { failOnGoneSession?: boolean } = {}): Promise<boolean> {
+	try {
+		return await browser.execute(() => {
+			const runtimeWindow = window as unknown as { wdioObsidianService?: unknown };
+			return typeof runtimeWindow.wdioObsidianService === 'function';
+		});
+	} catch (error) {
+		if (isWebDriverSessionGoneError(error)) {
+			if (options.failOnGoneSession) {
+				throw error;
+			}
+			return false;
+		}
+		throw error;
+	}
 }
 
 export async function executeObsidian<Return, Params extends unknown[]>(

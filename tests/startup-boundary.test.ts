@@ -23,6 +23,18 @@ describe('startup module boundary', () => {
 		expect(source).toContain('saveSettingsAndReloadHighlighter');
 	});
 
+	test('settings tab uses renamed code block defaults', () => {
+		const settingsTab = read('packages/obsidian/src/settings/SettingsTab.ts');
+		const settings = read('packages/obsidian/src/settings/Settings.ts');
+
+		expect(settingsTab).toContain("setName('Code block defaults')");
+		expect(settingsTab).not.toContain('EC defaults');
+		expect(settings).toContain('showLineNumbers: boolean');
+		expect(settings).toContain('wrapLines: boolean');
+		expect(settings).not.toContain('ecDefaultShowLineNumbers');
+		expect(settings).not.toContain('ecDefaultWrap');
+	});
+
 	test('default settings do not import theme mapper', () => {
 		const source = read('packages/obsidian/src/settings/Settings.ts');
 
@@ -53,6 +65,16 @@ describe('startup module boundary', () => {
 		expect(cm6Plugin).toContain('Calls to EditorView.update are not allowed while an update is in progress');
 		expect(livePreview).not.toContain('view.dispatch(this.view.state.update({}))');
 		expect(sourceMode).not.toContain('view.dispatch(this.view.state.update({}))');
+	});
+
+	test('selection-only updates do not rebuild code block decorations', () => {
+		const cm6Plugin = read('packages/obsidian/src/codemirror/Cm6_ViewPlugin.ts');
+		const livePreview = read('packages/obsidian/src/modes/LivePreviewAdapter.ts');
+		const sourceMode = read('packages/obsidian/src/modes/SourceModeAdapter.ts');
+
+		expect(cm6Plugin).not.toContain('update.docChanged || update.viewportChanged || update.selectionSet');
+		expect(livePreview).not.toContain('!update.docChanged && !update.viewportChanged && !update.selectionSet');
+		expect(sourceMode).not.toContain('update.docChanged || update.viewportChanged || update.selectionSet');
 	});
 
 	test('live preview adapter owns a single widget overlay per editor view', () => {
@@ -134,7 +156,7 @@ describe('startup module boundary', () => {
 		expect(structure).toContain('ShikiLivePreviewLineNumberWidget');
 		expect(structure).not.toContain('isBlockSelected');
 		expect(structure).not.toContain('shiki-note-line-numbers');
-		expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged && !update.selectionSet)');
+		expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged)');
 		expect(livePreview).toContain('retokenizeBlocks');
 		expect(livePreview).toContain('this.plugin.highlighter.getTokenStyle(token)');
 		expect(livePreview).not.toContain('shiki-editing-codeblock-active-line');
@@ -214,8 +236,8 @@ test('styles contain Shiki block styles and no Monaco styles', () => {
 	expect(styles).toContain('.shiki-reading-block');
 	expect(styles).toContain('.shiki-block-header');
 	expect(styles).toContain('.shiki-block-body');
-	expect(styles).toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-scroller');
-	expect(styles).toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line');
+	expect(styles).not.toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-scroller');
+	expect(styles).not.toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line');
 	expect(styles).not.toContain('--shiki-editing-scroll-left');
 	expect(styles).not.toContain('--shiki-live-preview-scroll-left');
 	expect(styles).not.toContain('.shiki-live-preview-horizontal-scroll');
@@ -234,4 +256,20 @@ test('styles contain Shiki block styles and no Monaco styles', () => {
 	expect(styles).not.toContain('.shiki-monaco-editor');
 	expect(styles).not.toContain('.shiki-monaco-live-widget');
 	expect(styles).not.toContain('.shiki-monaco-codeblock');
+});
+
+test('WDIO mobile harness uses Obsidian emulation instead of browser protocol emulation', () => {
+	const appPage = read('tests/bdd/pages/ObsidianApp.page.ts');
+	const mobileConfig = read('wdio.mobile.conf.mts');
+	const executeObsidian = read('tests/bdd/support/executeObsidian.ts');
+
+	expect(appPage).toContain('app?.isMobile === true');
+	expect(appPage).not.toContain('browser.setWindowSize');
+	expect(appPage).not.toContain('browser.sendCommand');
+	expect(appPage).not.toContain('Emulation.setDeviceMetricsOverride');
+	expect(mobileConfig).toContain('emulateMobile: true');
+	expect(mobileConfig).not.toContain('goog:chromeOptions');
+	expect(mobileConfig).not.toContain('mobileEmulation');
+	expect(executeObsidian).toContain('failOnGoneSession: true');
+	expect(executeObsidian).not.toContain('browser.waitUntil(');
 });

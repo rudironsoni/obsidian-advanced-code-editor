@@ -5,7 +5,7 @@ turbo: true
 ---
 # Workflow: /verify-release
 
-Run complete release verification pipeline for `shiki-highlighter`.
+Run complete release verification pipeline for `advanced-code-block`.
 
 ## Phase 1: Local Gate
 
@@ -38,8 +38,7 @@ Verify `dist/` contains:
 - `main.js`
 - `manifest.json`
 - `styles.css`
-- `highlighter.js` if applicable
-- `monaco-editor.js` if applicable
+No Monaco sidecar is expected.
 
 Check manifest version matches `package.json` version.
 

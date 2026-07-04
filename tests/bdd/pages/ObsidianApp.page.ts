@@ -1,9 +1,8 @@
 import { browser } from '@wdio/globals';
 import { executeObsidian, waitForObsidianServiceHelper } from '../support/executeObsidian.js';
+import { isWebDriverSessionGoneError } from '../support/wdioSession.js';
 
 const pluginId = 'advanced-code-block';
-const desktopViewport = { width: 1440, height: 1000 };
-const mobileViewport = { width: 430, height: 932 };
 
 type PluginLoadState = {
 	loaded: boolean;
@@ -116,47 +115,17 @@ class ObsidianAppPage {
 	}
 
 	async expectMobileEmulation(): Promise<void> {
-		await this.setDeviceMetrics(mobileViewport, true);
-		await this.setMobileEmulation(true);
 		await browser.waitUntil(async () => this.isMobileEmulationActive(), {
 			timeout: 30000,
-			timeoutMsg: 'Obsidian mobile emulation was not active',
+			timeoutMsg: 'Obsidian mobile emulation was not active. Run mobile scenarios with wdio.mobile.conf.mts.',
 		});
 		await waitForObsidianServiceHelper();
-		await this.setDeviceMetrics(desktopViewport, false);
 	}
 
 	async resetMobileEmulation(): Promise<void> {
-		if (!(await this.isMobileEmulationActive())) {
+		if (!(await this.canReadMobileEmulationState())) {
 			return;
 		}
-
-		await this.setMobileEmulation(false);
-		await browser.waitUntil(async () => !(await this.isMobileEmulationActive()), {
-			timeout: 30000,
-			timeoutMsg: 'Obsidian mobile emulation did not reset',
-		});
-		await waitForObsidianServiceHelper();
-	}
-
-	private async setMobileEmulation(enabled: boolean): Promise<void> {
-		await browser.execute(async shouldEnable => {
-			const runtimeWindow = window as unknown as {
-				app?: {
-					emulateMobile(enabled: boolean): Promise<void> | void;
-				};
-			};
-			await runtimeWindow.app?.emulateMobile(shouldEnable);
-		}, enabled);
-	}
-
-	private async setDeviceMetrics(size: { width: number; height: number }, mobile: boolean): Promise<void> {
-		await browser.sendCommand('Emulation.setDeviceMetricsOverride', {
-			width: size.width,
-			height: size.height,
-			deviceScaleFactor: mobile ? 3 : 1,
-			mobile,
-		});
 	}
 
 	private async isMobileEmulationActive(): Promise<boolean> {
@@ -164,6 +133,18 @@ class ObsidianAppPage {
 			const runtimeWindow = window as unknown as { app?: { isMobile?: boolean } };
 			return runtimeWindow.app?.isMobile === true;
 		});
+	}
+
+	private async canReadMobileEmulationState(): Promise<boolean> {
+		try {
+			await this.isMobileEmulationActive();
+			return true;
+		} catch (error) {
+			if (isWebDriverSessionGoneError(error)) {
+				return false;
+			}
+			throw error;
+		}
 	}
 }
 

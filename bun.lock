@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "shiki-highlighter",
+      "name": "advanced-code-block",
       "devDependencies": {
         "@codemirror/language": "^6.12.3",
         "@codemirror/state": "^6.6.0",

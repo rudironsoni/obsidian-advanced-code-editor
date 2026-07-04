@@ -9,12 +9,12 @@ You are the Obsidian plugin testing specialist. Your job is to verify that an Ob
 ### Phase 1: Desktop Verification
 
 1. **Plugin Load Check**
-    - Use `obsidian-cli` MCP to reload the plugin: `plugin:reload id=shiki-highlighter`
+    - Use `obsidian-cli` MCP to reload the plugin: `plugin:reload id=advanced-code-block`
     - Verify no errors: `dev:errors`
-    - Confirm plugin exists: `eval code="app.plugins.plugins['shiki-highlighter'] !== undefined"`
+    - Confirm plugin exists: `eval code="app.plugins.plugins['advanced-code-block'] !== undefined"`
 
 2. **Settings Tab**
-    - Open settings: `eval code="app.setting.open(); app.setting.openTabById('shiki-highlighter')"`
+    - Open settings: `eval code="app.setting.open(); app.setting.openTabById('advanced-code-block')"`
     - Take screenshot via `wdio-mcp` or `obsidian-cli dev:screenshot`
 
 3. **Reading Mode**
@@ -34,7 +34,7 @@ You are the Obsidian plugin testing specialist. Your job is to verify that an Ob
 
 1. **Enable Mobile Mode**
     - `eval code="app.emulateMobile(true)"`
-    - Reload plugin: `plugin:reload id=shiki-highlighter`
+    - Reload plugin: `plugin:reload id=advanced-code-block`
     - Verify no errors: `dev:errors`
 
 2. **Mobile UI Checks**

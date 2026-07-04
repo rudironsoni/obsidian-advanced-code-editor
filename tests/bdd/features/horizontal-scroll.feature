@@ -2,7 +2,7 @@
 Feature: Block-owned horizontal scroll
 
   Background:
-    Given the built Shiki plugin is enabled in the fixture vault
+    Given the built Advanced Code Block plugin is enabled in the fixture vault
     And the horizontal scroll fixture notes are reset
 
   @desktop
@@ -30,14 +30,14 @@ Feature: Block-owned horizontal scroll
     When I compare the first code block line-number layout with Reading mode
     Then the Live Preview code block line-number gutter should match Reading mode
 
-  @desktop
-  Scenario: Raw Source mode keeps Markdown editable while the block owns horizontal scroll
+  @desktop @source
+  Scenario: Raw Source mode keeps Markdown editable without rendered block chrome
     Given horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll single block.md" is open in raw Source mode for horizontal scroll
-    When I scroll the first code block horizontally with a Shift-wheel gesture
+    When I edit the raw Source mode horizontal scroll marker
     Then raw Source mode should keep Markdown fences editable
-    And the active note should keep horizontal scroll inside the first code block
-    And the surrounding note should not move horizontally
+    And raw Source mode should stay native without rendered block chrome
+    And the exact edit should be written at the horizontal scroll marker
 
   @desktop
   Scenario: Neighboring code blocks keep independent horizontal scroll positions
@@ -68,8 +68,18 @@ Feature: Block-owned horizontal scroll
     Given horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
     When I force the first Live Preview row past its native scroll range
-    Then the active note should keep horizontal scroll inside the first code block
+    Then the Live Preview code text should remain visible inside the code block
     And the surrounding note should not move horizontally
+
+  @mobile @source
+  Scenario: Mobile-emulated raw Source mode keeps Markdown editable without rendered block chrome
+    Given Obsidian is running in mobile emulation
+    And horizontal scroll settings use nowrap with line numbers
+    And the fixture note "Horizontal scroll single block.md" is open in raw Source mode for horizontal scroll
+    When I edit the raw Source mode horizontal scroll marker
+    Then raw Source mode should keep Markdown fences editable
+    And raw Source mode should stay native without rendered block chrome
+    And the exact edit should be written at the horizontal scroll marker
 
   @mobile
   Scenario: Mobile-emulated Live Preview line-number gutter matches Reading mode
@@ -94,5 +104,5 @@ Feature: Block-owned horizontal scroll
     And horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
     When I force the first Live Preview row past its native scroll range
-    Then the active note should keep horizontal scroll inside the first code block
+    Then the Live Preview code text should remain visible inside the code block
     And the surrounding note should not move horizontally
