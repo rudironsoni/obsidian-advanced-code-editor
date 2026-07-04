@@ -245,3 +245,19 @@ test('styles contain Shiki block styles and no Monaco styles', () => {
 	expect(styles).not.toContain('.shiki-monaco-live-widget');
 	expect(styles).not.toContain('.shiki-monaco-codeblock');
 });
+
+test('WDIO mobile harness uses Obsidian emulation instead of browser protocol emulation', () => {
+	const appPage = read('tests/bdd/pages/ObsidianApp.page.ts');
+	const mobileConfig = read('wdio.mobile.conf.mts');
+	const executeObsidian = read('tests/bdd/support/executeObsidian.ts');
+
+	expect(appPage).toContain('app?.isMobile === true');
+	expect(appPage).not.toContain('browser.setWindowSize');
+	expect(appPage).not.toContain('browser.sendCommand');
+	expect(appPage).not.toContain('Emulation.setDeviceMetricsOverride');
+	expect(mobileConfig).toContain('emulateMobile: true');
+	expect(mobileConfig).not.toContain('goog:chromeOptions');
+	expect(mobileConfig).not.toContain('mobileEmulation');
+	expect(executeObsidian).toContain('failOnGoneSession: true');
+	expect(executeObsidian).not.toContain('browser.waitUntil(');
+});

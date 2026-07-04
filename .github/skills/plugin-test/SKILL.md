@@ -45,7 +45,7 @@ Judge Pass 1 as failed if formatting, build, lint, tests, or startup benches fai
 
 ## Pass 2: Runtime Gate
 
-Use the WDIO BDD harness because it creates an isolated vault and checks both desktop and `app.emulateMobile(true)` paths:
+Use the WDIO BDD harness because it creates isolated vaults and checks both desktop and service-booted mobile-emulated paths:
 
 ```bash
 rtk bun run test:bdd
@@ -64,7 +64,7 @@ The runtime gate must verify:
 - Settings tab for `shiki-highlighter` can be opened.
 - Reading mode renders one Shiki/Expressive Code block per fenced block, with no duplicate original block.
 - Live preview applies Shiki token styling to fenced code and inline `{lang} code` without scrambling positions.
-- `app.emulateMobile(true)` path works and then returns to normal mode.
+- `` scenarios run through `wdio.mobile.conf.mts` and assert `app.isMobile === true`.
 - Horizontal scroll moves the whole Live Preview code block and preserves native and internal line numbers.
 
 ## Pass 3: Obsidian CLI Visual Pass

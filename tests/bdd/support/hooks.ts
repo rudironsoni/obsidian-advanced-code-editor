@@ -6,6 +6,8 @@ import { env } from 'node:process';
 import { horizontalScrollPage, type HorizontalScrollMode, type HorizontalScrollState } from '../pages/HorizontalScroll.page.js';
 import { obsidianApp } from '../pages/ObsidianApp.page.js';
 import { artifactDir, sanitizeArtifactName, writeJsonArtifact } from './artifacts.js';
+import { isObsidianServiceHelperAvailable } from './executeObsidian.js';
+import { isWebDriverSessionGoneError, webdriverErrorMessage } from './wdioSession.js';
 
 type ScenarioResult = {
 	pickle?: {
@@ -26,8 +28,8 @@ After(async function (scenario: ScenarioResult) {
 	try {
 		if (didFail) {
 			mkdirSync(artifactDir, { recursive: true });
-			await browser.saveScreenshot(path.join(artifactDir, `${scenarioName}.png`));
-			if (isHorizontalScrollScenario) {
+			const canUseBrowser = await saveFailureScreenshot(scenarioName);
+			if (canUseBrowser && isHorizontalScrollScenario && (await isObsidianServiceHelperAvailable())) {
 				const states = await collectFailureStates();
 				writeJsonArtifact(`${scenarioName}-scroll-state`, {
 					scenario: scenario.pickle?.name ?? 'scenario',
@@ -38,12 +40,25 @@ After(async function (scenario: ScenarioResult) {
 		}
 		await pauseForScrollDebug(isHorizontalScrollScenario, scenarioName);
 	} finally {
-		await obsidianApp.resetMobileEmulation();
-		if (isHorizontalScrollScenario) {
-			await horizontalScrollPage.resetFixtureNotes();
+		await runCleanup('reset-mobile-emulation', () => obsidianApp.resetMobileEmulation());
+		if (isHorizontalScrollScenario && (await isObsidianServiceHelperAvailable())) {
+			await runCleanup('reset-horizontal-scroll-fixtures', () => horizontalScrollPage.resetFixtureNotes());
 		}
 	}
 });
+
+async function saveFailureScreenshot(scenarioName: string): Promise<boolean> {
+	try {
+		await browser.saveScreenshot(path.join(artifactDir, `${scenarioName}.png`));
+		return true;
+	} catch (error) {
+		writeJsonArtifact(`${scenarioName}-screenshot-error`, {
+			message: webdriverErrorMessage(error),
+			sessionGone: isWebDriverSessionGoneError(error),
+		});
+		return !isWebDriverSessionGoneError(error);
+	}
+}
 
 async function collectFailureStates(): Promise<HorizontalScrollState[]> {
 	const states: HorizontalScrollState[] = [];
@@ -72,5 +87,23 @@ async function pauseForScrollDebug(isHorizontalScrollScenario: boolean, scenario
 		pauseMs,
 		message: 'Paused before cleanup so the sandboxed WDIO Obsidian window can be inspected.',
 	});
-	await browser.pause(pauseMs);
+	try {
+		await browser.pause(pauseMs);
+	} catch (error) {
+		writeJsonArtifact(`${scenarioName}-debug-pause-error`, {
+			message: webdriverErrorMessage(error),
+			sessionGone: isWebDriverSessionGoneError(error),
+		});
+	}
+}
+
+async function runCleanup(name: string, cleanup: () => Promise<void>): Promise<void> {
+	try {
+		await cleanup();
+	} catch (error) {
+		writeJsonArtifact(`${name}-cleanup-error`, {
+			message: webdriverErrorMessage(error),
+			sessionGone: isWebDriverSessionGoneError(error),
+		});
+	}
 }

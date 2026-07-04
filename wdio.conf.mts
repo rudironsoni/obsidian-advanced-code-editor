@@ -39,6 +39,8 @@ export const config: WebdriverIO.Config = {
 	},
 	waitforInterval: 250,
 	waitforTimeout: 10000,
+	connectionRetryCount: 1,
+	connectionRetryTimeout: 30000,
 	logLevel: 'warn',
 	injectGlobals: false,
 };

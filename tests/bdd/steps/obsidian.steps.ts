@@ -177,6 +177,18 @@ Then('the active note should keep horizontal scroll inside the first code block'
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(state)}`);
 });
 
+Then('the Live Preview code text should remain visible inside the code block', async () => {
+	const state = await currentHorizontalScrollState('assert-code-visible');
+	const first = state.blocks[0];
+	assert.ok(first, 'expected a first code block');
+	assert.equal(state.mode, 'live-preview', `expected Live Preview mode: ${JSON.stringify(state)}`);
+	assert.ok(first.maxScrollLeft > 0, `expected overflowing Live Preview block content: ${JSON.stringify(state)}`);
+	assert.ok(first.visibleScrollbarCount >= 1, `expected visible Live Preview block scrollbar: ${JSON.stringify(state)}`);
+	assertLivePreviewCodeTextVisible(state, first);
+	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(state)}`);
+	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(state)}`);
+});
+
 Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	assert.ok(lastHorizontalScrollPerformance, 'expected Live Preview horizontal scroll performance result');
 	const { metrics, state } = lastHorizontalScrollPerformance;
@@ -326,6 +338,29 @@ function assertLivePreviewBlockUsesSharedRowScroll(state: HorizontalScrollState,
 		assert.ok(
 			Math.abs((block.shortLineRowScrollLeft ?? 0) - block.scrollLeft) <= 1,
 			`expected short Live Preview row to move with the whole block: ${JSON.stringify(state)}`,
+		);
+	}
+}
+
+function assertLivePreviewCodeTextVisible(state: HorizontalScrollState, block: HorizontalScrollState['blocks'][number]): void {
+	assert.ok(block.rowScrollSurfaceCount > 0, `expected Live Preview block to expose horizontal scroll surfaces: ${JSON.stringify(state)}`);
+	assert.ok(
+		Math.abs(block.rowScrollLeftMin - block.rowScrollLeftMax) <= 1,
+		`expected Live Preview rows not to keep independent native scroll offsets: ${JSON.stringify(state)}`,
+	);
+	assert.ok(block.livePreviewContentCount > 0, `expected Live Preview code content marks to be measurable: ${JSON.stringify(state)}`);
+	assert.ok(block.livePreviewContentTranslateXSpread <= 1, `expected Live Preview code content to share one visual offset: ${JSON.stringify(state)}`);
+	assert.ok(block.visibleCodeContentCount > 0, `expected Live Preview code content to keep a visible clipped rect: ${JSON.stringify(state)}`);
+	assert.ok(block.hitTestableCodeContentCount > 0, `expected Live Preview code content to remain hit-testable: ${JSON.stringify(state)}`);
+	assert.ok(block.visibleCodeGlyphCount > 0, `expected Live Preview code glyphs to remain visible: ${JSON.stringify(state)}`);
+	assert.equal(block.overflowingCodeGlyphCount, 0, `expected Live Preview code glyphs not to escape the block clip rect: ${JSON.stringify(state)}`);
+	assert.equal(block.transparentCodeContentCount, 0, `expected Live Preview code content not to become transparent: ${JSON.stringify(state)}`);
+	assert.equal(block.gutterMasksScrolledContent, true, `expected Live Preview gutter to mask scrolled code content: ${JSON.stringify(state)}`);
+	if (block.hasShortLineContent) {
+		assert.notEqual(block.shortLineRowScrollLeft, null, `expected short Live Preview row to expose block scroll: ${JSON.stringify(state)}`);
+		assert.ok(
+			Math.abs((block.shortLineRowScrollLeft ?? 0) - block.rowScrollLeftMax) <= 1,
+			`expected short Live Preview row not to drift from the block rows: ${JSON.stringify(state)}`,
 		);
 	}
 }

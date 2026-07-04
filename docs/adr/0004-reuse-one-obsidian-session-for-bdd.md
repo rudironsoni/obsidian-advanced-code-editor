@@ -1,16 +1,18 @@
-# Reuse One Obsidian Session for BDD
+# Reuse One Obsidian Session Per WDIO Command
 
 Status: proposed
 
-The WDIO BDD suite will reuse one Obsidian session for related desktop and mobile-emulated scenarios. This is a resource decision because repeatedly launching Obsidian is slow, noisy, and has already created risk around duplicate instances and orphaned runtime state.
+Each WDIO command will run with `maxInstances: 1` so a single Obsidian instance owns that command's setup, scenarios, debugging, and cleanup. Desktop and mobile-emulated scenarios use different WDIO configs because reliable mobile emulation must be selected before Obsidian boots.
 
 ## Decision
 
-- Keep WDIO `maxInstances` at `1` for this harness.
-- Group related feature files in WDIO config so one worker owns the run.
-- Do not start one Obsidian instance per feature, scenario, mode, or mobile-emulated check.
-- Reset Obsidian state inside the running session through reloads, fixture notes, settings, and `app.emulateMobile(false)`.
+- Keep WDIO `maxInstances: 1` in all configs.
+- Group related feature files so one worker owns each desktop or mobile run.
+- Run desktop scenarios through `wdio.conf.mts`.
+- Run mobile-emulated scenarios through `wdio.mobile.conf.mts`, which sets `wdio-obsidian-service` `emulateMobile: true` at launch.
+- Do not toggle mobile emulation inside an already-running desktop WDIO session. Obsidian can replace the Electron web view during runtime mobile toggles and leave WebDriver attached to a dead target.
+- Do not start one Obsidian instance per feature or scenario.
 
 ## Consequences
 
-Scenarios must be isolated by fixture vault state and teardown, not by launching fresh Obsidian processes.
+Full BDD commands may run one desktop Obsidian session followed by one mobile-emulated Obsidian session. This is a deliberate reliability tradeoff. It avoids the repeated launch per scenario problem while also avoiding runtime mobile toggles that produce `no such window` or `web view not found` WDIO failures.

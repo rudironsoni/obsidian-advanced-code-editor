@@ -43,11 +43,11 @@ rtk pip list            rtk pnpm install        rtk npm run <script>
 
 ## Resource Rules
 
-- **One Obsidian instance only.** Never spawn a second instance. WDIO tests must run with `maxInstances: 1` and reuse the same Obsidian session across setup, debugging, and verification.
+- **One Obsidian instance per WDIO command.** Never run parallel Obsidian instances. WDIO tests must run with `maxInstances: 1` and reuse that command's Obsidian session across setup, debugging, and verification.
 - If instance already running, reuse it: reload plugin, re-copy plugin files into existing vault, reload test note. Do not create new vault, user-data-dir, or `--user-data-dir`.
 - If you accidentally launch twice, kill duplicate. Never leave orphan processes.
 - Runtime reload is cheap and idempotent. Prefer it over relaunching Obsidian.
-- Reuse the same test vault and same Obsidian instance across setup, debugging, and verification. Do not spin up extra instances.
+- Reuse the same test vault and same Obsidian instance within a WDIO command across setup, debugging, and verification. Do not spin up extra instances.
 - Use `tests/obsidian-test-vault/` as the canonical Obsidian test vault for manual/runtime debugging unless a verifier script explicitly requires a different vault.
 - Keep all verification artifacts in one explicit runtime workspace, never scattered at top-level repo paths.
 - Always use model's vision capabilities screenshots from real Obsidian to verify actually rendered before concluding UI bug fixed or understood.
@@ -112,10 +112,10 @@ rtk bun run test:bdd
 ### Harness Layers
 - `bun run test:unit` runs pure Bun tests for parser, rendering helpers, startup boundaries, architecture boundaries, and other non-Obsidian logic.
 - `bun run test:integration` builds `dist/`, runs artifact assertions against the generated bundle, installs `main.js`, `manifest.json`, and `styles.css` into a temporary vault layout, enables the plugin in `community-plugins.json`, and removes the vault afterward.
-- `bun run test:bdd` runs desktop and mobile-emulated BDD scenarios in one grouped WebdriverIO worker so one Obsidian session is reused.
+- `bun run test:bdd` builds release artifacts, runs desktop BDD scenarios with `wdio.conf.mts`, then runs mobile-emulated BDD scenarios with `wdio.mobile.conf.mts`.
 - `bun run test:bdd:desktop` builds release artifacts and runs WebdriverIO Cucumber with `wdio-obsidian-service`, excluding `@mobile`.
-- `bun run test:bdd:mobile` builds release artifacts and runs only the `@mobile` WebdriverIO Cucumber scenarios. Prefer `bun run test:bdd` when validating both desktop and mobile so the same Obsidian session is reused.
-- `bun run test:bdd:scroll` builds release artifacts and runs the horizontal-scroll scenarios in real Obsidian through WebdriverIO.
+- `bun run test:bdd:mobile` builds release artifacts and runs only the `@mobile` WebdriverIO Cucumber scenarios with `wdio.mobile.conf.mts`, which launches Obsidian through `wdio-obsidian-service` with `emulateMobile: true`.
+- `bun run test:bdd:scroll` builds release artifacts, runs desktop horizontal-scroll scenarios with `wdio.conf.mts`, then runs mobile-emulated horizontal-scroll scenarios with `wdio.mobile.conf.mts`.
 - `bun run test:bdd:scroll:debug` runs the same horizontal-scroll verifier with `WDIO_OBSIDIAN_DEBUG_PAUSE_MS=30000`, pausing before scenario cleanup so the sandboxed WDIO Obsidian window remains visible for manual flicker and clipping inspection.
 - `bun run test:e2e` and `bun run test:e2e:mobile` are compatibility aliases for the desktop and mobile BDD commands.
 - `bun run ci` runs the non-GUI CI gate: formatting check, production build, lint, unit tests, artifact integration, startup benches, and temporary-vault integration.
@@ -125,7 +125,7 @@ rtk bun run test:bdd
 - Feature files live in `tests/bdd/features/`. Keep them product-readable and free of selectors, sleeps, and setup noise.
 - Step definitions live in `tests/bdd/steps/`. Put reusable Obsidian interactions in `tests/bdd/pages/`.
 - Keep related `.feature` files grouped in `wdio.conf.mts` so WDIO does not spawn a fresh Obsidian session per feature file.
-- Mobile-emulated scenarios toggle `app.emulateMobile(true)` in steps and reset it in Cucumber teardown. Do not add a second Obsidian launch just to test mobile emulation.
+- Mobile-emulated scenarios are tagged `@mobile` and run through `wdio.mobile.conf.mts`. The step asserts `app.isMobile === true`; it does not toggle mobile mode inside an already-running desktop WDIO session because Obsidian can replace the Electron web view and leave WebDriver attached to a dead target.
 - Failure screenshots go to `tests/runtime-session/wdio-artifacts/`.
 - `.mcp.json` exposes `wdio-mcp` through `npx -y @wdio/mcp` so MCP-aware agents can use WebdriverIO for interactive diagnostics.
 
@@ -134,6 +134,7 @@ rtk bun run test:bdd
 - WDIO Obsidian version can be overridden with `OBSIDIAN_WDIO_APP_VERSION`; installer version can be overridden with `OBSIDIAN_WDIO_INSTALLER_VERSION`.
 - Runtime reports should go under `planning/test-reports/` or `tests/runtime-session/wdio-artifacts/`. Do not scatter screenshots or JSON summaries at the repo root.
 - WDIO and `wdio-obsidian-service` are the automated desktop and mobile-emulated E2E entrypoints.
+- Run mobile-tagged WDIO scenarios with `wdio.mobile.conf.mts`; do not run `@mobile` scenarios through `wdio.conf.mts`.
 - WDIO launches the sandboxed vault `tests/wdio-vault/basic`, not the user's normal Obsidian vault. Normal runs may close the window before it is noticed; use `bun run test:bdd:scroll:debug` or set `WDIO_OBSIDIAN_DEBUG_PAUSE_MS=<ms>` for visible debugging.
 - Do not spawn a second Obsidian instance.
 - If a runtime check is skipped, report it explicitly.

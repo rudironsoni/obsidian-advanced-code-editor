@@ -68,7 +68,7 @@ Feature: Block-owned horizontal scroll
     Given horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
     When I force the first Live Preview row past its native scroll range
-    Then the active note should keep horizontal scroll inside the first code block
+    Then the Live Preview code text should remain visible inside the code block
     And the surrounding note should not move horizontally
 
   @mobile @source
@@ -104,5 +104,5 @@ Feature: Block-owned horizontal scroll
     And horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
     When I force the first Live Preview row past its native scroll range
-    Then the active note should keep horizontal scroll inside the first code block
+    Then the Live Preview code text should remain visible inside the code block
     And the surrounding note should not move horizontally
