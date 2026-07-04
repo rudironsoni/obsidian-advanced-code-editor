@@ -187,6 +187,14 @@ type NativeRowOverflowInput = {
 	blockIndex: number;
 };
 
+type TouchGestureCoordinates = {
+	startX: number;
+	startY: number;
+	endX: number;
+	endY: number;
+	touchAction: string;
+};
+
 class HorizontalScrollPage {
 	readonly marker = horizontalScrollMarker;
 	readonly editText = horizontalScrollEditText;
@@ -316,6 +324,12 @@ class HorizontalScrollPage {
 	}
 
 	async performGesture(mode: HorizontalScrollMode, blockIndex: number, gesture: HorizontalScrollGesture): Promise<HorizontalScrollState> {
+		if (gesture === 'touch') {
+			await this.performWebDriverTouchGesture(mode, blockIndex);
+			await browser.pause(150);
+			return this.collectScrollState(mode, `${gesture}-after`);
+		}
+
 		await executeObsidian(
 			({ app }, input: GestureInput) => {
 				const runtimeApp = app as unknown as RuntimeApp;
@@ -393,66 +407,97 @@ class HorizontalScrollPage {
 					);
 					return;
 				}
-
-				const startX = clientX + Math.min(160, target.clientWidth / 2);
-				const endX = clientX - Math.min(160, target.clientWidth / 2);
-				const pointerId = 41;
-				const visualOffset = (): number => {
-					const content = block.rows[0]?.querySelector<HTMLElement>('.shiki-live-preview-code-content');
-					const transform = content ? getComputedStyle(content).transform : '';
-					if (!transform || transform === 'none') return 0;
-					return Math.max(0, -new DOMMatrixReadOnly(transform).m41);
-				};
-				target.dispatchEvent(
-					new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId, pointerType: 'touch', clientX: startX, clientY }),
-				);
-				target.dispatchEvent(
-					new PointerEvent('pointermove', { bubbles: true, cancelable: true, pointerId, pointerType: 'touch', clientX: endX, clientY }),
-				);
-				target.dispatchEvent(
-					new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId, pointerType: 'touch', clientX: endX, clientY }),
-				);
-				if (visualOffset() > 0) {
-					return;
-				}
-				if (typeof Touch === 'undefined' || typeof TouchEvent === 'undefined') {
-					throw new Error('TouchEvent is not available in this Obsidian renderer');
-				}
-				const startTouch = new Touch({ identifier: pointerId, target, clientX: startX, clientY });
-				const endTouch = new Touch({ identifier: pointerId, target, clientX: endX, clientY });
-				target.dispatchEvent(
-					new TouchEvent('touchstart', {
-						bubbles: true,
-						cancelable: true,
-						touches: [startTouch],
-						targetTouches: [startTouch],
-						changedTouches: [startTouch],
-					}),
-				);
-				target.dispatchEvent(
-					new TouchEvent('touchmove', {
-						bubbles: true,
-						cancelable: true,
-						touches: [endTouch],
-						targetTouches: [endTouch],
-						changedTouches: [endTouch],
-					}),
-				);
-				target.dispatchEvent(
-					new TouchEvent('touchend', {
-						bubbles: true,
-						cancelable: true,
-						touches: [],
-						targetTouches: [],
-						changedTouches: [endTouch],
-					}),
-				);
 			},
 			{ mode, blockIndex, gesture },
 		);
 
 		await browser.pause(150);
 		return this.collectScrollState(mode, `${gesture}-after`);
+	}
+
+	private async performWebDriverTouchGesture(mode: HorizontalScrollMode, blockIndex: number): Promise<void> {
+		const coordinates = await executeObsidian(
+			({ app }, input: NativeRowOverflowInput): TouchGestureCoordinates => {
+				const runtimeApp = app as unknown as RuntimeApp;
+				const root =
+					runtimeApp.workspace.activeLeaf?.view?.containerEl ??
+					runtimeApp.workspace.activeLeaf?.view?.contentEl ??
+					document.querySelector('.workspace-leaf.mod-active') ??
+					document;
+				const noteScroller =
+					input.mode === 'reading' ? root.querySelector<HTMLElement>('.markdown-preview-view') : root.querySelector<HTMLElement>('.cm-scroller');
+				const scope = noteScroller ?? root;
+				const blockIds = new Set<string>();
+				for (const element of scope.querySelectorAll<HTMLElement>('[data-shiki-block-id]')) {
+					const blockId = element.dataset.shikiBlockId;
+					if (blockId) blockIds.add(blockId);
+				}
+				const blocks = [...blockIds]
+					.map(blockId => {
+						const escapedBlockId = CSS.escape(blockId);
+						const rootElement =
+							scope.querySelector<HTMLElement>(`.shiki-reading-block[data-shiki-block-id="${escapedBlockId}"]`) ??
+							scope.querySelector<HTMLElement>(`.shiki-live-preview-block[data-shiki-block-id="${escapedBlockId}"]`) ??
+							scope.querySelector<HTMLElement>(`[data-shiki-block-id="${escapedBlockId}"]`);
+						if (!rootElement) return null;
+						const rows = [...scope.querySelectorAll<HTMLElement>(`.shiki-block-scroll-row[data-shiki-block-id="${escapedBlockId}"]`)];
+						const scrollbars = [
+							...scope.querySelectorAll<HTMLElement>(`.shiki-block-horizontal-scrollbar[data-shiki-block-id="${escapedBlockId}"]`),
+						];
+						const body = rootElement.querySelector<HTMLElement>('.shiki-block-body') ?? null;
+						return {
+							body,
+							row: rows[0] ?? null,
+							scrollbar: scrollbars[0] ?? null,
+						};
+					})
+					.filter(entry => entry !== null) as Array<{
+					body: HTMLElement | null;
+					row: HTMLElement | null;
+					scrollbar: HTMLElement | null;
+				}>;
+				const block = blocks[input.blockIndex];
+				if (!block) throw new Error(`Code block ${input.blockIndex + 1} was not found`);
+
+				const target = input.mode === 'live-preview' ? (block.row ?? block.scrollbar ?? block.body) : (block.scrollbar ?? block.row ?? block.body);
+				if (!target) throw new Error(`Code block ${input.blockIndex + 1} has no touch target`);
+
+				const rect = target.getBoundingClientRect();
+				const inset = Math.min(24, Math.max(8, rect.width / 8));
+				const startX = Math.round(Math.min(rect.right - inset, rect.left + rect.width * 0.8));
+				const endX = Math.round(Math.max(rect.left + inset, rect.left + rect.width * 0.2));
+				const startY = Math.round(rect.top + Math.min(Math.max(8, rect.height / 2), Math.max(8, rect.height - 4)));
+
+				return {
+					startX,
+					startY,
+					endX,
+					endY: startY,
+					touchAction: getComputedStyle(target).touchAction,
+				};
+			},
+			{ mode, blockIndex },
+		);
+
+		if (!coordinates.touchAction.includes('pan-y')) {
+			throw new Error(`Expected horizontal block touch target to reserve horizontal pan for JS: ${JSON.stringify(coordinates)}`);
+		}
+
+		await browser.performActions([
+			{
+				type: 'pointer',
+				id: 'block-scroll-finger',
+				parameters: { pointerType: 'touch' },
+				actions: [
+					{ type: 'pointerMove', duration: 0, x: coordinates.startX, y: coordinates.startY },
+					{ type: 'pointerDown', button: 0 },
+					{ type: 'pause', duration: 80 },
+					{ type: 'pointerMove', duration: 450, x: coordinates.endX, y: coordinates.endY },
+					{ type: 'pointerUp', button: 0 },
+				],
+			},
+		]);
+		await browser.releaseActions();
 	}
 
 	async forceNativeRowOverflowScroll(mode: HorizontalScrollMode, blockIndex: number): Promise<HorizontalScrollState> {
