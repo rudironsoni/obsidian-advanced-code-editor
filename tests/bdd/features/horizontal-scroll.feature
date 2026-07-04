@@ -24,6 +24,13 @@ Feature: Block-owned horizontal scroll
     And the surrounding note should not move horizontally
 
   @desktop
+  Scenario: Live Preview line-number gutter matches Reading mode
+    Given horizontal scroll settings use nowrap with line numbers
+    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+    When I compare the first code block line-number layout with Reading mode
+    Then the Live Preview code block line-number gutter should match Reading mode
+
+  @desktop
   Scenario: Raw Source mode keeps Markdown editable while the block owns horizontal scroll
     Given horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll single block.md" is open in raw Source mode for horizontal scroll
@@ -55,6 +62,14 @@ Feature: Block-owned horizontal scroll
     Then Live Preview horizontal scrolling should stay responsive
     And the active note should keep horizontal scroll inside the first code block
     And the surrounding note should not move horizontally
+
+  @mobile
+  Scenario: Mobile-emulated Live Preview line-number gutter matches Reading mode
+    Given Obsidian is running in mobile emulation
+    And horizontal scroll settings use nowrap with line numbers
+    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+    When I compare the first code block line-number layout with Reading mode
+    Then the Live Preview code block line-number gutter should match Reading mode
 
   @mobile
   Scenario: Mobile-emulated Live Preview touch gestures keep horizontal scroll inside the code block

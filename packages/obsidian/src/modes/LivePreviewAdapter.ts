@@ -140,6 +140,7 @@ export class LivePreviewAdapter {
 		}
 		this.structuralDecorations = Decoration.none;
 		this.refreshDecorationSet();
+		window.requestAnimationFrame(() => this.syncGutterVisibility());
 		void this.retokenizeBlocks(tokenBlocks);
 	}
 
@@ -230,9 +231,27 @@ export class LivePreviewAdapter {
 
 	public syncGutterVisibility(): void {
 		const gutters = Array.from(this.view.dom.querySelectorAll('.cm-lineNumbers .cm-gutterElement'));
+		const hiddenLineNumbers = this.livePreviewActive ? this.fencedBlockLineNumbers() : new Set<number>();
 		for (const gutter of gutters) {
 			gutter.classList.remove(LivePreviewAdapter.HIDDEN_GUTTER_CLASS);
+			const lineNumber = Number.parseInt(gutter.textContent?.trim() ?? '', 10);
+			if (hiddenLineNumbers.has(lineNumber)) {
+				gutter.classList.add(LivePreviewAdapter.HIDDEN_GUTTER_CLASS);
+			}
 		}
+	}
+
+	private fencedBlockLineNumbers(): Set<number> {
+		const lineNumbers = new Set<number>();
+		for (const block of this.blocks) {
+			if (block.openingFenceLine === undefined || block.closingFenceLine === undefined) {
+				continue;
+			}
+			for (let lineNumber = block.openingFenceLine; lineNumber <= block.closingFenceLine; lineNumber++) {
+				lineNumbers.add(lineNumber);
+			}
+		}
+		return lineNumbers;
 	}
 
 	private collectLines(): CodeBlockLineInfo[] {

@@ -517,7 +517,6 @@ function assertShikiReady(state, context) {
 	}
 	assert(state.hasHeader, `${context}: Shiki Live Preview missing header`, state);
 	assert(state.settings?.wrapLines === true || state.hasScrollContainer, `${context}: nowrap code rows do not expose horizontal overflow`, state);
-	assert(state.visibleGutters > 0, `${context}: native CodeMirror line gutters are not visible`, state);
 	assert(state.noteScrollLeft === 0, `${context}: note scroller moved horizontally`, state);
 }
 

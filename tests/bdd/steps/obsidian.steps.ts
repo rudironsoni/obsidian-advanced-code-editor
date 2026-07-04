@@ -1,21 +1,27 @@
 import { Given, Then, When } from '@wdio/cucumber-framework';
+import { browser } from '@wdio/globals';
 import { strict as assert } from 'node:assert';
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
 import {
 	horizontalScrollPage,
 	type ExactEditResult,
 	type HorizontalScrollGesture,
+	type HorizontalScrollLineNumberLayoutComparison,
 	type HorizontalScrollMode,
 	type HorizontalScrollPerformanceResult,
 	type HorizontalScrollState,
 } from '../pages/HorizontalScroll.page.js';
 import { obsidianApp } from '../pages/ObsidianApp.page.js';
-import { writeJsonArtifact } from '../support/artifacts.js';
+import { artifactDir, writeJsonArtifact } from '../support/artifacts.js';
 
 let lastExpectedRenderText = '';
 let activeHorizontalScrollMode: HorizontalScrollMode = 'reading';
+let activeHorizontalScrollNotePath = '';
 let lastHorizontalScrollState: HorizontalScrollState | undefined;
 let lastExactEdit: ExactEditResult | undefined;
 let lastHorizontalScrollPerformance: HorizontalScrollPerformanceResult | undefined;
+let lastHorizontalScrollLineNumberLayout: HorizontalScrollLineNumberLayoutComparison | undefined;
 
 Given('the built Shiki plugin is enabled in the fixture vault', async () => {
 	await obsidianApp.waitForPluginLoaded();
@@ -68,12 +74,14 @@ Given('horizontal scroll settings use wrapping with line numbers', async () => {
 
 Given('the fixture note {string} is open in reading mode for horizontal scroll', async (notePath: string) => {
 	activeHorizontalScrollMode = 'reading';
+	activeHorizontalScrollNotePath = notePath;
 	await horizontalScrollPage.openFixture(notePath, activeHorizontalScrollMode);
 	lastHorizontalScrollState = await horizontalScrollPage.waitForHorizontalScrollReady(activeHorizontalScrollMode, 1, true);
 });
 
 Given('the fixture note {string} is open in Live Preview for horizontal scroll', async (notePath: string) => {
 	activeHorizontalScrollMode = 'live-preview';
+	activeHorizontalScrollNotePath = notePath;
 	await horizontalScrollPage.openFixture(notePath, activeHorizontalScrollMode);
 	lastHorizontalScrollState = await horizontalScrollPage.waitForHorizontalScrollReady(
 		activeHorizontalScrollMode,
@@ -84,6 +92,7 @@ Given('the fixture note {string} is open in Live Preview for horizontal scroll',
 
 Given('the fixture note {string} is open in raw Source mode for horizontal scroll', async (notePath: string) => {
 	activeHorizontalScrollMode = 'source';
+	activeHorizontalScrollNotePath = notePath;
 	await horizontalScrollPage.openFixture(notePath, activeHorizontalScrollMode);
 	lastHorizontalScrollState = await horizontalScrollPage.waitForHorizontalScrollReady(activeHorizontalScrollMode, 1, true);
 });
@@ -115,6 +124,17 @@ When('I repeatedly scroll the first code block horizontally with wheel gestures'
 	lastHorizontalScrollPerformance = await horizontalScrollPage.measureRepeatedWheelScroll(activeHorizontalScrollMode, 0);
 	lastHorizontalScrollState = lastHorizontalScrollPerformance.state;
 	writeJsonArtifact(`horizontal-scroll-${activeHorizontalScrollMode}-wheel-performance`, lastHorizontalScrollPerformance);
+});
+
+When('I compare the first code block line-number layout with Reading mode', async () => {
+	assert.ok(activeHorizontalScrollNotePath, 'expected an active horizontal scroll fixture note');
+	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected comparison to start from Live Preview');
+	lastHorizontalScrollLineNumberLayout = await horizontalScrollPage.compareLineNumberLayoutWithReading(activeHorizontalScrollNotePath);
+	activeHorizontalScrollMode = 'live-preview';
+	writeJsonArtifact('horizontal-scroll-line-number-layout', lastHorizontalScrollLineNumberLayout);
+	mkdirSync(artifactDir, { recursive: true });
+	const screenshotMode = lastHorizontalScrollLineNumberLayout.livePreview.isMobile ? 'mobile' : 'desktop';
+	await browser.saveScreenshot(path.join(artifactDir, `horizontal-scroll-line-number-layout-live-preview-${screenshotMode}.png`));
 });
 
 Then('the active note should keep horizontal scroll inside the first code block', async () => {
@@ -156,6 +176,35 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(first.livePreviewContentTranslateXSpread <= 0.5, `expected Live Preview rows to share one horizontal offset: ${JSON.stringify(state)}`);
+});
+
+Then('the Live Preview code block line-number gutter should match Reading mode', async () => {
+	assert.ok(lastHorizontalScrollLineNumberLayout, 'expected line-number layout comparison result');
+	const { livePreview, reading } = lastHorizontalScrollLineNumberLayout;
+	const livePreviewBlock = livePreview.blocks[0];
+	const readingBlock = reading.blocks[0];
+	assert.ok(livePreviewBlock, `expected Live Preview block: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`);
+	assert.ok(readingBlock, `expected Reading mode block: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`);
+	assert.equal(livePreview.mode, 'live-preview', `expected Live Preview state: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`);
+	assert.equal(reading.mode, 'reading', `expected Reading state: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`);
+	assert.deepEqual(
+		livePreviewBlock.lineNumberValues,
+		readingBlock.lineNumberValues,
+		`expected Live Preview block line numbers to match Reading mode: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`,
+	);
+	assert.equal(
+		livePreviewBlock.nativeBlockGutterCount,
+		0,
+		`expected native editor gutter hidden over the Live Preview code block: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`,
+	);
+	assert.ok(
+		livePreviewBlock.gutterToCodeGap !== null && readingBlock.gutterToCodeGap !== null,
+		`expected measurable code gutter gaps: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`,
+	);
+	assert.ok(
+		Math.abs(livePreviewBlock.gutterToCodeGap - readingBlock.gutterToCodeGap) <= 2,
+		`expected Live Preview gutter/code gap to match Reading mode: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`,
+	);
 });
 
 Then('the surrounding note should not move horizontally', async () => {

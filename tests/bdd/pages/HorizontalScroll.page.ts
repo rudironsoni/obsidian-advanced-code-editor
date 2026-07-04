@@ -66,6 +66,9 @@ export type HorizontalScrollBlockState = {
 	index: number;
 	blockId: string | null;
 	text: string;
+	lineNumberCount: number;
+	lineNumberValues: string[];
+	nativeBlockGutterCount: number;
 	rowCount: number;
 	scrollbarCount: number;
 	scrollOwnerCount: number;
@@ -82,6 +85,9 @@ export type HorizontalScrollBlockState = {
 	scrollWidth: number;
 	headerLeft: number | null;
 	gutterLeft: number | null;
+	gutterRight: number | null;
+	codeContentLeft: number | null;
+	gutterToCodeGap: number | null;
 	codeLeft: number | null;
 	codeMoved: number | null;
 	gutterMoved: number | null;
@@ -116,6 +122,11 @@ export type HorizontalScrollPerformanceMetrics = {
 export type HorizontalScrollPerformanceResult = {
 	metrics: HorizontalScrollPerformanceMetrics;
 	state: HorizontalScrollState;
+};
+
+export type HorizontalScrollLineNumberLayoutComparison = {
+	livePreview: HorizontalScrollState;
+	reading: HorizontalScrollState;
 };
 
 export type ExactEditResult = {
@@ -444,6 +455,19 @@ class HorizontalScrollPage {
 		return { metrics, state };
 	}
 
+	async compareLineNumberLayoutWithReading(notePath: string): Promise<HorizontalScrollLineNumberLayoutComparison> {
+		await this.resetScrollPositions('live-preview');
+		await this.waitForHorizontalScrollReady('live-preview', 1, true);
+		const livePreview = await this.collectScrollState('live-preview', 'line-number-layout-live-preview');
+		await this.openFixture(notePath, 'reading');
+		await this.waitForHorizontalScrollReady('reading', 1, true);
+		await this.resetScrollPositions('reading');
+		const reading = await this.collectScrollState('reading', 'line-number-layout-reading');
+		await this.openFixture(notePath, 'live-preview');
+		await this.waitForHorizontalScrollReady('live-preview', 1, true);
+		return { livePreview, reading };
+	}
+
 	async editMarkerAfterScroll(): Promise<ExactEditResult> {
 		return executeObsidian(
 			async ({ app }, input) => {
@@ -525,13 +549,15 @@ class HorizontalScrollPage {
 							...scope.querySelectorAll<HTMLElement>(`.shiki-block-horizontal-scrollbar[data-shiki-block-id="${escapedBlockId}"]`),
 						];
 						const body = rootElement.querySelector<HTMLElement>('.shiki-block-body') ?? null;
-						const owners = [...scope.querySelectorAll<HTMLElement>(`[data-shiki-block-id="${escapedBlockId}"][data-shiki-scroll-owner="true"]`)];
+						const blockElements = [...scope.querySelectorAll<HTMLElement>(`[data-shiki-block-id="${escapedBlockId}"]`)];
+						const owners = blockElements.filter(element => element.dataset.shikiScrollOwner === 'true');
 						const targets = [...rows, ...scrollbars];
 						if (body) targets.push(body);
 
 						return {
 							blockId,
 							root: rootElement,
+							blockElements,
 							body,
 							row: rows[0] ?? null,
 							rows,
@@ -547,6 +573,7 @@ class HorizontalScrollPage {
 					.filter(entry => entry !== null) as Array<{
 					blockId: string;
 					root: HTMLElement;
+					blockElements: HTMLElement[];
 					body: HTMLElement | null;
 					row: HTMLElement | null;
 					rows: HTMLElement[];
@@ -564,9 +591,20 @@ class HorizontalScrollPage {
 					const rectProbe = block.code ?? block.row ?? block.body ?? block.scrollbar ?? block.root;
 					const beforeCodeLeft = block.code?.getBoundingClientRect().left ?? null;
 					const beforeGutterLeft = block.gutter?.getBoundingClientRect().left ?? null;
+					const lineNumbers =
+						input.mode === 'reading'
+							? [...block.root.querySelectorAll<HTMLElement>('.shiki-line-numbers span')]
+							: [...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-line-number[data-shiki-block-id="${CSS.escape(block.blockId)}"]`)];
+					const gutterEdge = block.gutter ?? lineNumbers[0] ?? null;
+					const lineNumberRect = gutterEdge?.getBoundingClientRect() ?? null;
 					const contentElements = [
 						...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-code-content[data-shiki-block-id="${CSS.escape(block.blockId)}"]`),
 					];
+					const codeContent =
+						input.mode === 'reading'
+							? (block.root.querySelector<HTMLElement>('.shiki-code-scroll code') ?? block.code)
+							: (contentElements[0] ?? block.code);
+					const codeContentLeft = codeContent?.getBoundingClientRect().left ?? null;
 					const contentTranslateXValues = contentElements.map(element => {
 						const transform = getComputedStyle(element).transform;
 						if (!transform || transform === 'none') return 0;
@@ -577,11 +615,26 @@ class HorizontalScrollPage {
 						? Math.max(...contentTranslateXValues) - Math.min(...contentTranslateXValues)
 						: 0;
 					const effectiveContentScrollLeft = Math.max(0, ...contentTranslateXValues.map(value => -value));
+					const visibleRects = block.blockElements.map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
+					const blockTop = visibleRects.length ? Math.min(...visibleRects.map(rect => rect.top)) : null;
+					const blockBottom = visibleRects.length ? Math.max(...visibleRects.map(rect => rect.bottom)) : null;
+					const nativeBlockGutterCount =
+						input.mode === 'live-preview' && blockTop !== null && blockBottom !== null
+							? [...scope.querySelectorAll<HTMLElement>('.cm-lineNumbers .cm-gutterElement')].filter(element => {
+									const style = getComputedStyle(element);
+									if (style.visibility === 'hidden' || style.display === 'none') return false;
+									const rect = element.getBoundingClientRect();
+									return rect.bottom > blockTop - 1 && rect.top < blockBottom + 1;
+								}).length
+							: 0;
 
 					return {
 						index,
 						blockId: block.blockId,
 						text: (block.root.textContent ?? '').slice(0, 240),
+						lineNumberCount: lineNumbers.length,
+						lineNumberValues: lineNumbers.map(element => element.textContent ?? ''),
+						nativeBlockGutterCount,
 						rowCount: block.rows.length,
 						scrollbarCount: block.scrollbars.length,
 						scrollOwnerCount: block.owners.length,
@@ -598,6 +651,9 @@ class HorizontalScrollPage {
 						scrollWidth: rectProbe?.scrollWidth ?? 0,
 						headerLeft: block.header?.getBoundingClientRect().left ?? null,
 						gutterLeft: beforeGutterLeft,
+						gutterRight: lineNumberRect?.right ?? null,
+						codeContentLeft,
+						gutterToCodeGap: lineNumberRect && codeContentLeft !== null ? codeContentLeft - lineNumberRect.right : null,
 						codeLeft: beforeCodeLeft,
 						codeMoved: null,
 						gutterMoved: null,

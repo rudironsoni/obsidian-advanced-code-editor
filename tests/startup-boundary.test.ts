@@ -119,7 +119,7 @@ describe('startup module boundary', () => {
 		expect(livePreview).toContain('codeTo: block.range.charTo');
 	});
 
-	test('live preview preserves native CodeMirror rows and gutters', () => {
+	test('live preview preserves native CodeMirror rows', () => {
 		const livePreview = read('packages/obsidian/src/modes/LivePreviewAdapter.ts');
 		const structure = read('packages/obsidian/src/modes/LivePreviewStructureExtension.ts');
 		expect(livePreview).not.toContain('new ShikiLivePreviewWidget');

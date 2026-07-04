@@ -249,11 +249,15 @@ export class ReadingViewAdapter {
 			hostMode: 'reading',
 			language: language.toLowerCase(),
 			meta: meta?.rawMeta.trim() ?? '',
-			code: source,
+			code: normalizeReadingCodeSource(source),
 			sectionStartLine: sectionInfo?.lineStart,
 			sectionEndLine: sectionInfo?.lineEnd,
 			openingFence: meta?.openingFence,
 			openingFenceLine: sectionInfo?.lineStart,
 		});
 	}
+}
+
+function normalizeReadingCodeSource(source: string): string {
+	return source.endsWith('\n') ? source.slice(0, -1) : source;
 }

@@ -257,8 +257,7 @@ async function verifyLivePreviewViewing(client) {
 	assert(state.hasHeader, 'Live Preview viewing did not render a Shiki header', state);
 	assert(!state.hasFakeScroll, 'Live Preview viewing still rendered the synthetic scrollbar', state);
 	assert(state.visibleCodeLineCount === 2, 'Live Preview viewing did not preserve native CodeMirror code rows', state);
-	assert(state.visibleGutterCount > 0, 'Live Preview viewing hid note gutter line numbers', state);
-	assert(state.blockGutterCount >= 4, 'Live Preview viewing did not preserve native note gutter rows for the fenced range', state);
+	assert(state.blockGutterCount === 0, 'Live Preview viewing leaked native note gutter rows into the fenced range', state);
 	assert(state.sharedScrollWidth > state.sharedScrollClient, 'Live Preview viewing code rows are not horizontally scrollable', state);
 	assert(state.scrollbarScrollLeft > 0, 'Live Preview viewing shared scrollbar did not scroll horizontally', state);
 	assert(state.noteScrollLeft === 0, 'Live Preview viewing moved the whole editor horizontally', state);
