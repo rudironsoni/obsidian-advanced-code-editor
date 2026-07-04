@@ -113,6 +113,15 @@ When('I scroll the first code block horizontally with a touch gesture', async ()
 	lastHorizontalScrollState = await performHorizontalScroll('touch');
 });
 
+When('I force the first Live Preview row past its native scroll range', async () => {
+	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected native row overflow to run in Live Preview');
+	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
+	lastHorizontalScrollState = await horizontalScrollPage.forceNativeRowOverflowScroll(activeHorizontalScrollMode, 0);
+	writeJsonArtifact(`horizontal-scroll-${activeHorizontalScrollMode}-native-row-overflow`, lastHorizontalScrollState);
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `horizontal-scroll-${activeHorizontalScrollMode}-native-row-overflow.png`));
+});
+
 When('I edit the visible horizontal scroll marker', async () => {
 	lastExactEdit = await horizontalScrollPage.editMarkerAfterScroll();
 	let observedState: HorizontalScrollState | undefined;
@@ -278,6 +287,10 @@ function assertLivePreviewBlockUsesSharedRowScroll(state: HorizontalScrollState,
 	assert.ok(Math.abs(block.rowScrollLeftMin - block.scrollLeft) <= 1, `expected Live Preview rows to share the block scrollLeft: ${JSON.stringify(state)}`);
 	assert.ok(Math.abs(block.rowScrollLeftMax - block.scrollLeft) <= 1, `expected Live Preview rows to share the block scrollLeft: ${JSON.stringify(state)}`);
 	assert.ok(block.livePreviewContentCount > 0, `expected Live Preview code content marks to be measurable: ${JSON.stringify(state)}`);
+	assert.ok(block.visibleCodeContentCount > 0, `expected Live Preview code content to keep a visible clipped rect: ${JSON.stringify(state)}`);
+	assert.ok(block.hitTestableCodeContentCount > 0, `expected Live Preview code content to remain hit-testable after scroll: ${JSON.stringify(state)}`);
+	assert.ok(block.visibleCodeGlyphCount > 0, `expected Live Preview code glyphs to remain visible after scroll: ${JSON.stringify(state)}`);
+	assert.equal(block.transparentCodeContentCount, 0, `expected Live Preview code content not to become transparent after scroll: ${JSON.stringify(state)}`);
 	assert.equal(block.gutterMasksScrolledContent, true, `expected Live Preview gutter to mask scrolled code content: ${JSON.stringify(state)}`);
 	if (block.hasShortLineContent) {
 		assert.notEqual(block.shortLineRowScrollLeft, null, `expected short Live Preview row to expose block scroll: ${JSON.stringify(state)}`);

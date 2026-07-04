@@ -33,8 +33,7 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('this.domObserver.disconnect()');
 		expect(source).toContain('this.applyStoredScrolls();');
 		expect(source).toContain('this.scheduleMeasure();');
-		expect(source).toContain('private rescheduleMeasure(): void');
-		expect(updateBody).toContain('if (update.docChanged || update.viewportChanged || update.geometryChanged)');
+		expect(source).toContain('if (update.docChanged || update.viewportChanged || update.geometryChanged)');
 		expect(updateBody.trim().endsWith('this.rescheduleMeasure();\n\t\t\t\t}')).toBe(true);
 	});
 
@@ -43,29 +42,49 @@ describe('block horizontal scroll identity', () => {
 
 		expect(source).toContain('if (target.scrollLeft !== scrollLeft)');
 		expect(source).toContain('if (target.style.getPropertyValue(property) !== value)');
+	});
+
+	test('does not return to transform-based content scrolling', () => {
+		const source = read('packages/obsidian/src/codemirror/BlockHorizontalScroll.ts');
+
 		expect(source).toContain('for (const row of cache.rows)');
 		expect(source).toContain('this.setScrollLeft(row, scrollLeft)');
-		expect(source).toContain('if (source.classList.contains(SHIKI_BLOCK_SCROLL_ROW_CLASS))');
 		expect(source).not.toContain('this.styleElement = this.view.dom.ownerDocument.createElement');
 		expect(source).not.toContain('.shiki-live-preview-code-content[data-shiki-block-id=${CSS.escape(blockId)}]');
 		expect(source).not.toContain("content.style.setProperty('--shiki-block-scroll-left', offset)");
 		expect(source).not.toContain("this.setStyleProperty(row, '--shiki-block-scroll-left'");
 	});
 
+	test('clamps native row scroll instead of ignoring it', () => {
+		const source = read('packages/obsidian/src/codemirror/BlockHorizontalScroll.ts');
+		const rowScrollBranch = source.match(/if \(source\.classList\.contains\(SHIKI_BLOCK_SCROLL_ROW_CLASS\)\) \{([\s\S]*?)\n\t\t\t\t\}/)?.[1] ?? '';
+
+		expect(rowScrollBranch).toContain('this.clampBlockScrollLeft(blockId, source.scrollLeft)');
+		expect(rowScrollBranch).toContain('this.setScrollLeft(source, scrollLeft)');
+		expect(rowScrollBranch).toContain('this.syncBlock(blockId, scrollLeft)');
+		expect(rowScrollBranch.trim()).not.toBe('return;');
+	});
+
 	test('gives every row the shared block scroll width', () => {
 		const source = read('packages/obsidian/src/codemirror/BlockHorizontalScroll.ts');
 		const styles = read('packages/obsidian/src/styles.css');
 
-		expect(source).toContain('naturalScrollWidths');
-		expect(source).toContain("this.setStyleProperty(row, '--shiki-block-scroll-spacer-width', '0px')");
-		expect(source).toContain("this.setStyleProperty(row, '--shiki-block-scroll-width', 'auto')");
+		expect(source).toContain("this.setStyleProperty(row, '--shiki-block-scroll-spacer-width',");
 		expect(source).toContain('this.updateRowScrollSpacers(cache)');
-		expect(source).toContain('const spacerWidth = cache.disabled ? 0 : cache.maxScrollWidth + row.clientWidth');
-		expect(source).toContain("this.setStyleProperty(row, '--shiki-block-scroll-width', cache.disabled ? 'auto' : `${cache.maxScrollWidth}px`)");
+		expect(source).toContain('cache.disabled ? 0 : cache.maxScrollWidth + row.clientWidth');
 		expect(styles).toContain('.cm-line.shiki-block-scroll-row::after');
-		expect(styles).toContain('width: var(--shiki-block-scroll-width, auto);');
-		expect(styles).toContain('padding-inline-end: var(--shiki-block-scroll-spacer-width, 0px) !important;');
-		expect(styles).toContain('width: var(--shiki-block-scroll-spacer-width, 0px);');
-		expect(styles).not.toContain('transform: translateX(calc(-1 * var(--shiki-block-scroll-left, 0px)));');
+		expect(styles).toContain('padding-inline-end: var(--shiki-block-scroll-spacer-width, 0px)');
+		expect(styles).toContain('var(--shiki-block-scroll-spacer-width, 0px)');
+		expect(styles).not.toContain('--shiki-block-scroll-width');
+		expect(styles).not.toContain('transform: translateX(calc(-1 * var(--shiki-block-scroll-left, 0px)))');
+	});
+
+	test('does not paint-contain Live Preview code rows', () => {
+		const styles = read('packages/obsidian/src/styles.css');
+		const livePreviewCodeLineRule =
+			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.cm-line\.shiki-live-preview-code-line \{([\s\S]*?)\n\}/)?.[1] ?? '';
+
+		expect(livePreviewCodeLineRule).toContain('overflow-x: hidden');
+		expect(livePreviewCodeLineRule).not.toContain('contain: paint');
 	});
 });

@@ -81,6 +81,11 @@ export type HorizontalScrollBlockState = {
 	livePreviewContentCount: number;
 	livePreviewContentTranslateXValues: number[];
 	livePreviewContentTranslateXSpread: number;
+	visibleCodeContentCount: number;
+	hitTestableCodeContentCount: number;
+	visibleCodeGlyphCount: number;
+	transparentCodeContentCount: number;
+	zeroRectCodeContentCount: number;
 	hasShortLineContent: boolean;
 	shortLineRowScrollLeft: number | null;
 	shortLineContentTranslateX: number | null;
@@ -161,6 +166,11 @@ type RepeatedWheelInput = {
 	blockIndex: number;
 	frames: number;
 	deltaX: number;
+};
+
+type NativeRowOverflowInput = {
+	mode: HorizontalScrollMode;
+	blockIndex: number;
 };
 
 class HorizontalScrollPage {
@@ -402,6 +412,46 @@ class HorizontalScrollPage {
 
 		await browser.pause(150);
 		return this.collectScrollState(mode, `${gesture}-after`);
+	}
+
+	async forceNativeRowOverflowScroll(mode: HorizontalScrollMode, blockIndex: number): Promise<HorizontalScrollState> {
+		await executeObsidian(
+			({ app }, input: NativeRowOverflowInput) => {
+				const runtimeApp = app as unknown as RuntimeApp;
+				const root =
+					runtimeApp.workspace.activeLeaf?.view?.containerEl ??
+					runtimeApp.workspace.activeLeaf?.view?.contentEl ??
+					document.querySelector('.workspace-leaf.mod-active') ??
+					document;
+				const noteScroller =
+					input.mode === 'reading' ? root.querySelector<HTMLElement>('.markdown-preview-view') : root.querySelector<HTMLElement>('.cm-scroller');
+				const scope = noteScroller ?? root;
+				const blockIds = new Set<string>();
+				for (const element of scope.querySelectorAll<HTMLElement>('[data-shiki-block-id]')) {
+					const blockId = element.dataset.shikiBlockId;
+					if (blockId) blockIds.add(blockId);
+				}
+				const block = [...blockIds]
+					.map(blockId => {
+						const escapedBlockId = CSS.escape(blockId);
+						const rows = [...scope.querySelectorAll<HTMLElement>(`.shiki-block-scroll-row[data-shiki-block-id="${escapedBlockId}"]`)];
+						const scrollbars = [
+							...scope.querySelectorAll<HTMLElement>(`.shiki-block-horizontal-scrollbar[data-shiki-block-id="${escapedBlockId}"]`),
+						];
+						return { rows, scrollbar: scrollbars[0] ?? null };
+					})
+					.filter(entry => entry.rows.length > 0)[input.blockIndex];
+				const row = block?.rows[0];
+				if (!row) throw new Error(`Code block ${input.blockIndex + 1} has no native row scroll target`);
+
+				row.scrollLeft = Math.max(row.scrollWidth - row.clientWidth, row.clientWidth * 4);
+				row.dispatchEvent(new Event('scroll', { bubbles: true }));
+			},
+			{ mode, blockIndex },
+		);
+
+		await browser.pause(150);
+		return this.collectScrollState(mode, 'native-row-overflow-after');
 	}
 
 	async measureRepeatedWheelScroll(mode: HorizontalScrollMode, blockIndex: number): Promise<HorizontalScrollPerformanceResult> {
@@ -659,6 +709,79 @@ class HorizontalScrollPage {
 					const contentElements = [
 						...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-code-content[data-shiki-block-id="${CSS.escape(block.blockId)}"]`),
 					];
+					const contentVisibility = contentElements.map(element => {
+						const style = getComputedStyle(element);
+						const textFillColor = style.getPropertyValue('-webkit-text-fill-color');
+						const opacity = Number.parseFloat(style.opacity || '1');
+						const row = element.closest<HTMLElement>('.shiki-block-scroll-row');
+						const rowRect = row?.getBoundingClientRect() ?? block.root.getBoundingClientRect();
+						const visibleRect = [...element.getClientRects()]
+							.map(rect => ({
+								left: Math.max(rect.left, rowRect.left, lineNumberRect?.right ?? rowRect.left),
+								right: Math.min(rect.right, rowRect.right),
+								top: Math.max(rect.top, rowRect.top),
+								bottom: Math.min(rect.bottom, rowRect.bottom),
+							}))
+							.find(rect => rect.right - rect.left > 2 && rect.bottom - rect.top > 2);
+						const hasVisibleStyle =
+							style.display !== 'none' &&
+							style.visibility !== 'hidden' &&
+							opacity > 0 &&
+							style.color !== 'rgba(0, 0, 0, 0)' &&
+							textFillColor !== 'rgba(0, 0, 0, 0)';
+						let hitTestable = false;
+						if (visibleRect && hasVisibleStyle) {
+							const x = visibleRect.left + Math.min(10, (visibleRect.right - visibleRect.left) / 2);
+							const y = visibleRect.top + (visibleRect.bottom - visibleRect.top) / 2;
+							const hit = document.elementFromPoint(x, y);
+							hitTestable =
+								hit === element ||
+								element.contains(hit) ||
+								hit?.closest('.shiki-live-preview-code-content') === element ||
+								(row !== null && hit?.closest('.shiki-block-scroll-row') === row);
+						}
+						return {
+							hasVisibleRect: visibleRect !== undefined,
+							hasVisibleStyle,
+							hitTestable,
+						};
+					});
+					const countVisibleGlyphs = (element: HTMLElement): number => {
+						const row = element.closest<HTMLElement>('.shiki-block-scroll-row');
+						const rowRect = row?.getBoundingClientRect() ?? block.root.getBoundingClientRect();
+						const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+						const range = document.createRange();
+						let visibleGlyphs = 0;
+						let node = walker.nextNode();
+						while (node) {
+							const text = node.textContent ?? '';
+							for (let offset = 0; offset < text.length; offset++) {
+								if (!/\S/.test(text[offset] ?? '')) {
+									continue;
+								}
+								range.setStart(node, offset);
+								range.setEnd(node, offset + 1);
+								const hasVisibleGlyph = [...range.getClientRects()].some(rect => {
+									const left = Math.max(rect.left, rowRect.left, lineNumberRect?.right ?? rowRect.left);
+									const right = Math.min(rect.right, rowRect.right);
+									const top = Math.max(rect.top, rowRect.top);
+									const bottom = Math.min(rect.bottom, rowRect.bottom);
+									return right - left > 0.5 && bottom - top > 0.5;
+								});
+								if (hasVisibleGlyph) {
+									visibleGlyphs++;
+									if (visibleGlyphs >= 8) {
+										range.detach();
+										return visibleGlyphs;
+									}
+								}
+							}
+							node = walker.nextNode();
+						}
+						range.detach();
+						return visibleGlyphs;
+					};
+					const visibleCodeGlyphCount = contentElements.reduce((count, element) => count + countVisibleGlyphs(element), 0);
 					const parseZIndex = (value: string | null): number => {
 						const parsed = Number.parseInt(value ?? '', 10);
 						return Number.isFinite(parsed) ? parsed : 0;
@@ -728,6 +851,11 @@ class HorizontalScrollPage {
 						livePreviewContentCount: contentElements.length,
 						livePreviewContentTranslateXValues: contentTranslateXValues,
 						livePreviewContentTranslateXSpread: contentTranslateXSpread,
+						visibleCodeContentCount: contentVisibility.filter(result => result.hasVisibleRect && result.hasVisibleStyle).length,
+						hitTestableCodeContentCount: contentVisibility.filter(result => result.hitTestable).length,
+						visibleCodeGlyphCount,
+						transparentCodeContentCount: contentVisibility.filter(result => !result.hasVisibleStyle).length,
+						zeroRectCodeContentCount: contentVisibility.filter(result => !result.hasVisibleRect).length,
 						hasShortLineContent: shortLineContent !== undefined,
 						shortLineRowScrollLeft: shortLineRow?.scrollLeft ?? null,
 						shortLineContentTranslateX,
