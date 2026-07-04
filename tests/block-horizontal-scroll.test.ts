@@ -17,13 +17,13 @@ function defineLayout(element: HTMLElement, layout: { clientWidth: number; scrol
 	Object.defineProperty(element, 'scrollWidth', { configurable: true, get: () => layout.scrollWidth });
 }
 
-function dispatchTouch(target: HTMLElement, type: string, clientX: number, clientY: number): Event {
+function dispatchTouch(dispatchTarget: EventTarget, type: string, clientX: number, clientY: number, touchTarget = dispatchTarget): Event {
 	const event = new Event(type, { bubbles: true, cancelable: true });
 	Object.defineProperty(event, 'changedTouches', {
 		configurable: true,
-		value: [{ clientX, clientY, identifier: 1, target }],
+		value: [{ clientX, clientY, identifier: 1, target: touchTarget }],
 	});
-	target.dispatchEvent(event);
+	dispatchTarget.dispatchEvent(event);
 	return event;
 }
 
@@ -146,6 +146,10 @@ describe('block horizontal scroll identity', () => {
 		expect(livePreviewLineNumberRule).not.toContain('touch-action: pan-x pan-y');
 		expect(source).toContain('private readonly onPointerDown = (event: PointerEvent): void => {');
 		expect(source).toContain('private readonly onTouchStart = (event: TouchEvent): void => {');
+		expect(source).toContain("this.gestureRoot.addEventListener('touchmove', this.onTouchMove as EventListener, { capture: true, passive: false });");
+		expect(source).toContain("this.gestureRoot.addEventListener('pointermove', this.onPointerMove as EventListener, true);");
+		expect(source).not.toContain("target.addEventListener('touchmove', this.onTouchMove");
+		expect(source).not.toContain("target.addEventListener('pointermove', this.onPointerMove");
 		expect(source).toContain('event.preventDefault();');
 		expect(source).toContain('this.pointerCaptureTarget?.setPointerCapture(event.pointerId);');
 		expect(source).toContain('this.pointerCaptureTarget?.releasePointerCapture(this.pointerId);');
@@ -181,7 +185,7 @@ describe('block horizontal scroll identity', () => {
 
 		try {
 			dispatchTouch(content, 'touchstart', 260, 20);
-			const move = dispatchTouch(content, 'touchmove', 60, 22);
+			const move = dispatchTouch(document, 'touchmove', 60, 22, content);
 
 			expect(move.defaultPrevented).toBe(true);
 			expect(longRow.scrollLeft).toBe(200);
