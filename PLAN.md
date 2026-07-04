@@ -1,48 +1,89 @@
 # Advanced Code Block Migration Plan v0.9.0
 
-## Decisions Log
+Status: complete.
 
-| #   | Decision                                                                                         | Date       |
-| --- | ------------------------------------------------------------------------------------------------ | ---------- |
-| 1   | Remove Monaco entirely, use direct Shiki                                                         | 2026-06-28 |
-| 2   | Plugin ID: `advanced-code-block` (was `shiki-highlighter`)                                       | 2026-06-28 |
-| 3   | Display name: `Advanced Code Block` (was `Shiki Highlighter`)                                    | 2026-06-28 |
-| 4   | Version: `0.9.0` (was `0.8.0-beta.186`)                                                          | 2026-06-28 |
-| 5   | Settings renamed: `showLineNumbers`/`wrapLines` (was `ecDefaultShowLineNumbers`/`ecDefaultWrap`) | 2026-06-28 |
-| 6   | Keep backward-compatible BRAT: no (change the ID)                                                | 2026-06-28 |
-| 7   | Script naming: `obsidian-advanced-codeblock-*` (abstract, not Monaco-specific)                   | 2026-06-28 |
+This plan records the completed migration from the old Shiki Highlighter identity
+and Monaco-based runtime toward `advanced-code-block`, direct Shiki rendering,
+and the WDIO-backed acceptance harness.
 
-## Completed
+## Decisions
 
-### Commit 1: Replace Monaco with Shiki
+| #   | Decision                                                                                        | Date       | Guardrail                                                                 |
+| --- | ----------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------- |
+| 1   | Remove Monaco entirely, use direct Shiki                                                        | 2026-06-28 | `tests/architecture-boundaries.test.ts`, `tests/startup-bundle.test.ts`   |
+| 2   | Plugin ID: `advanced-code-block`                                                                | 2026-06-28 | `tests/startup-bundle.test.ts`, WDIO plugin-load scenario                 |
+| 3   | Display name: `Advanced Code Block`                                                             | 2026-06-28 | `manifest.json`, `manifest-beta.json`, `tests/startup-bundle.test.ts`     |
+| 4   | Version: `0.9.0`                                                                                | 2026-06-28 | `package.json`, `manifest.json`, `manifest-beta.json`, `versions.json`    |
+| 5   | Settings names: `showLineNumbers` and `wrapLines`                                               | 2026-06-28 | `tests/startup-boundary.test.ts`                                          |
+| 6   | No backward-compatible BRAT path for the old plugin ID                                          | 2026-06-28 | Release artifact integration installs only `advanced-code-block` payloads |
+| 7   | Runtime script naming must be abstract and not Monaco-specific: `obsidian-advanced-codeblock-*` | 2026-06-28 | Startup bundle, workflow, and stale-string scans                          |
 
-- Deleted Monaco files (`monaco/*`, `ModernMonacoLoader.ts`, `modern-monaco-entry.ts`, etc.)
-- Created `ShikiHighlighter.ts`
-- Rewrote `LivePreviewAdapter.ts` with `ShikiLivePreviewWidget`
-- Rewrote `ReadingViewAdapter.ts` with Shiki token enhancement
-- Cleaned `SourceModeAdapter.ts`
-- Updated `Settings.ts` and `SettingsTab.ts`
-- Rewrote `styles.css`
-- Updated `package.json`, `vite.config.mts`
-- Updated tests
+## Completed Work
 
-### Commit 2: Fix line numbers, raw line hiding, reading mode header
+### Runtime Migration
 
-- Fixed line number position (left side, before scroll container)
-- Added `.shiki-editing-codeblock-closing-fence` class
-- CSS: hide raw code lines and closing fence with `display: none`
-- Reading Mode: added header and scroll wrapper
+- Removed Monaco production runtime files and Monaco-specific production CSS.
+- Replaced the renderer with direct Shiki highlighting through `ShikiHighlighter`.
+- Kept Source mode as native CodeMirror Markdown editing with token decorations only.
+- Kept Reading mode and Live Preview rendering on plugin-owned code block surfaces.
+- Preserved Obsidian native note line numbers while keeping internal code block line numbers.
 
-### Commit 3: Plugin rename v0.9.0 + Runtime script migration
+### Plugin Identity
 
-- Renamed plugin ID: `shiki-highlighter` → `advanced-code-block`
-- Renamed display name: `Shiki Highlighter` → `Advanced Code Block`
-- Bumped version: `0.8.0-beta.187` → `0.9.0`
-- Renamed settings: `ecDefaultShowLineNumbers`/`ecDefaultWrap` → `showLineNumbers`/`wrapLines`
-- Deleted `obsidian-monaco-edit.mjs`
-- Renamed 6 runtime scripts to `obsidian-advanced-codeblock-*`
-- Rewrote all 6 scripts (Monaco→Shiki selectors, assertions, gestures)
-- Updated all skills/rules/workflows that referenced old script names
-- Build passes, all 39 tests pass
+- Renamed the package and plugin ID to `advanced-code-block`.
+- Renamed the display name to `Advanced Code Block`.
+- Set the base version to `0.9.0`.
+- Updated release and beta workflows to publish artifacts under the new plugin ID.
+- Updated README install text and repository links.
 
-## Status: COMPLETE
+### Settings
+
+- Renamed code block defaults to `showLineNumbers` and `wrapLines`.
+- Updated the settings tab heading to `Code block defaults`.
+- Added a startup-boundary guard that prevents returning to `ecDefaultShowLineNumbers`,
+  `ecDefaultWrap`, or `EC defaults`.
+
+### Harness
+
+- Added and stabilized WDIO Cucumber coverage for desktop and mobile-emulated Obsidian.
+- Kept WDIO runs to `maxInstances: 1` and grouped features so each command uses a single
+  Obsidian session.
+- Added scroll-specific BDD scenarios for Reading mode, Live Preview, Source mode, and
+  mobile emulation.
+- Routed WDIO failure artifacts under `tests/runtime-session/wdio-artifacts/`.
+- Exposed WDIO MCP through `.mcp.json` for MCP-aware agents.
+
+## ADRs
+
+The active design record lives under `docs/adr/`:
+
+- `0001-block-owned-horizontal-scroll.md`
+- `0002-keep-source-mode-raw.md`
+- `0003-wdio-bdd-is-horizontal-scroll-acceptance.md`
+- `0004-reuse-one-obsidian-session-for-bdd.md`
+- `0005-mobile-coverage-is-emulated-until-device-automation-exists.md`
+- `0006-pr-only-gui-bdd-ci.md`
+- `0007-live-preview-native-gutter-and-row-scroll.md`
+
+## Verification
+
+Use the repository harness documented in `AGENTS.md`.
+
+Minimum plan regression checks:
+
+```bash
+rtk bun run typecheck
+rtk bun run test:unit
+rtk bun run test:integration
+rtk bun run test:bdd
+```
+
+Release-level confidence:
+
+```bash
+rtk bun run check
+rtk bun run test:bdd
+```
+
+Mobile coverage is desktop Obsidian mobile emulation only. Real iOS or Android device
+automation is not part of this completed plan.
