@@ -104,6 +104,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private pointerStartY = 0;
 			private pointerStartScrollLeft = 0;
 			private pointerHorizontal = false;
+			private pointerCaptureTarget: HTMLElement | undefined;
 			private measureTimer: number | undefined;
 			private readonly observedScrollTargets = new Set<HTMLElement>();
 			private readonly domObserver: MutationObserver;
@@ -224,6 +225,12 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.pointerStartY = event.clientY;
 				this.pointerStartScrollLeft = target.scrollLeft;
 				this.pointerHorizontal = false;
+				this.pointerCaptureTarget = event.target instanceof HTMLElement ? event.target : undefined;
+				try {
+					this.pointerCaptureTarget?.setPointerCapture(event.pointerId);
+				} catch {
+					this.pointerCaptureTarget = undefined;
+				}
 			};
 
 			private readonly onPointerMove = (event: PointerEvent): void => {
@@ -242,7 +249,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					event.preventDefault();
 				}
 				event.stopPropagation();
-				this.syncBlock(this.pointerBlockId, this.pointerStartScrollLeft - deltaX);
+				this.syncBlockImmediate(this.pointerBlockId, this.pointerStartScrollLeft - deltaX);
 			};
 
 			private readonly onPointerEnd = (event: PointerEvent): void => {
@@ -285,7 +292,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					event.preventDefault();
 				}
 				event.stopPropagation();
-				this.syncBlock(this.touchBlockId, this.touchStartScrollLeft - deltaX);
+				this.syncBlockImmediate(this.touchBlockId, this.touchStartScrollLeft - deltaX);
 			};
 
 			private readonly onTouchEnd = (): void => {
@@ -305,6 +312,18 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.scrollLeftByBlock.set(stableBlockScrollMemoryKey(blockId), nextScrollLeft);
 				this.pendingScrollLeftByBlock.set(blockId, nextScrollLeft);
 				this.scheduleScrollFlush();
+			}
+
+			private syncBlockImmediate(blockId: string, scrollLeft: number): void {
+				const nextScrollLeft = this.clampBlockScrollLeft(blockId, scrollLeft);
+				this.scrollLeftByBlock.set(stableBlockScrollMemoryKey(blockId), nextScrollLeft);
+				this.pendingScrollLeftByBlock.delete(blockId);
+				this.syncing = true;
+				try {
+					this.applyBlockScroll(blockId, nextScrollLeft);
+				} finally {
+					this.syncing = false;
+				}
 			}
 
 			private scheduleScrollFlush(): void {
@@ -580,8 +599,16 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			}
 
 			private resetPointer(): void {
+				if (this.pointerId !== undefined) {
+					try {
+						this.pointerCaptureTarget?.releasePointerCapture(this.pointerId);
+					} catch {
+						// Pointer capture may already be released by the renderer.
+					}
+				}
 				this.pointerId = undefined;
 				this.pointerBlockId = undefined;
+				this.pointerCaptureTarget = undefined;
 				this.pointerHorizontal = false;
 			}
 		},
