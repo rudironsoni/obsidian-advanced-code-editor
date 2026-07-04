@@ -417,6 +417,8 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 }
 
 .markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-live-preview-code-line .shiki-live-preview-code-content {
+	position: relative;
+	z-index: 1;
 	display: inline-block;
 	min-width: max-content;
 	transform: translateX(calc(-1 * var(--shiki-block-scroll-left, 0px)));
@@ -461,7 +463,7 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 .markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-line-number {
 	position: sticky;
 	left: 0;
-	z-index: 3;
+	z-index: 20;
 	display: inline-flex;
 	justify-content: flex-end;
 	min-width: 3.5ch;
@@ -476,6 +478,27 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 	line-height: var(--line-height-normal);
 	text-align: right;
 	user-select: none;
+}
+
+.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-line-number::before,
+.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-line-number::after {
+	content: '';
+	position: absolute;
+	z-index: 4;
+	top: 0;
+	bottom: 0;
+	background: var(--shiki-code-background);
+	pointer-events: none;
+}
+
+.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-line-number::before {
+	right: 100%;
+	width: 100vw;
+}
+
+.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-line-number::after {
+	left: 100%;
+	width: 12px;
 }
 
 .markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line.HyperMD-codeblock,
