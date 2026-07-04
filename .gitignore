@@ -45,6 +45,7 @@ debug-tokenizer2.mjs
 modern-monaco-*.tgz
 package/
 test-obsidian.mjs
+.tokensave/
 
 # Runtime verification artifacts and ephemeral test environments
 tests/obsidian-test-user-data/

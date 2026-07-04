@@ -5,6 +5,7 @@ main.js
 AGENTS.md
 .cocoindex_code
 .serena
+.tokensave
 
 # Generated AI tool configs (rulesync output)
 .agent/
