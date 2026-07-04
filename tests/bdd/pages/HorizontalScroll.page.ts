@@ -124,6 +124,11 @@ export type HorizontalScrollState = {
 	blockCount: number;
 	rawFenceVisible: boolean;
 	monacoEditorCount: number;
+	sourceNativeGutterCount: number;
+	sourceRenderedBlockChromeCount: number;
+	sourceInternalLineNumberCount: number;
+	sourceBlockScrollRowCount: number;
+	sourceBlockScrollbarCount: number;
 	blocks: HorizontalScrollBlockState[];
 };
 
@@ -256,6 +261,33 @@ class HorizontalScrollPage {
 		}
 
 		return this.collectScrollState(mode, 'ready');
+	}
+
+	async waitForRawSourceReady(notePath: string): Promise<HorizontalScrollState> {
+		let lastState: HorizontalScrollState | undefined;
+		try {
+			await browser.waitUntil(
+				async () => {
+					const state = await this.collectScrollState('source', 'raw-source-ready');
+					lastState = state;
+					return (
+						state.activeFile === notePath &&
+						state.rawFenceVisible &&
+						state.monacoEditorCount === 0 &&
+						state.sourceNativeGutterCount > 0 &&
+						state.sourceRenderedBlockChromeCount === 0 &&
+						state.sourceInternalLineNumberCount === 0 &&
+						state.sourceBlockScrollRowCount === 0 &&
+						state.sourceBlockScrollbarCount === 0
+					);
+				},
+				{ timeout: 30000, timeoutMsg: `Raw Source mode did not become ready for ${notePath}` },
+			);
+		} catch (error) {
+			throw new Error(`Raw Source mode did not become ready for ${notePath}: ${JSON.stringify(lastState)}`, { cause: error });
+		}
+
+		return this.collectScrollState('source', 'raw-source-ready');
 	}
 
 	async resetScrollPositions(mode: HorizontalScrollMode): Promise<void> {
@@ -655,6 +687,34 @@ class HorizontalScrollPage {
 					input.mode === 'reading' ? root.querySelector<HTMLElement>('.markdown-preview-view') : root.querySelector<HTMLElement>('.cm-scroller');
 				const scope = noteScroller ?? root;
 				const activeText = scope.textContent ?? '';
+				const visibleElements = (selector: string): HTMLElement[] =>
+					[...scope.querySelectorAll<HTMLElement>(selector)].filter(element => {
+						const style = getComputedStyle(element);
+						const rect = element.getBoundingClientRect();
+						return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+					});
+				const sourceNativeGutterCount =
+					input.mode === 'source' ? visibleElements('.cm-lineNumbers .cm-gutterElement, .cm-gutters .cm-gutterElement').length : 0;
+				const sourceRenderedBlockChromeCount =
+					input.mode === 'source'
+						? scope.querySelectorAll(
+								[
+									'.shiki-live-preview-header',
+									'.shiki-block-header',
+									'.shiki-copy-button',
+									'.shiki-live-preview-fence-text',
+									'.shiki-live-preview-code-content',
+									'.shiki-live-preview-block',
+									'.shiki-reading-block',
+									'.shiki-line-numbers',
+								].join(', '),
+							).length
+						: 0;
+				const sourceInternalLineNumberCount =
+					input.mode === 'source' ? scope.querySelectorAll('.shiki-live-preview-line-number, .shiki-line-numbers span').length : 0;
+				const sourceBlockScrollRowCount =
+					input.mode === 'source' ? scope.querySelectorAll('.shiki-block-scroll-row[data-shiki-block-id], .shiki-source-code-line').length : 0;
+				const sourceBlockScrollbarCount = input.mode === 'source' ? scope.querySelectorAll('.shiki-block-horizontal-scrollbar').length : 0;
 				const blockIds = new Set<string>();
 				for (const element of scope.querySelectorAll<HTMLElement>('[data-shiki-block-id]')) {
 					const blockId = element.dataset.shikiBlockId;
@@ -962,6 +1022,11 @@ class HorizontalScrollPage {
 					blockCount: blockStates.length,
 					rawFenceVisible: activeText.includes('```ts'),
 					monacoEditorCount: root.querySelectorAll('.monaco-editor').length,
+					sourceNativeGutterCount,
+					sourceRenderedBlockChromeCount,
+					sourceInternalLineNumberCount,
+					sourceBlockScrollRowCount,
+					sourceBlockScrollbarCount,
 					blocks: blockStates,
 				};
 			},

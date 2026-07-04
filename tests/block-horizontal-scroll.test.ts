@@ -95,4 +95,16 @@ describe('block horizontal scroll identity', () => {
 		expect(livePreviewCodeLineRule).toContain('clip-path: inset(0)');
 		expect(livePreviewCodeLineRule).not.toContain('contain: paint');
 	});
+
+	test('keeps raw Source mode out of rendered block scroll chrome', () => {
+		const sourceMode = read('packages/obsidian/src/modes/SourceModeAdapter.ts');
+		const styles = read('packages/obsidian/src/styles.css');
+
+		expect(sourceMode).not.toContain('createBlockHorizontalScrollbarDecoration');
+		expect(sourceMode).not.toContain('SHIKI_BLOCK_SCROLL_ROW_CLASS');
+		expect(sourceMode).not.toContain('shiki-source-code-line');
+		expect(sourceMode).not.toContain('data-shiki-block-id');
+		expect(styles).not.toContain('.cm-line.shiki-source-code-line');
+		expect(styles).not.toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-scroller');
+	});
 });

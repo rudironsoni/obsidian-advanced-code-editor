@@ -520,41 +520,6 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 	width: 12px;
 }
 
-.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line.HyperMD-codeblock,
-.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line.HyperMD-codeblock-bg {
-	background: var(--shiki-code-background) !important;
-}
-
-.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-scroller {
-	overflow-x: hidden;
-	overscroll-behavior-x: contain;
-	-webkit-overflow-scrolling: touch;
-}
-
-.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-content {
-	min-width: 100%;
-	width: 100% !important;
-}
-
-.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line {
-	white-space: pre !important;
-	width: 100% !important;
-	min-width: 100% !important;
-}
-
-.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line.shiki-source-code-line {
-	display: flow-root;
-	background: var(--shiki-code-background);
-	font-family: var(--font-monospace);
-	font-size: var(--code-size);
-	line-height: var(--line-height-normal);
-	overflow-x: hidden;
-	overflow-y: hidden;
-	contain: paint;
-	overscroll-behavior-x: contain;
-	touch-action: pan-x pan-y;
-}
-
 /* Settings tab */
 .setting-item-control input.shiki-custom-theme-folder {
 	min-width: 250px;

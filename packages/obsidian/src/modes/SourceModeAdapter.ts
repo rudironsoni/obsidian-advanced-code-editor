@@ -1,6 +1,5 @@
 import { type Range } from '@codemirror/state';
 import { Decoration, type DecorationSet, type EditorView, type ViewUpdate } from '@codemirror/view';
-import { createBlockHorizontalScrollbarDecoration, SHIKI_BLOCK_SCROLL_ROW_CLASS } from 'packages/obsidian/src/codemirror/BlockHorizontalScroll';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
@@ -56,7 +55,6 @@ export class SourceModeAdapter {
 		sourceViewRoot?.style.removeProperty('--shiki-code-background');
 
 		for (const block of visibleBlocks) {
-			this.addBlockScrollDecorations(ranges, block);
 			const cached = this.plugin.sourceModeTokenizationCache.get({
 				sourcePath: block.sourcePath,
 				language: block.language,
@@ -123,26 +121,6 @@ export class SourceModeAdapter {
 			lines.push({ lineNumber, text: line.text, from: line.from, to: line.to });
 		}
 		return lines;
-	}
-
-	private addBlockScrollDecorations(ranges: Range<Decoration>[], block: CodeBlockModel): void {
-		if (block.openingFenceLine === undefined || block.closingFenceLine === undefined) {
-			return;
-		}
-		for (let lineNumber = block.openingFenceLine + 1; lineNumber < block.closingFenceLine; lineNumber++) {
-			const line = this.view.state.doc.line(lineNumber);
-			ranges.push(
-				Decoration.line({
-					attributes: {
-						class: `shiki-source-code-line ${SHIKI_BLOCK_SCROLL_ROW_CLASS}`,
-						'data-shiki-block-id': block.id,
-						'data-shiki-scroll-owner': 'true',
-					},
-				}).range(line.from),
-			);
-		}
-		const closingFence = this.view.state.doc.line(block.closingFenceLine);
-		ranges.push(createBlockHorizontalScrollbarDecoration(block.id, this.plugin.loadedSettings.wrapLines).range(closingFence.to));
 	}
 
 	private toSourceBlock(parsed: ReturnType<CodeBlockParser['parseLivePreviewBlocks']>[number]): CodeBlockModel {

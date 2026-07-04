@@ -94,7 +94,7 @@ Given('the fixture note {string} is open in raw Source mode for horizontal scrol
 	activeHorizontalScrollMode = 'source';
 	activeHorizontalScrollNotePath = notePath;
 	await horizontalScrollPage.openFixture(notePath, activeHorizontalScrollMode);
-	lastHorizontalScrollState = await horizontalScrollPage.waitForHorizontalScrollReady(activeHorizontalScrollMode, 1, true);
+	lastHorizontalScrollState = await horizontalScrollPage.waitForRawSourceReady(notePath);
 });
 
 When('I scroll the first code block horizontally with its block scrollbar', async () => {
@@ -137,6 +137,13 @@ When('I edit the visible horizontal scroll marker', async () => {
 	);
 	lastHorizontalScrollState = observedState;
 	writeJsonArtifact('horizontal-scroll-exact-edit', { edit: lastExactEdit, scroll: lastHorizontalScrollState });
+});
+
+When('I edit the raw Source mode horizontal scroll marker', async () => {
+	assert.equal(activeHorizontalScrollMode, 'source', 'expected raw Source mode before editing source marker');
+	lastExactEdit = await horizontalScrollPage.editMarkerAfterScroll();
+	lastHorizontalScrollState = await horizontalScrollPage.collectScrollState(activeHorizontalScrollMode, 'after-source-edit');
+	writeJsonArtifact('horizontal-scroll-source-exact-edit', { edit: lastExactEdit, scroll: lastHorizontalScrollState });
 });
 
 When('I repeatedly scroll the first code block horizontally with wheel gestures', async () => {
@@ -228,6 +235,23 @@ Then('raw Source mode should keep Markdown fences editable', async () => {
 	assert.equal(state.monacoEditorCount, 0, `expected Source mode not to mount Monaco: ${JSON.stringify(state)}`);
 });
 
+Then('raw Source mode should stay native without rendered block chrome', async () => {
+	const state = await currentHorizontalScrollState('assert-raw-source-native');
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `horizontal-scroll-source-raw-native-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+	assert.equal(activeHorizontalScrollMode, 'source');
+	assert.equal(state.rawFenceVisible, true, `expected raw Markdown fences to remain visible: ${JSON.stringify(state)}`);
+	assert.equal(state.monacoEditorCount, 0, `expected Source mode not to mount Monaco: ${JSON.stringify(state)}`);
+	assert.ok(state.sourceNativeGutterCount > 0, `expected native Obsidian editor line numbers to remain visible: ${JSON.stringify(state)}`);
+	assert.equal(state.sourceRenderedBlockChromeCount, 0, `expected Source mode not to render block header/copy/fence chrome: ${JSON.stringify(state)}`);
+	assert.equal(state.sourceInternalLineNumberCount, 0, `expected Source mode not to render internal block line numbers: ${JSON.stringify(state)}`);
+	assert.equal(state.sourceBlockScrollRowCount, 0, `expected Source mode rows not to use rendered block scroll classes: ${JSON.stringify(state)}`);
+	assert.equal(state.sourceBlockScrollbarCount, 0, `expected Source mode not to render a block scrollbar widget: ${JSON.stringify(state)}`);
+	assert.equal(state.blockCount, 0, `expected Source mode not to expose plugin-owned rendered blocks: ${JSON.stringify(state)}`);
+	assert.equal(state.noteScrollLeft, 0, `expected Source editor scrollLeft to remain 0 at rest: ${JSON.stringify(state)}`);
+	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0 at rest: ${JSON.stringify(state)}`);
+});
+
 Then('the exact edit should be written at the horizontal scroll marker', async () => {
 	assert.ok(lastExactEdit, 'expected exact edit result');
 	assert.equal(lastExactEdit.fileContainsEdit, true, `expected edit immediately after marker: ${JSON.stringify(lastExactEdit)}`);
@@ -236,7 +260,9 @@ Then('the exact edit should be written at the horizontal scroll marker', async (
 		`expected edited line to contain marker edit: ${JSON.stringify(lastExactEdit)}`,
 	);
 	const state = await currentHorizontalScrollState('assert-exact-edit-scroll');
-	assert.ok(state.blocks[0]?.scrollLeft > 0, `expected scroll to survive exact edit: ${JSON.stringify(state)}`);
+	if (state.mode !== 'source') {
+		assert.ok(state.blocks[0]?.scrollLeft > 0, `expected scroll to survive exact edit: ${JSON.stringify(state)}`);
+	}
 });
 
 Then('the first and second code blocks should keep independent horizontal scroll positions', async () => {
