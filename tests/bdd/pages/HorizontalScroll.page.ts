@@ -69,6 +69,7 @@ export type HorizontalScrollBlockState = {
 	lineNumberCount: number;
 	lineNumberValues: string[];
 	nativeBlockGutterCount: number;
+	gutterMasksScrolledContent: boolean;
 	rowCount: number;
 	scrollbarCount: number;
 	scrollOwnerCount: number;
@@ -597,9 +598,20 @@ class HorizontalScrollPage {
 							: [...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-line-number[data-shiki-block-id="${CSS.escape(block.blockId)}"]`)];
 					const gutterEdge = block.gutter ?? lineNumbers[0] ?? null;
 					const lineNumberRect = gutterEdge?.getBoundingClientRect() ?? null;
+					const gutterStyle = gutterEdge ? getComputedStyle(gutterEdge) : null;
+					const gutterBeforeStyle = gutterEdge ? getComputedStyle(gutterEdge, '::before') : null;
+					const gutterAfterStyle = gutterEdge ? getComputedStyle(gutterEdge, '::after') : null;
 					const contentElements = [
 						...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-code-content[data-shiki-block-id="${CSS.escape(block.blockId)}"]`),
 					];
+					const parseZIndex = (value: string | null): number => {
+						const parsed = Number.parseInt(value ?? '', 10);
+						return Number.isFinite(parsed) ? parsed : 0;
+					};
+					const contentZIndex = Math.max(0, ...contentElements.map(element => parseZIndex(getComputedStyle(element).zIndex)));
+					const gutterZIndex = parseZIndex(gutterStyle?.zIndex ?? null);
+					const gutterBeforeZIndex = parseZIndex(gutterBeforeStyle?.zIndex ?? null);
+					const gutterAfterZIndex = parseZIndex(gutterAfterStyle?.zIndex ?? null);
 					const codeContent =
 						input.mode === 'reading'
 							? (block.root.querySelector<HTMLElement>('.shiki-code-scroll code') ?? block.code)
@@ -635,6 +647,17 @@ class HorizontalScrollPage {
 						lineNumberCount: lineNumbers.length,
 						lineNumberValues: lineNumbers.map(element => element.textContent ?? ''),
 						nativeBlockGutterCount,
+						gutterMasksScrolledContent:
+							input.mode !== 'live-preview' ||
+							(gutterStyle !== null &&
+								gutterBeforeStyle !== null &&
+								gutterAfterStyle !== null &&
+								gutterStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+								gutterBeforeStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+								gutterAfterStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+								gutterZIndex > contentZIndex &&
+								gutterBeforeZIndex > contentZIndex &&
+								gutterAfterZIndex > contentZIndex),
 						rowCount: block.rows.length,
 						scrollbarCount: block.scrollbars.length,
 						scrollOwnerCount: block.owners.length,

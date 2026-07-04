@@ -115,7 +115,18 @@ When('I scroll the first code block horizontally with a touch gesture', async ()
 
 When('I edit the visible horizontal scroll marker', async () => {
 	lastExactEdit = await horizontalScrollPage.editMarkerAfterScroll();
-	lastHorizontalScrollState = await horizontalScrollPage.collectScrollState(activeHorizontalScrollMode, 'after-exact-edit');
+	let observedState: HorizontalScrollState | undefined;
+	await browser.waitUntil(
+		async () => {
+			observedState = await horizontalScrollPage.collectScrollState(activeHorizontalScrollMode, 'after-exact-edit');
+			return (observedState.blocks[0]?.scrollLeft ?? 0) > 0;
+		},
+		{
+			timeout: 5000,
+			timeoutMsg: 'Horizontal scroll was not restored after exact edit',
+		},
+	);
+	lastHorizontalScrollState = observedState;
 	writeJsonArtifact('horizontal-scroll-exact-edit', { edit: lastExactEdit, scroll: lastHorizontalScrollState });
 });
 
@@ -150,6 +161,7 @@ Then('the active note should keep horizontal scroll inside the first code block'
 		assert.equal(first.rowScrollLeftMax, 0, `expected Live Preview rows not to own horizontal scrollLeft: ${JSON.stringify(state)}`);
 		assert.ok(first.livePreviewContentCount > 0, `expected Live Preview code content marks to be measurable: ${JSON.stringify(state)}`);
 		assert.ok(first.livePreviewContentTranslateXSpread <= 0.5, `expected Live Preview rows to share one horizontal offset: ${JSON.stringify(state)}`);
+		assert.equal(first.gutterMasksScrolledContent, true, `expected Live Preview gutter to mask scrolled code content: ${JSON.stringify(state)}`);
 		for (const translateX of first.livePreviewContentTranslateXValues) {
 			assert.ok(
 				Math.abs(translateX + first.scrollLeft) <= 1,
@@ -255,6 +267,8 @@ async function performHorizontalScroll(gesture: HorizontalScrollGesture): Promis
 	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
 	const state = await horizontalScrollPage.performGesture(activeHorizontalScrollMode, 0, gesture);
 	writeJsonArtifact(`horizontal-scroll-${activeHorizontalScrollMode}-${gesture}`, state);
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `horizontal-scroll-${activeHorizontalScrollMode}-${gesture}.png`));
 	return state;
 }
 
