@@ -63,6 +63,14 @@ Feature: Block-owned horizontal scroll
     And the active note should keep horizontal scroll inside the first code block
     And the surrounding note should not move horizontally
 
+  @desktop
+  Scenario: Live Preview keeps code text visible after native row overflow
+    Given horizontal scroll settings use nowrap with line numbers
+    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+    When I force the first Live Preview row past its native scroll range
+    Then the active note should keep horizontal scroll inside the first code block
+    And the surrounding note should not move horizontally
+
   @mobile
   Scenario: Mobile-emulated Live Preview line-number gutter matches Reading mode
     Given Obsidian is running in mobile emulation
@@ -77,5 +85,14 @@ Feature: Block-owned horizontal scroll
     And horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
     When I scroll the first code block horizontally with a touch gesture
+    Then the active note should keep horizontal scroll inside the first code block
+    And the surrounding note should not move horizontally
+
+  @mobile
+  Scenario: Mobile-emulated Live Preview keeps code text visible after native row overflow
+    Given Obsidian is running in mobile emulation
+    And horizontal scroll settings use nowrap with line numbers
+    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+    When I force the first Live Preview row past its native scroll range
     Then the active note should keep horizontal scroll inside the first code block
     And the surrounding note should not move horizontally

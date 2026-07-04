@@ -149,6 +149,9 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					return;
 				}
 				if (source.classList.contains(SHIKI_BLOCK_SCROLL_ROW_CLASS)) {
+					const scrollLeft = this.clampBlockScrollLeft(blockId, source.scrollLeft);
+					this.setScrollLeft(source, scrollLeft);
+					this.syncBlock(blockId, scrollLeft);
 					return;
 				}
 				this.syncBlock(blockId, source.scrollLeft);
@@ -388,7 +391,6 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				const naturalScrollWidths: number[] = [];
 				for (const row of rows) {
 					this.setStyleProperty(row, '--shiki-block-scroll-spacer-width', '0px');
-					this.setStyleProperty(row, '--shiki-block-scroll-width', 'auto');
 					naturalScrollWidths.push(
 						Math.max(
 							row.scrollWidth,
@@ -409,7 +411,6 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				for (const row of cache.rows) {
 					const spacerWidth = cache.disabled ? 0 : cache.maxScrollWidth + row.clientWidth;
 					this.setStyleProperty(row, '--shiki-block-scroll-spacer-width', `${spacerWidth}px`);
-					this.setStyleProperty(row, '--shiki-block-scroll-width', cache.disabled ? 'auto' : `${cache.maxScrollWidth}px`);
 					if (cache.disabled) {
 						this.setScrollLeft(row, 0);
 					}
