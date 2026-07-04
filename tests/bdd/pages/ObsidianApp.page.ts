@@ -2,6 +2,8 @@ import { browser } from '@wdio/globals';
 import { executeObsidian, waitForObsidianServiceHelper } from '../support/executeObsidian.js';
 
 const pluginId = 'advanced-code-block';
+const desktopViewport = { width: 1440, height: 1000 };
+const mobileViewport = { width: 430, height: 932 };
 
 type PluginLoadState = {
 	loaded: boolean;
@@ -114,12 +116,14 @@ class ObsidianAppPage {
 	}
 
 	async expectMobileEmulation(): Promise<void> {
+		await this.setDeviceMetrics(mobileViewport, true);
 		await this.setMobileEmulation(true);
 		await browser.waitUntil(async () => this.isMobileEmulationActive(), {
 			timeout: 30000,
 			timeoutMsg: 'Obsidian mobile emulation was not active',
 		});
 		await waitForObsidianServiceHelper();
+		await this.setDeviceMetrics(desktopViewport, false);
 	}
 
 	async resetMobileEmulation(): Promise<void> {
@@ -144,6 +148,15 @@ class ObsidianAppPage {
 			};
 			await runtimeWindow.app?.emulateMobile(shouldEnable);
 		}, enabled);
+	}
+
+	private async setDeviceMetrics(size: { width: number; height: number }, mobile: boolean): Promise<void> {
+		await browser.sendCommand('Emulation.setDeviceMetricsOverride', {
+			width: size.width,
+			height: size.height,
+			deviceScaleFactor: mobile ? 3 : 1,
+			mobile,
+		});
 	}
 
 	private async isMobileEmulationActive(): Promise<boolean> {

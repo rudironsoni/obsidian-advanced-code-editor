@@ -41,8 +41,10 @@ describe('block horizontal scroll identity', () => {
 
 		expect(source).toContain('if (target.scrollLeft !== scrollLeft)');
 		expect(source).toContain('if (target.style.getPropertyValue(property) !== value)');
-		expect(source).toContain('this.styleElement = this.view.dom.ownerDocument.createElement');
-		expect(source).toContain('.shiki-live-preview-code-content[data-shiki-block-id=${CSS.escape(blockId)}]');
+		expect(source).toContain('for (const row of cache.rows)');
+		expect(source).toContain('this.setScrollLeft(row, scrollLeft)');
+		expect(source).not.toContain('this.styleElement = this.view.dom.ownerDocument.createElement');
+		expect(source).not.toContain('.shiki-live-preview-code-content[data-shiki-block-id=${CSS.escape(blockId)}]');
 		expect(source).not.toContain("row.style.setProperty('--shiki-block-scroll-left', offset)");
 		expect(source).not.toContain("content.style.setProperty('--shiki-block-scroll-left', offset)");
 	});
