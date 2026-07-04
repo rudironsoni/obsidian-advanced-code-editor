@@ -110,20 +110,22 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private readonly domObserver: MutationObserver;
 			private readonly blockCacheById = new Map<string, BlockScrollCache>();
 			private readonly pendingScrollLeftByBlock = new Map<string, number>();
+			private readonly gestureRoot: EventTarget;
 			private scrollFlushFrame: number | undefined;
 
 			constructor(private readonly view: EditorView) {
+				this.gestureRoot = this.view.root as unknown as EventTarget;
 				this.domObserver = new MutationObserver(this.onDomMutations);
 				this.view.scrollDOM.addEventListener('scroll', this.onScroll, true);
 				this.view.scrollDOM.addEventListener('wheel', this.onWheel, { capture: true, passive: false });
-				this.view.scrollDOM.addEventListener('pointerdown', this.onPointerDown, true);
-				this.view.scrollDOM.addEventListener('pointermove', this.onPointerMove, true);
-				this.view.scrollDOM.addEventListener('pointerup', this.onPointerEnd, true);
-				this.view.scrollDOM.addEventListener('pointercancel', this.onPointerEnd, true);
-				this.view.scrollDOM.addEventListener('touchstart', this.onTouchStart, { capture: true, passive: false });
-				this.view.scrollDOM.addEventListener('touchmove', this.onTouchMove, { capture: true, passive: false });
-				this.view.scrollDOM.addEventListener('touchend', this.onTouchEnd, true);
-				this.view.scrollDOM.addEventListener('touchcancel', this.onTouchEnd, true);
+				this.gestureRoot.addEventListener('pointerdown', this.onPointerDown as EventListener, true);
+				this.gestureRoot.addEventListener('pointermove', this.onPointerMove as EventListener, true);
+				this.gestureRoot.addEventListener('pointerup', this.onPointerEnd as EventListener, true);
+				this.gestureRoot.addEventListener('pointercancel', this.onPointerEnd as EventListener, true);
+				this.gestureRoot.addEventListener('touchstart', this.onTouchStart as EventListener, { capture: true, passive: false });
+				this.gestureRoot.addEventListener('touchmove', this.onTouchMove as EventListener, { capture: true, passive: false });
+				this.gestureRoot.addEventListener('touchend', this.onTouchEnd, true);
+				this.gestureRoot.addEventListener('touchcancel', this.onTouchEnd, true);
 				this.domObserver.observe(this.view.dom, { childList: true, subtree: true });
 				this.scheduleMeasure();
 			}
@@ -139,14 +141,14 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.domObserver.disconnect();
 				this.view.scrollDOM.removeEventListener('scroll', this.onScroll, true);
 				this.view.scrollDOM.removeEventListener('wheel', this.onWheel, true);
-				this.view.scrollDOM.removeEventListener('pointerdown', this.onPointerDown, true);
-				this.view.scrollDOM.removeEventListener('pointermove', this.onPointerMove, true);
-				this.view.scrollDOM.removeEventListener('pointerup', this.onPointerEnd, true);
-				this.view.scrollDOM.removeEventListener('pointercancel', this.onPointerEnd, true);
-				this.view.scrollDOM.removeEventListener('touchstart', this.onTouchStart, true);
-				this.view.scrollDOM.removeEventListener('touchmove', this.onTouchMove, true);
-				this.view.scrollDOM.removeEventListener('touchend', this.onTouchEnd, true);
-				this.view.scrollDOM.removeEventListener('touchcancel', this.onTouchEnd, true);
+				this.gestureRoot.removeEventListener('pointerdown', this.onPointerDown as EventListener, true);
+				this.gestureRoot.removeEventListener('pointermove', this.onPointerMove as EventListener, true);
+				this.gestureRoot.removeEventListener('pointerup', this.onPointerEnd as EventListener, true);
+				this.gestureRoot.removeEventListener('pointercancel', this.onPointerEnd as EventListener, true);
+				this.gestureRoot.removeEventListener('touchstart', this.onTouchStart as EventListener, true);
+				this.gestureRoot.removeEventListener('touchmove', this.onTouchMove as EventListener, true);
+				this.gestureRoot.removeEventListener('touchend', this.onTouchEnd, true);
+				this.gestureRoot.removeEventListener('touchcancel', this.onTouchEnd, true);
 				if (this.measureTimer !== undefined) {
 					window.clearTimeout(this.measureTimer);
 				}
@@ -156,14 +158,6 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				for (const target of this.observedScrollTargets) {
 					target.removeEventListener('scroll', this.onScroll);
 					target.removeEventListener('wheel', this.onWheel, true);
-					target.removeEventListener('pointerdown', this.onPointerDown, true);
-					target.removeEventListener('pointermove', this.onPointerMove, true);
-					target.removeEventListener('pointerup', this.onPointerEnd, true);
-					target.removeEventListener('pointercancel', this.onPointerEnd, true);
-					target.removeEventListener('touchstart', this.onTouchStart, true);
-					target.removeEventListener('touchmove', this.onTouchMove, true);
-					target.removeEventListener('touchend', this.onTouchEnd, true);
-					target.removeEventListener('touchcancel', this.onTouchEnd, true);
 				}
 				this.observedScrollTargets.clear();
 			}
@@ -487,14 +481,6 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.observedScrollTargets.add(target);
 				target.addEventListener('scroll', this.onScroll);
 				target.addEventListener('wheel', this.onWheel, { capture: true, passive: false });
-				target.addEventListener('pointerdown', this.onPointerDown, true);
-				target.addEventListener('pointermove', this.onPointerMove, true);
-				target.addEventListener('pointerup', this.onPointerEnd, true);
-				target.addEventListener('pointercancel', this.onPointerEnd, true);
-				target.addEventListener('touchstart', this.onTouchStart, { capture: true, passive: false });
-				target.addEventListener('touchmove', this.onTouchMove, { capture: true, passive: false });
-				target.addEventListener('touchend', this.onTouchEnd, true);
-				target.addEventListener('touchcancel', this.onTouchEnd, true);
 			}
 
 			private scrollTargetFromEvent(target: EventTarget | null, clientX?: number, clientY?: number): { blockId: string; scrollLeft: number } | undefined {
