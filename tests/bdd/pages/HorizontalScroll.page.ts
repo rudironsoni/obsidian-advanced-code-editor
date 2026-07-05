@@ -103,6 +103,15 @@ export type HorizontalScrollBlockState = {
 	clientWidth: number;
 	scrollWidth: number;
 	headerLeft: number | null;
+	headerRight: number | null;
+	headerWidth: number | null;
+	headerHeight: number | null;
+	headerDisplay: string | null;
+	headerFlexDirection: string | null;
+	headerLangLeft: number | null;
+	headerLangCenterY: number | null;
+	headerCopyRight: number | null;
+	headerCopyCenterY: number | null;
 	gutterLeft: number | null;
 	gutterRight: number | null;
 	codeContentLeft: number | null;
@@ -792,6 +801,10 @@ class HorizontalScrollPage {
 						];
 						const body = rootElement.querySelector<HTMLElement>('.shiki-block-body') ?? null;
 						const blockElements = [...scope.querySelectorAll<HTMLElement>(`[data-shiki-block-id="${escapedBlockId}"]`)];
+						const header =
+							scope.querySelector<HTMLElement>(`.shiki-block-header[data-shiki-block-id="${escapedBlockId}"]`) ??
+							scope.querySelector<HTMLElement>(`.shiki-live-preview-header[data-shiki-block-id="${escapedBlockId}"]`) ??
+							(rootElement.matches('.shiki-block-header, .shiki-live-preview-header') ? rootElement : null);
 						const owners = blockElements.filter(element => element.dataset.shikiScrollOwner === 'true');
 						const targets = [...rows, ...scrollbars];
 						if (body) targets.push(body);
@@ -806,7 +819,7 @@ class HorizontalScrollPage {
 							scrollbar: scrollbars[0] ?? null,
 							scrollbars,
 							owners,
-							header: rootElement.querySelector<HTMLElement>('.shiki-block-header, .shiki-live-preview-header') ?? null,
+							header,
 							gutter: rootElement.querySelector<HTMLElement>('.shiki-line-numbers, .shiki-live-preview-line-number') ?? null,
 							code: rootElement.querySelector<HTMLElement>('code, pre, .cm-line') ?? rows[0] ?? null,
 							targets,
@@ -832,6 +845,10 @@ class HorizontalScrollPage {
 					const targets = block.targets;
 					const rowScrollLeftValues = block.rows.map(element => element.scrollLeft);
 					const rectProbe = block.code ?? block.row ?? block.body ?? block.scrollbar ?? block.root;
+					const headerRect = block.header?.getBoundingClientRect() ?? null;
+					const headerStyle = block.header ? getComputedStyle(block.header) : null;
+					const headerLangRect = block.header?.querySelector<HTMLElement>('.shiki-lang-name')?.getBoundingClientRect() ?? null;
+					const headerCopyRect = block.header?.querySelector<HTMLElement>('.shiki-copy-button')?.getBoundingClientRect() ?? null;
 					const beforeCodeLeft = block.code?.getBoundingClientRect().left ?? null;
 					const beforeGutterLeft = block.gutter?.getBoundingClientRect().left ?? null;
 					const lineNumbers =
@@ -1055,7 +1072,16 @@ class HorizontalScrollPage {
 						maxScrollLeft: Math.max(0, ...targets.map(element => element.scrollWidth - element.clientWidth)),
 						clientWidth: rectProbe?.clientWidth ?? 0,
 						scrollWidth: rectProbe?.scrollWidth ?? 0,
-						headerLeft: block.header?.getBoundingClientRect().left ?? null,
+						headerLeft: headerRect?.left ?? null,
+						headerRight: headerRect?.right ?? null,
+						headerWidth: headerRect?.width ?? null,
+						headerHeight: headerRect?.height ?? null,
+						headerDisplay: headerStyle?.display ?? null,
+						headerFlexDirection: headerStyle?.flexDirection ?? null,
+						headerLangLeft: headerLangRect?.left ?? null,
+						headerLangCenterY: headerLangRect ? headerLangRect.top + headerLangRect.height / 2 : null,
+						headerCopyRight: headerCopyRect?.right ?? null,
+						headerCopyCenterY: headerCopyRect ? headerCopyRect.top + headerCopyRect.height / 2 : null,
 						gutterLeft: beforeGutterLeft,
 						gutterRight: lineNumberRect?.right ?? null,
 						codeContentLeft,

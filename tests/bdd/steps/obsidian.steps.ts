@@ -232,6 +232,59 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 		Math.abs(livePreviewBlock.gutterToCodeGap - readingBlock.gutterToCodeGap) <= 2,
 		`expected Live Preview gutter/code gap to match Reading mode: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`,
 	);
+	const layoutJson = JSON.stringify(lastHorizontalScrollLineNumberLayout);
+	const liveHeader = {
+		right: livePreviewBlock.headerRight,
+		height: livePreviewBlock.headerHeight,
+		langLeft: livePreviewBlock.headerLangLeft,
+		langCenterY: livePreviewBlock.headerLangCenterY,
+		copyRight: livePreviewBlock.headerCopyRight,
+		copyCenterY: livePreviewBlock.headerCopyCenterY,
+	};
+	const readingHeader = {
+		right: readingBlock.headerRight,
+		height: readingBlock.headerHeight,
+		langLeft: readingBlock.headerLangLeft,
+		langCenterY: readingBlock.headerLangCenterY,
+		copyRight: readingBlock.headerCopyRight,
+		copyCenterY: readingBlock.headerCopyCenterY,
+	};
+	assert.equal(livePreviewBlock.headerDisplay, 'flex', `expected Live Preview block header to use flex layout: ${layoutJson}`);
+	assert.equal(livePreviewBlock.headerFlexDirection, 'row', `expected Live Preview block header to use row layout: ${layoutJson}`);
+	if (
+		liveHeader.right === null ||
+		liveHeader.height === null ||
+		liveHeader.langLeft === null ||
+		liveHeader.langCenterY === null ||
+		liveHeader.copyRight === null ||
+		liveHeader.copyCenterY === null ||
+		readingHeader.right === null ||
+		readingHeader.height === null ||
+		readingHeader.langLeft === null ||
+		readingHeader.langCenterY === null ||
+		readingHeader.copyRight === null ||
+		readingHeader.copyCenterY === null
+	) {
+		assert.fail(`expected measurable block header child geometry: ${layoutJson}`);
+	}
+	assert.ok(Math.abs(liveHeader.height - readingHeader.height) <= 2, `expected Live Preview block header height to match Reading mode: ${layoutJson}`);
+	assert.ok(Math.abs(liveHeader.right - readingHeader.right) <= 2, `expected Live Preview block header right edge to match Reading mode: ${layoutJson}`);
+	assert.ok(
+		Math.abs(liveHeader.copyRight - liveHeader.right - (readingHeader.copyRight - readingHeader.right)) <= 2,
+		`expected Live Preview Copy button right padding to match Reading mode: ${layoutJson}`,
+	);
+	assert.ok(
+		Math.abs(
+			liveHeader.langLeft -
+				(livePreviewBlock.headerLeft ?? liveHeader.langLeft) -
+				(readingHeader.langLeft - (readingBlock.headerLeft ?? readingHeader.langLeft)),
+		) <= 2,
+		`expected Live Preview language label left padding to match Reading mode: ${layoutJson}`,
+	);
+	assert.ok(
+		Math.abs(liveHeader.langCenterY - liveHeader.copyCenterY) <= 2,
+		`expected Live Preview language label and Copy button to stay on the same row: ${layoutJson}`,
+	);
 });
 
 Then('the surrounding note should not move horizontally', async () => {

@@ -82,6 +82,7 @@ export function stableBlockScrollMemoryKey(blockId: string): string {
 interface BlockScrollCache {
 	rows: HTMLElement[];
 	scrollbars: HTMLElement[];
+	headers: HTMLElement[];
 	maxScrollLeft: number;
 	maxScrollWidth: number;
 	clipWidth: number;
@@ -456,7 +457,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				const rows = [...this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_BLOCK_SCROLL_ROW_CLASS}[data-shiki-block-id="${escapedBlockId}"]`)];
 				const scrollbars = [...this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_BLOCK_SCROLLBAR_CLASS}[data-shiki-block-id="${escapedBlockId}"]`)];
 				const headers = [...this.view.dom.querySelectorAll<HTMLElement>(`.shiki-live-preview-header[data-shiki-block-id="${escapedBlockId}"]`)];
-				const clipWidths = [...scrollbars, ...headers].map(element => element.clientWidth).filter(width => width > 0);
+				const clipWidths = scrollbars.map(element => element.clientWidth).filter(width => width > 0);
 				const clipWidth = clipWidths.length ? Math.min(...clipWidths) : 0;
 				const naturalScrollWidths: number[] = [];
 				for (const row of rows) {
@@ -468,13 +469,16 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				const maxScrollWidth = Math.max(0, ...naturalScrollWidths);
 				const maxScrollLeft = Math.max(0, ...rows.map(row => Math.max(row.scrollWidth, maxScrollWidth) - row.clientWidth));
 				const disabled = scrollbars.some(scrollbar => scrollbar.dataset.shikiScrollDisabled === 'true');
-				const cache = { rows, scrollbars, maxScrollLeft, maxScrollWidth, clipWidth, disabled };
+				const cache = { rows, scrollbars, headers, maxScrollLeft, maxScrollWidth, clipWidth, disabled };
 				this.updateRowScrollSpacers(cache);
 				this.blockCacheById.set(blockId, cache);
 				return cache;
 			}
 
 			private updateRowScrollSpacers(cache: BlockScrollCache): void {
+				for (const header of cache.headers) {
+					this.setStyleProperty(header, '--shiki-block-clip-width', cache.clipWidth > 0 ? `${cache.clipWidth}px` : '100%');
+				}
 				for (const row of cache.rows) {
 					const spacerWidth = cache.disabled ? 0 : cache.maxScrollWidth;
 					this.setStyleProperty(row, '--shiki-block-clip-width', cache.clipWidth > 0 ? `${cache.clipWidth}px` : '100%');
@@ -506,57 +510,31 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				target.addEventListener('wheel', this.onWheel, { capture: true, passive: false });
 			}
 
-			private scrollTargetFromEvent(target: EventTarget | null, clientX?: number, clientY?: number): { blockId: string; scrollLeft: number } | undefined {
-				const targetBlockId = this.blockIdFromElement(target instanceof Element ? target : undefined);
+			private scrollTargetFromEvent(
+				target: EventTarget | null,
+				_clientX?: number,
+				_clientY?: number,
+			): { blockId: string; scrollLeft: number } | undefined {
+				const targetBlockId = this.blockIdFromElement(
+					target instanceof Element ? target : target instanceof Text ? (target.parentElement ?? undefined) : undefined,
+				);
 				if (targetBlockId) {
 					return { blockId: targetBlockId, scrollLeft: this.blockScrollLeft(targetBlockId) };
 				}
-				if (clientX === undefined || clientY === undefined) {
-					return undefined;
-				}
-				const pointBlockId = this.blockIdFromElement(this.view.root.elementFromPoint(clientX, clientY) ?? undefined);
-				if (pointBlockId) {
-					return { blockId: pointBlockId, scrollLeft: this.blockScrollLeft(pointBlockId) };
-				}
-				const coordinateBlockId = this.blockIdFromPoint(clientX, clientY);
-				return coordinateBlockId ? { blockId: coordinateBlockId, scrollLeft: this.blockScrollLeft(coordinateBlockId) } : undefined;
+				return undefined;
 			}
 
 			private blockIdFromElement(element: Element | undefined): string | undefined {
 				if (!element || !this.view.dom.contains(element)) {
 					return undefined;
 				}
-				const blockElement = element.closest<HTMLElement>('[data-shiki-block-id]');
-				const blockId = blockElement?.dataset.shikiBlockId;
+				const scrollSurface = element.closest<HTMLElement>(
+					`.${SHIKI_BLOCK_SCROLL_ROW_CLASS}[data-shiki-block-id], .${SHIKI_BLOCK_SCROLLBAR_CLASS}[data-shiki-block-id]`,
+				);
+				const blockId = scrollSurface?.dataset.shikiBlockId;
 				if (blockId) {
 					const cache = this.cacheForBlock(blockId);
 					if (cache.rows.length > 0 || cache.scrollbars.length > 0) {
-						return blockId;
-					}
-				}
-				return undefined;
-			}
-
-			private blockIdFromPoint(clientX: number, clientY: number): string | undefined {
-				const blockIds = new Set<string>();
-				for (const element of this.view.dom.querySelectorAll<HTMLElement>('[data-shiki-block-id]')) {
-					const blockId = element.dataset.shikiBlockId;
-					if (blockId) {
-						blockIds.add(blockId);
-					}
-				}
-
-				for (const blockId of blockIds) {
-					const elements = [...this.view.dom.querySelectorAll<HTMLElement>(`[data-shiki-block-id="${CSS.escape(blockId)}"]`)];
-					const rects = elements.map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0 && rect.height > 0);
-					if (rects.length === 0 || this.cacheForBlock(blockId).rows.length === 0) {
-						continue;
-					}
-					const left = Math.min(...rects.map(rect => rect.left));
-					const right = Math.max(...rects.map(rect => rect.right));
-					const top = Math.min(...rects.map(rect => rect.top));
-					const bottom = Math.max(...rects.map(rect => rect.bottom));
-					if (clientX >= left - 48 && clientX <= right + 4 && clientY >= top && clientY <= bottom) {
 						return blockId;
 					}
 				}

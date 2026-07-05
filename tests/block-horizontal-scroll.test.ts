@@ -17,6 +17,18 @@ function defineLayout(element: HTMLElement, layout: { clientWidth: number; scrol
 	Object.defineProperty(element, 'scrollWidth', { configurable: true, get: () => layout.scrollWidth });
 }
 
+function defineRect(element: HTMLElement, rect: { left: number; right: number; top: number; bottom: number }): void {
+	element.getBoundingClientRect = () =>
+		({
+			...rect,
+			x: rect.left,
+			y: rect.top,
+			width: rect.right - rect.left,
+			height: rect.bottom - rect.top,
+			toJSON: () => rect,
+		}) as DOMRect;
+}
+
 function dispatchTouch(dispatchTarget: EventTarget, type: string, clientX: number, clientY: number, touchTarget = dispatchTarget, identifier = 1): Event {
 	const event = new Event(type, { bubbles: true, cancelable: true });
 	const touch = { clientX, clientY, identifier, target: touchTarget } as Touch;
@@ -98,8 +110,11 @@ describe('block horizontal scroll identity', () => {
 
 		expect(source).toContain("this.setStyleProperty(row, '--shiki-block-scroll-spacer-width',");
 		expect(source).toContain("this.setStyleProperty(row, '--shiki-block-clip-width',");
+		expect(source).toContain("this.setStyleProperty(header, '--shiki-block-clip-width',");
 		expect(source).toContain('this.updateRowScrollSpacers(cache)');
 		expect(source).toContain('const naturalScrollWidth = row.scrollWidth');
+		expect(source).toContain('const clipWidths = scrollbars.map(element => element.clientWidth).filter(width => width > 0)');
+		expect(source).not.toContain('const clipWidths = [...scrollbars, ...headers]');
 		expect(source).not.toContain("querySelectorAll<HTMLElement>('.shiki-live-preview-code-content')).map(element => element.scrollWidth)");
 		expect(source).toContain('cache.disabled ? 0 : cache.maxScrollWidth');
 		expect(source).not.toContain('rowNaturalScrollWidths');
@@ -107,6 +122,14 @@ describe('block horizontal scroll identity', () => {
 		expect(styles).toContain('.cm-line.shiki-block-scroll-row:not(.shiki-live-preview-code-line)::after');
 		expect(styles).toContain('.shiki-block-scroll-spacer');
 		expect(styles).toContain('width: var(--shiki-block-clip-width, 100%)');
+		expect(styles).toContain('.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-header');
+		expect(styles).toContain('width: var(--shiki-block-clip-width, 100%);');
+		expect(styles).toContain('min-width: var(--shiki-block-clip-width, 100%);');
+		expect(styles).toContain('max-width: var(--shiki-block-clip-width, 100%);');
+		expect(styles).toContain('display: flex !important;');
+		expect(styles).toContain('flex-direction: row;');
+		expect(styles).toContain('.shiki-header-right');
+		expect(styles).toContain('margin-left: auto;');
 		expect(styles).toContain('padding-inline-end: 0 !important');
 		expect(styles).toContain('var(--shiki-block-scroll-spacer-width, 0px)');
 		expect(styles).not.toContain('--shiki-block-scroll-width');
@@ -138,13 +161,13 @@ describe('block horizontal scroll identity', () => {
 		const livePreviewLineNumberRule =
 			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.shiki-live-preview-line-number \{([\s\S]*?)\n\}/)?.[1] ?? '';
 
-		expect(livePreviewRootRule).toContain('touch-action: pan-y pinch-zoom');
+		expect(livePreviewRootRule).not.toContain('touch-action');
 		expect(livePreviewCodeLineRule).toContain('overflow-x: auto');
 		expect(livePreviewCodeLineRule).toContain('touch-action: pan-y pinch-zoom');
 		expect(livePreviewCodeLineRule).toContain('scrollbar-width: none');
 		expect(livePreviewCodeContentRule).toContain('touch-action: pan-y pinch-zoom');
-		expect(livePreviewScrollerRule).toContain('touch-action: pan-y pinch-zoom');
-		expect(livePreviewContentRule).toContain('touch-action: pan-y pinch-zoom');
+		expect(livePreviewScrollerRule).not.toContain('touch-action');
+		expect(livePreviewContentRule).not.toContain('touch-action');
 		expect(livePreviewLineNumberRule).toContain('touch-action: pan-y pinch-zoom');
 		expect(livePreviewRootRule).not.toContain('touch-action: pan-x pan-y');
 		expect(livePreviewCodeLineRule).not.toContain('touch-action: pan-x pan-y');
@@ -227,6 +250,42 @@ describe('block horizontal scroll identity', () => {
 		try {
 			dispatchTouch(content, 'touchstart', 260, 20);
 			const move = dispatchTouch(document, 'touchmove', 258, 80, content);
+
+			expect(move.defaultPrevented).toBe(false);
+			expect(row.scrollLeft).toBe(0);
+		} finally {
+			view.destroy();
+			parent.remove();
+		}
+	});
+
+	test('keeps Obsidian mobile edge and gutter gestures outside Live Preview blocks native', () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const view = new EditorView({
+			doc: '',
+			extensions: [createBlockHorizontalScrollPlugin()],
+			parent,
+		});
+		const blockId = 'Note.md::live-preview::5::120::5::ts::edge';
+		const nativeGutter = document.createElement('div');
+		const row = document.createElement('div');
+		const content = document.createElement('span');
+
+		nativeGutter.className = 'cm-gutterElement';
+		view.scrollDOM.appendChild(nativeGutter);
+		row.className = `${SHIKI_BLOCK_SCROLL_ROW_CLASS} shiki-live-preview-code-line`;
+		row.dataset.shikiBlockId = blockId;
+		view.scrollDOM.appendChild(row);
+		defineLayout(row, { clientWidth: 300, scrollWidth: 1000 });
+		defineRect(row, { left: 48, right: 348, top: 12, bottom: 44 });
+		content.className = 'shiki-live-preview-code-content';
+		content.textContent = 'codeBlockContent';
+		row.appendChild(content);
+
+		try {
+			dispatchTouch(nativeGutter, 'touchstart', 8, 24);
+			const move = dispatchTouch(document, 'touchmove', 180, 26, nativeGutter);
 
 			expect(move.defaultPrevented).toBe(false);
 			expect(row.scrollLeft).toBe(0);
