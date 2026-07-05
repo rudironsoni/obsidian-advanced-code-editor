@@ -177,7 +177,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				if (source.classList.contains(SHIKI_BLOCK_SCROLL_ROW_CLASS)) {
 					const scrollLeft = this.clampBlockScrollLeft(blockId, source.scrollLeft);
 					this.setScrollLeft(source, scrollLeft);
-					this.syncBlock(blockId, scrollLeft);
+					this.syncBlockImmediate(blockId, scrollLeft);
 					return;
 				}
 				this.syncBlock(blockId, source.scrollLeft);
@@ -239,9 +239,6 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				if (!this.pointerHorizontal) {
 					return;
 				}
-				if (event.cancelable) {
-					event.preventDefault();
-				}
 				event.stopPropagation();
 				this.syncBlockImmediate(this.pointerBlockId, this.pointerStartScrollLeft - deltaX);
 			};
@@ -281,9 +278,6 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				if (!this.touchHorizontal) {
 					return;
-				}
-				if (event.cancelable) {
-					event.preventDefault();
 				}
 				event.stopPropagation();
 				this.syncBlockImmediate(this.touchBlockId, this.touchStartScrollLeft - deltaX);
