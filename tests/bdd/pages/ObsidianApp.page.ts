@@ -3,6 +3,9 @@ import { executeObsidian, waitForObsidianServiceHelper } from '../support/execut
 import { isWebDriverSessionGoneError } from '../support/wdioSession.js';
 
 const pluginId = 'advanced-code-block';
+const phonePortraitClass = 'shiki-wdio-phone-portrait';
+const phonePortraitStyleId = 'shiki-wdio-phone-portrait-style';
+let phonePortraitStyleApplied = false;
 
 type PluginLoadState = {
 	loaded: boolean;
@@ -120,6 +123,40 @@ class ObsidianAppPage {
 			timeoutMsg: 'Obsidian mobile emulation was not active. Run mobile scenarios with wdio.mobile.conf.mts.',
 		});
 		await waitForObsidianServiceHelper();
+	}
+
+	async resizeToPhonePortrait(): Promise<void> {
+		await executeObsidian((_, input) => {
+			document.body.classList.add(input.className);
+			document.getElementById(input.styleId)?.remove();
+			const style = document.createElement('style');
+			style.id = input.styleId;
+			style.textContent = `
+				body.${input.className} .workspace-leaf.mod-active .view-content {
+					width: 430px !important;
+					max-width: 430px !important;
+					margin-inline: auto !important;
+				}
+				body.${input.className} .workspace-leaf.mod-active .markdown-source-view,
+				body.${input.className} .workspace-leaf.mod-active .markdown-preview-view {
+					width: 100% !important;
+					max-width: 100% !important;
+				}
+			`;
+			document.head.appendChild(style);
+		}, { className: phonePortraitClass, styleId: phonePortraitStyleId });
+		phonePortraitStyleApplied = true;
+	}
+
+	async resetWindowSize(): Promise<void> {
+		if (!phonePortraitStyleApplied) {
+			return;
+		}
+		phonePortraitStyleApplied = false;
+		await executeObsidian((_, input) => {
+			document.body.classList.remove(input.className);
+			document.getElementById(input.styleId)?.remove();
+		}, { className: phonePortraitClass, styleId: phonePortraitStyleId });
 	}
 
 	async resetMobileEmulation(): Promise<void> {

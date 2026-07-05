@@ -35,6 +35,10 @@ Given('Obsidian is running in mobile emulation', async () => {
 	await obsidianApp.expectMobileEmulation();
 });
 
+Given('Obsidian is sized like a phone portrait', async () => {
+	await obsidianApp.resizeToPhonePortrait();
+});
+
 When('Obsidian renders the active note', async () => {
 	if (!lastExpectedRenderText) {
 		lastExpectedRenderText = 'const wdioValue';

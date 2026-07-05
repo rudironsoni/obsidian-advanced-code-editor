@@ -399,10 +399,35 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 
 .markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-header {
 	margin-top: var(--shiki-code-block-spacing);
+	display: flex !important;
+	flex-direction: row !important;
+	align-items: center !important;
+	justify-content: space-between !important;
+	flex-wrap: nowrap !important;
 	width: var(--shiki-block-clip-width, 100%);
 	min-width: var(--shiki-block-clip-width, 100%);
 	max-width: var(--shiki-block-clip-width, 100%);
 	box-sizing: border-box;
+}
+
+.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-header .shiki-header-left,
+.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-header .shiki-header-right {
+	display: flex !important;
+	flex-direction: row !important;
+	align-items: center !important;
+	width: auto !important;
+	white-space: nowrap;
+}
+
+.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-header .shiki-header-right {
+	margin-left: auto !important;
+	flex: 0 0 auto !important;
+}
+
+.markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-header .shiki-copy-button {
+	width: auto !important;
+	flex: 0 0 auto !important;
+	white-space: nowrap;
 }
 
 .markdown-source-view.mod-cm6:not(.is-live-preview) .shiki-live-preview-header {

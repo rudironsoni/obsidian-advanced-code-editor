@@ -90,6 +90,15 @@ Feature: Block-owned horizontal scroll
     Then the Live Preview code block line-number gutter should match Reading mode
 
   @mobile
+  Scenario: Mobile portrait Live Preview header matches Reading mode
+    Given Obsidian is running in mobile emulation
+    And Obsidian is sized like a phone portrait
+    And horizontal scroll settings use nowrap with line numbers
+    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+    When I compare the first code block line-number layout with Reading mode
+    Then the Live Preview code block line-number gutter should match Reading mode
+
+  @mobile
   Scenario: Mobile-emulated Live Preview touch gestures keep horizontal scroll inside the code block
     Given Obsidian is running in mobile emulation
     And horizontal scroll settings use nowrap with line numbers

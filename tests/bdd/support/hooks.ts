@@ -40,6 +40,7 @@ After(async function (scenario: ScenarioResult) {
 		}
 		await pauseForScrollDebug(isHorizontalScrollScenario, scenarioName);
 	} finally {
+		await runCleanup('reset-window-size', () => obsidianApp.resetWindowSize());
 		await runCleanup('reset-mobile-emulation', () => obsidianApp.resetMobileEmulation());
 		if (isHorizontalScrollScenario && (await isObsidianServiceHelperAvailable())) {
 			await runCleanup('reset-horizontal-scroll-fixtures', () => horizontalScrollPage.resetFixtureNotes());
