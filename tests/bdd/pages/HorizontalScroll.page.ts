@@ -485,7 +485,12 @@ class HorizontalScrollPage {
 			{ mode, blockIndex },
 		);
 
-		if (!coordinates.touchAction.includes('pan-y') || !coordinates.hitTargetTouchAction.includes('pan-y')) {
+		if (
+			!coordinates.touchAction.includes('pan-y') ||
+			coordinates.touchAction.includes('pan-x') ||
+			!coordinates.hitTargetTouchAction.includes('pan-y') ||
+			coordinates.hitTargetTouchAction.includes('pan-x')
+		) {
 			throw new Error(`Expected horizontal block touch target to reserve horizontal pan for JS: ${JSON.stringify(coordinates)}`);
 		}
 

@@ -17,11 +17,17 @@ function defineLayout(element: HTMLElement, layout: { clientWidth: number; scrol
 	Object.defineProperty(element, 'scrollWidth', { configurable: true, get: () => layout.scrollWidth });
 }
 
-function dispatchTouch(dispatchTarget: EventTarget, type: string, clientX: number, clientY: number, touchTarget = dispatchTarget): Event {
+function dispatchTouch(dispatchTarget: EventTarget, type: string, clientX: number, clientY: number, touchTarget = dispatchTarget, identifier = 1): Event {
 	const event = new Event(type, { bubbles: true, cancelable: true });
+	const touch = { clientX, clientY, identifier, target: touchTarget } as Touch;
+	const changedTouches = {
+		length: 1,
+		item: (index: number) => (index === 0 ? touch : null),
+		0: touch,
+	} as unknown as TouchList;
 	Object.defineProperty(event, 'changedTouches', {
 		configurable: true,
-		value: [{ clientX, clientY, identifier: 1, target: touchTarget }],
+		value: changedTouches,
 	});
 	dispatchTarget.dispatchEvent(event);
 	return event;
@@ -132,20 +138,26 @@ describe('block horizontal scroll identity', () => {
 		const livePreviewLineNumberRule =
 			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.shiki-live-preview-line-number \{([\s\S]*?)\n\}/)?.[1] ?? '';
 
-		expect(livePreviewRootRule).toContain('touch-action: pan-x pan-y');
+		expect(livePreviewRootRule).toContain('touch-action: pan-y pinch-zoom');
 		expect(livePreviewCodeLineRule).toContain('overflow-x: auto');
-		expect(livePreviewCodeLineRule).toContain('touch-action: pan-x pan-y');
+		expect(livePreviewCodeLineRule).toContain('touch-action: pan-y pinch-zoom');
 		expect(livePreviewCodeLineRule).toContain('scrollbar-width: none');
-		expect(livePreviewCodeContentRule).toContain('touch-action: pan-x pan-y');
-		expect(livePreviewScrollerRule).toContain('touch-action: pan-x pan-y');
-		expect(livePreviewContentRule).toContain('touch-action: pan-x pan-y');
-		expect(livePreviewLineNumberRule).toContain('touch-action: pan-x pan-y');
+		expect(livePreviewCodeContentRule).toContain('touch-action: pan-y pinch-zoom');
+		expect(livePreviewScrollerRule).toContain('touch-action: pan-y pinch-zoom');
+		expect(livePreviewContentRule).toContain('touch-action: pan-y pinch-zoom');
+		expect(livePreviewLineNumberRule).toContain('touch-action: pan-y pinch-zoom');
+		expect(livePreviewRootRule).not.toContain('touch-action: pan-x pan-y');
+		expect(livePreviewCodeLineRule).not.toContain('touch-action: pan-x pan-y');
 		expect(source).toContain('private readonly onPointerDown = (event: PointerEvent): void => {');
 		expect(source).toContain('private readonly onTouchStart = (event: TouchEvent): void => {');
 		expect(source).toContain("this.gestureRoot.addEventListener('touchmove', this.onTouchMove as EventListener, { capture: true, passive: false });");
 		expect(source).toContain("this.gestureRoot.addEventListener('pointermove', this.onPointerMove as EventListener, true);");
 		expect(source).not.toContain("target.addEventListener('touchmove', this.onTouchMove");
 		expect(source).not.toContain("target.addEventListener('pointermove', this.onPointerMove");
+		expect(source).toContain('this.touchId = touch.identifier;');
+		expect(source).toContain('const touch = this.findTouch(event.changedTouches, this.touchId);');
+		expect(source).toContain('this.cancelHorizontalGesture(event);');
+		expect(source).toContain('event.stopImmediatePropagation();');
 		expect(source).toContain('this.syncBlockImmediate(blockId, scrollLeft);');
 		expect(source).toContain('this.pointerCaptureTarget?.setPointerCapture(event.pointerId);');
 		expect(source).toContain('this.pointerCaptureTarget?.releasePointerCapture(this.pointerId);');
@@ -183,9 +195,41 @@ describe('block horizontal scroll identity', () => {
 			dispatchTouch(content, 'touchstart', 260, 20);
 			const move = dispatchTouch(document, 'touchmove', 60, 22, content);
 
-			expect(move.defaultPrevented).toBe(false);
+			expect(move.defaultPrevented).toBe(true);
 			expect(longRow.scrollLeft).toBe(200);
 			expect(shortRow.scrollLeft).toBe(200);
+		} finally {
+			view.destroy();
+			parent.remove();
+		}
+	});
+
+	test('lets vertical touch gestures inside Live Preview blocks remain native', () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const view = new EditorView({
+			doc: '',
+			extensions: [createBlockHorizontalScrollPlugin()],
+			parent,
+		});
+		const blockId = 'Note.md::live-preview::5::120::5::ts::vertical';
+		const row = document.createElement('div');
+		const content = document.createElement('span');
+
+		row.className = `${SHIKI_BLOCK_SCROLL_ROW_CLASS} shiki-live-preview-code-line`;
+		row.dataset.shikiBlockId = blockId;
+		view.scrollDOM.appendChild(row);
+		defineLayout(row, { clientWidth: 300, scrollWidth: 1000 });
+		content.className = 'shiki-live-preview-code-content';
+		content.textContent = 'verticalDragMustRemainNative';
+		row.appendChild(content);
+
+		try {
+			dispatchTouch(content, 'touchstart', 260, 20);
+			const move = dispatchTouch(document, 'touchmove', 258, 80, content);
+
+			expect(move.defaultPrevented).toBe(false);
+			expect(row.scrollLeft).toBe(0);
 		} finally {
 			view.destroy();
 			parent.remove();
