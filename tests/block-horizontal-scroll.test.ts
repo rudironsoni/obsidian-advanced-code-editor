@@ -82,7 +82,7 @@ describe('block horizontal scroll identity', () => {
 
 		expect(rowScrollBranch).toContain('this.clampBlockScrollLeft(blockId, source.scrollLeft)');
 		expect(rowScrollBranch).toContain('this.setScrollLeft(source, scrollLeft)');
-		expect(rowScrollBranch).toContain('this.syncBlock(blockId, scrollLeft)');
+		expect(rowScrollBranch).toContain('this.syncBlockImmediate(blockId, scrollLeft)');
 		expect(rowScrollBranch.trim()).not.toBe('return;');
 	});
 
@@ -112,7 +112,7 @@ describe('block horizontal scroll identity', () => {
 		const livePreviewCodeLineRule =
 			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.cm-line\.shiki-live-preview-code-line \{([\s\S]*?)\n\}/)?.[1] ?? '';
 
-		expect(livePreviewCodeLineRule).toContain('overflow-x: hidden');
+		expect(livePreviewCodeLineRule).toContain('overflow-x: auto');
 		expect(livePreviewCodeLineRule).toContain('clip-path: inset(0)');
 		expect(livePreviewCodeLineRule).not.toContain('contain: paint');
 	});
@@ -132,25 +132,21 @@ describe('block horizontal scroll identity', () => {
 		const livePreviewLineNumberRule =
 			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.shiki-live-preview-line-number \{([\s\S]*?)\n\}/)?.[1] ?? '';
 
-		expect(livePreviewRootRule).toContain('touch-action: pan-y');
-		expect(livePreviewCodeLineRule).toContain('touch-action: pan-y');
-		expect(livePreviewCodeContentRule).toContain('touch-action: pan-y');
-		expect(livePreviewScrollerRule).toContain('touch-action: pan-y');
-		expect(livePreviewContentRule).toContain('touch-action: pan-y');
-		expect(livePreviewLineNumberRule).toContain('touch-action: pan-y');
-		expect(livePreviewRootRule).not.toContain('touch-action: pan-x pan-y');
-		expect(livePreviewCodeLineRule).not.toContain('touch-action: pan-x pan-y');
-		expect(livePreviewCodeContentRule).not.toContain('touch-action: pan-x pan-y');
-		expect(livePreviewScrollerRule).not.toContain('touch-action: pan-x pan-y');
-		expect(livePreviewContentRule).not.toContain('touch-action: pan-x pan-y');
-		expect(livePreviewLineNumberRule).not.toContain('touch-action: pan-x pan-y');
+		expect(livePreviewRootRule).toContain('touch-action: pan-x pan-y');
+		expect(livePreviewCodeLineRule).toContain('overflow-x: auto');
+		expect(livePreviewCodeLineRule).toContain('touch-action: pan-x pan-y');
+		expect(livePreviewCodeLineRule).toContain('scrollbar-width: none');
+		expect(livePreviewCodeContentRule).toContain('touch-action: pan-x pan-y');
+		expect(livePreviewScrollerRule).toContain('touch-action: pan-x pan-y');
+		expect(livePreviewContentRule).toContain('touch-action: pan-x pan-y');
+		expect(livePreviewLineNumberRule).toContain('touch-action: pan-x pan-y');
 		expect(source).toContain('private readonly onPointerDown = (event: PointerEvent): void => {');
 		expect(source).toContain('private readonly onTouchStart = (event: TouchEvent): void => {');
 		expect(source).toContain("this.gestureRoot.addEventListener('touchmove', this.onTouchMove as EventListener, { capture: true, passive: false });");
 		expect(source).toContain("this.gestureRoot.addEventListener('pointermove', this.onPointerMove as EventListener, true);");
 		expect(source).not.toContain("target.addEventListener('touchmove', this.onTouchMove");
 		expect(source).not.toContain("target.addEventListener('pointermove', this.onPointerMove");
-		expect(source).toContain('event.preventDefault();');
+		expect(source).toContain('this.syncBlockImmediate(blockId, scrollLeft);');
 		expect(source).toContain('this.pointerCaptureTarget?.setPointerCapture(event.pointerId);');
 		expect(source).toContain('this.pointerCaptureTarget?.releasePointerCapture(this.pointerId);');
 		expect(source).toContain('private syncBlockImmediate(blockId: string, scrollLeft: number): void {');
@@ -187,9 +183,40 @@ describe('block horizontal scroll identity', () => {
 			dispatchTouch(content, 'touchstart', 260, 20);
 			const move = dispatchTouch(document, 'touchmove', 60, 22, content);
 
-			expect(move.defaultPrevented).toBe(true);
+			expect(move.defaultPrevented).toBe(false);
 			expect(longRow.scrollLeft).toBe(200);
 			expect(shortRow.scrollLeft).toBe(200);
+		} finally {
+			view.destroy();
+			parent.remove();
+		}
+	});
+
+	test('syncs native Live Preview row touch scroll across every row immediately', () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const view = new EditorView({
+			doc: '',
+			extensions: [createBlockHorizontalScrollPlugin()],
+			parent,
+		});
+		const blockId = 'Note.md::live-preview::5::120::5::ts::native';
+		const longRow = document.createElement('div');
+		const shortRow = document.createElement('div');
+
+		for (const row of [longRow, shortRow]) {
+			row.className = `${SHIKI_BLOCK_SCROLL_ROW_CLASS} shiki-live-preview-code-line`;
+			row.dataset.shikiBlockId = blockId;
+			view.scrollDOM.appendChild(row);
+			defineLayout(row, { clientWidth: 300, scrollWidth: 1000 });
+		}
+
+		try {
+			longRow.scrollLeft = 180;
+			longRow.dispatchEvent(new Event('scroll', { bubbles: true }));
+
+			expect(longRow.scrollLeft).toBe(180);
+			expect(shortRow.scrollLeft).toBe(180);
 		} finally {
 			view.destroy();
 			parent.remove();
