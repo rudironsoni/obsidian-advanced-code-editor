@@ -98,6 +98,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private touchStartY = 0;
 			private touchStartScrollLeft = 0;
 			private touchHorizontal = false;
+			private touchId: number | undefined;
 			private pointerId: number | undefined;
 			private pointerBlockId: string | undefined;
 			private pointerStartX = 0;
@@ -236,9 +237,14 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				if (!this.pointerHorizontal && Math.abs(deltaX) > 6 && Math.abs(deltaX) > Math.abs(deltaY)) {
 					this.pointerHorizontal = true;
 				}
+				if (!this.pointerHorizontal && Math.abs(deltaY) > 6 && Math.abs(deltaY) > Math.abs(deltaX)) {
+					this.resetPointer();
+					return;
+				}
 				if (!this.pointerHorizontal) {
 					return;
 				}
+				this.cancelHorizontalGesture(event);
 				event.stopPropagation();
 				this.syncBlockImmediate(this.pointerBlockId, this.pointerStartScrollLeft - deltaX);
 			};
@@ -261,13 +267,14 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.touchStartY = touch.clientY;
 				this.touchStartScrollLeft = target.scrollLeft;
 				this.touchHorizontal = false;
+				this.touchId = touch.identifier;
 			};
 
 			private readonly onTouchMove = (event: TouchEvent): void => {
-				if (!this.touchBlockId) {
+				if (!this.touchBlockId || this.touchId === undefined) {
 					return;
 				}
-				const touch = event.changedTouches[0];
+				const touch = this.findTouch(event.changedTouches, this.touchId);
 				if (!touch) {
 					return;
 				}
@@ -276,9 +283,14 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				if (!this.touchHorizontal && Math.abs(deltaX) > 6 && Math.abs(deltaX) > Math.abs(deltaY)) {
 					this.touchHorizontal = true;
 				}
+				if (!this.touchHorizontal && Math.abs(deltaY) > 6 && Math.abs(deltaY) > Math.abs(deltaX)) {
+					this.resetTouch();
+					return;
+				}
 				if (!this.touchHorizontal) {
 					return;
 				}
+				this.cancelHorizontalGesture(event);
 				event.stopPropagation();
 				this.syncBlockImmediate(this.touchBlockId, this.touchStartScrollLeft - deltaX);
 			};
@@ -312,6 +324,23 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				} finally {
 					this.syncing = false;
 				}
+			}
+
+			private cancelHorizontalGesture(event: Event): void {
+				if (event.cancelable) {
+					event.preventDefault();
+				}
+				event.stopImmediatePropagation();
+			}
+
+			private findTouch(touches: TouchList, identifier: number): Touch | undefined {
+				for (let index = 0; index < touches.length; index++) {
+					const touch = touches.item(index);
+					if (touch?.identifier === identifier) {
+						return touch;
+					}
+				}
+				return undefined;
 			}
 
 			private scheduleScrollFlush(): void {
@@ -576,6 +605,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private resetTouch(): void {
 				this.touchBlockId = undefined;
 				this.touchHorizontal = false;
+				this.touchId = undefined;
 			}
 
 			private resetPointer(): void {
