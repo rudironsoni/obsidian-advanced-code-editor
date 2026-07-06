@@ -35,6 +35,10 @@ Given('the fixture note {string} is open in Live Preview', async (notePath: stri
 	await obsidianApp.openFixtureInLivePreview(notePath);
 });
 
+Given('the fixture note {string} is open in raw Source mode', async (notePath: string) => {
+	await obsidianApp.openFixtureInSourceMode(notePath);
+});
+
 Given('Obsidian is running in mobile emulation', async () => {
 	await obsidianApp.expectMobileEmulation();
 });
@@ -48,6 +52,10 @@ When('Obsidian renders the active note', async () => {
 		lastExpectedRenderText = 'const wdioValue';
 	}
 	await obsidianApp.waitForReadingRender(lastExpectedRenderText);
+});
+
+When('I collapse and expand the left sidebar', async () => {
+	await obsidianApp.collapseAndExpandLeftSidebar();
 });
 
 Then('the Advanced Code Editor plugin should be loaded from the built payload', async () => {
@@ -74,9 +82,46 @@ Then('the Live Preview code block should style the full source text {string}', a
 	assert.ok(state.lines >= 1, 'expected at least one Live Preview code line');
 	assert.ok(state.tokens > 0, 'expected syntax-highlighted token spans');
 	assert.ok(state.text.includes(expectedText), 'expected Live Preview code text');
-	assert.ok(state.styledText.includes(expectedText), `expected styled token text to include ${expectedText}, got ${JSON.stringify(state)}`);
+	assert.ok(
+		compactSyntaxText(state.styledText).includes(compactSyntaxText(expectedText)),
+		`expected styled token text to include ${expectedText}, got ${JSON.stringify(state)}`,
+	);
+	assert.ok(state.distinctTokenColorCount >= 3, `expected several distinct Shiki token colors: ${JSON.stringify(state)}`);
+	assert.ok(state.visibleTokenCount >= 5, `expected visible Shiki token glyphs: ${JSON.stringify(state)}`);
+	assert.equal(state.transparentTokenCount, 0, `expected no transparent Shiki token colors: ${JSON.stringify(state)}`);
 	assert.ok(state.width > 80, 'expected visible Live Preview code line width');
 	assert.ok(state.height > 10, 'expected visible Live Preview code line height');
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `syntax-live-preview-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+});
+
+Then('the Live Preview code block should keep visible Shiki token colors for {string}', async (expectedText: string) => {
+	const state = await obsidianApp.waitForLivePreviewStyledSource(expectedText);
+
+	assert.ok(state.text.includes(expectedText), `expected Live Preview code text after layout change: ${JSON.stringify(state)}`);
+	assert.ok(state.distinctTokenColorCount >= 3, `expected several distinct Shiki token colors after layout change: ${JSON.stringify(state)}`);
+	assert.ok(state.visibleTokenCount >= 5, `expected visible Shiki token glyphs after layout change: ${JSON.stringify(state)}`);
+	assert.equal(state.transparentTokenCount, 0, `expected no transparent Shiki token colors after layout change: ${JSON.stringify(state)}`);
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `syntax-live-preview-layout-change-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+});
+
+Then('raw Source mode should keep C# fenced code editable with Shiki token colors for {string}', async (expectedText: string) => {
+	const state = await obsidianApp.waitForSourceModeShiki(expectedText);
+
+	assert.equal(state.rawFenceVisible, true, `expected raw Markdown fences to remain visible: ${JSON.stringify(state)}`);
+	assert.ok(state.text.includes(expectedText), `expected raw Source code text: ${JSON.stringify(state)}`);
+	assert.ok(state.pluginTokenCount > 0, `expected plugin-owned Shiki source tokens: ${JSON.stringify(state)}`);
+	assert.ok(state.distinctTokenColorCount >= 3, `expected several distinct Shiki source token colors: ${JSON.stringify(state)}`);
+	assert.ok(state.visibleTokenCount >= 5, `expected visible Shiki source token glyphs: ${JSON.stringify(state)}`);
+	assert.equal(state.transparentTokenCount, 0, `expected no transparent Shiki source token colors: ${JSON.stringify(state)}`);
+	assert.equal(state.monacoEditorCount, 0, `expected Source mode not to mount Monaco: ${JSON.stringify(state)}`);
+	assert.equal(state.renderedBlockChromeCount, 0, `expected Source mode not to render block chrome: ${JSON.stringify(state)}`);
+	assert.equal(state.internalLineNumberCount, 0, `expected Source mode not to render internal line numbers: ${JSON.stringify(state)}`);
+	assert.equal(state.blockScrollRowCount, 0, `expected Source mode not to use rendered block scroll rows: ${JSON.stringify(state)}`);
+	assert.equal(state.blockScrollbarCount, 0, `expected Source mode not to render block scrollbar: ${JSON.stringify(state)}`);
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `syntax-source-mode-${state.isMobile ? 'mobile' : 'desktop'}.png`));
 });
 
 Given('the horizontal scroll fixture notes are reset', async () => {
@@ -349,7 +394,7 @@ Then('raw Source mode should stay native without rendered block chrome', async (
 	assert.equal(state.sourceInternalLineNumberCount, 0, `expected Source mode not to render internal block line numbers: ${JSON.stringify(state)}`);
 	assert.equal(state.sourceBlockScrollRowCount, 0, `expected Source mode rows not to use rendered block scroll classes: ${JSON.stringify(state)}`);
 	assert.equal(state.sourceBlockScrollbarCount, 0, `expected Source mode not to render a block scrollbar widget: ${JSON.stringify(state)}`);
-	assert.equal(state.sourceShikiTokenDecorationCount, 0, `expected Source mode fenced code not to receive Shiki token colors: ${JSON.stringify(state)}`);
+	assert.ok(state.sourceShikiTokenDecorationCount > 0, `expected Source mode fenced code to receive plugin Shiki token colors: ${JSON.stringify(state)}`);
 	assert.equal(state.blockCount, 0, `expected Source mode not to expose plugin-owned rendered blocks: ${JSON.stringify(state)}`);
 	assert.equal(state.noteScrollLeft, 0, `expected Source editor scrollLeft to remain 0 at rest: ${JSON.stringify(state)}`);
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0 at rest: ${JSON.stringify(state)}`);
@@ -454,4 +499,8 @@ function assertLivePreviewCodeTextVisible(state: HorizontalScrollState, block: H
 			`expected short Live Preview row not to drift from the block rows: ${JSON.stringify(state)}`,
 		);
 	}
+}
+
+function compactSyntaxText(text: string): string {
+	return text.replace(/\s+/g, '');
 }

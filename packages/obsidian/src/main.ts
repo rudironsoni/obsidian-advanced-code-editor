@@ -312,7 +312,7 @@ export default class ShikiPlugin extends Plugin {
 	}
 
 	private editorIntegrationSignature(): string {
-		const activeFile = this.app.workspace.getActiveFile()?.path ?? '';
+		const activeFile = this.app.workspace.getActiveFile?.()?.path ?? '';
 		const activeContainer = this.app.workspace.activeLeaf?.view?.containerEl;
 		const sourceView = activeContainer?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6');
 		const mode = sourceView?.classList.contains('is-live-preview') ? 'live-preview' : sourceView ? 'source' : 'none';

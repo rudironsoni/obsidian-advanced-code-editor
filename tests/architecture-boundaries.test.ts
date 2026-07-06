@@ -77,16 +77,19 @@ describe('architecture boundaries', () => {
 		expect(highlighterSource).not.toContain('modern-monaco');
 	});
 
-	test('Source mode adapter keeps raw Source mode undecorated', () => {
+	test('Source mode adapter owns token decorations only', () => {
 		const sourceMode = readSource('packages/obsidian/src/modes/SourceModeAdapter.ts');
 
 		expect(sourceMode).toContain('Decoration');
 		expect(sourceMode).toContain('decorations: DecorationSet = Decoration.none');
-		expect(sourceMode).not.toContain('Decoration.mark');
-		expect(sourceMode).not.toContain('Decoration.set');
-		expect(sourceMode).not.toContain('getHighlightTokens');
-		expect(sourceMode).not.toContain('getTokenSegments');
-		expect(sourceMode).not.toContain('getTokenStyle');
+		expect(sourceMode).toContain('Decoration.mark');
+		expect(sourceMode).toContain('Decoration.set(ranges, true)');
+		expect(sourceMode).toContain('getHighlightTokens');
+		expect(sourceMode).toContain('getTokenSegments');
+		expect(sourceMode).toContain('getTokenStyle');
+		expect(sourceMode).toContain('shiki-source-token');
+		expect(sourceMode).not.toContain('getThemeBackground');
+		expect(sourceMode).not.toContain("style.setProperty('--shiki-code-background'");
 		expect(sourceMode).not.toContain('MonacoCodeBlockSurface');
 		expect(sourceMode).not.toContain('MonacoSurfaceRegistry');
 		expect(sourceMode).not.toContain('monaco.editor.create');

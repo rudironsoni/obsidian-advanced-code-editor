@@ -882,7 +882,7 @@ class HorizontalScrollPage {
 				const sourceBlockScrollbarCount = input.mode === 'source' ? scope.querySelectorAll('.shiki-block-horizontal-scrollbar').length : 0;
 				const sourceShikiTokenDecorationCount =
 					input.mode === 'source'
-						? scope.querySelectorAll('.cm-line.HyperMD-codeblock [style*="color"], .HyperMD-codeblock [style*="color"]').length
+						? scope.querySelectorAll('.cm-line.HyperMD-codeblock .shiki-source-token, .HyperMD-codeblock .shiki-source-token').length
 						: 0;
 				const blockIds = new Set<string>();
 				for (const element of scope.querySelectorAll<HTMLElement>('[data-shiki-block-id]')) {

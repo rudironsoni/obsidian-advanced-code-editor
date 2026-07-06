@@ -108,6 +108,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private pointerHorizontal = false;
 			private pointerCaptureTarget: HTMLElement | undefined;
 			private measureTimer: number | undefined;
+			private readonly resizeObserver: ResizeObserver | undefined;
 			private readonly observedScrollTargets = new Set<HTMLElement>();
 			private readonly domObserver: MutationObserver;
 			private readonly blockCacheById = new Map<string, BlockScrollCache>();
@@ -129,6 +130,8 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.gestureRoot.addEventListener('touchend', this.onTouchEnd, true);
 				this.gestureRoot.addEventListener('touchcancel', this.onTouchEnd, true);
 				this.domObserver.observe(this.view.dom, { childList: true, subtree: true });
+				this.resizeObserver = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(this.onResize);
+				this.resizeObserver?.observe(this.view.scrollDOM);
 				this.scheduleMeasure();
 			}
 
@@ -141,6 +144,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 
 			destroy(): void {
 				this.domObserver.disconnect();
+				this.resizeObserver?.disconnect();
 				this.view.scrollDOM.removeEventListener('scroll', this.onScroll, true);
 				this.view.scrollDOM.removeEventListener('wheel', this.onWheel, true);
 				this.gestureRoot.removeEventListener('pointerdown', this.onPointerDown as EventListener, true);
@@ -297,6 +301,11 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				this.applyStoredScrolls();
 				this.scheduleMeasure();
+			};
+
+			private readonly onResize = (): void => {
+				this.applyStoredScrolls();
+				this.rescheduleMeasure();
 			};
 
 			private syncBlock(blockId: string, scrollLeft: number): void {
@@ -474,8 +483,16 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				const maxScrollLeft = Math.max(0, ...rows.map(row => Math.max(row.scrollWidth, maxScrollWidth) - row.clientWidth));
 				const disabled = scrollbars.some(scrollbar => scrollbar.dataset.shikiScrollDisabled === 'true');
 				const cache = { rows, scrollbars, headers, maxScrollLeft, maxScrollWidth, clipWidth, disabled };
+				const memoryKey = stableBlockScrollMemoryKey(blockId);
+				const storedScrollLeft = this.scrollLeftByBlock.get(memoryKey);
+				if (storedScrollLeft !== undefined && storedScrollLeft > maxScrollLeft) {
+					this.scrollLeftByBlock.set(memoryKey, maxScrollLeft);
+				}
 				this.updateRowScrollSpacers(cache);
 				this.blockCacheById.set(blockId, cache);
+				for (const element of [...rows, ...scrollbars, ...headers]) {
+					this.resizeObserver?.observe(element);
+				}
 				return cache;
 			}
 

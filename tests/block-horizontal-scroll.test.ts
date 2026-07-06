@@ -70,6 +70,9 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('new MutationObserver(this.onDomMutations)');
 		expect(source).toContain('this.domObserver.observe(this.view.dom, { childList: true, subtree: true })');
 		expect(source).toContain('this.domObserver.disconnect()');
+		expect(source).toContain('new ResizeObserver(this.onResize)');
+		expect(source).toContain('this.resizeObserver?.observe(this.view.scrollDOM)');
+		expect(source).toContain('this.resizeObserver?.disconnect()');
 		expect(source).toContain('this.applyStoredScrolls();');
 		expect(source).toContain('this.scheduleMeasure();');
 		expect(source).toContain('if (update.docChanged || update.viewportChanged || update.geometryChanged)');
@@ -114,6 +117,9 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('this.updateRowScrollSpacers(cache)');
 		expect(source).toContain('const naturalScrollWidth = row.scrollWidth');
 		expect(source).toContain('const clipWidths = scrollbars.map(element => element.clientWidth).filter(width => width > 0)');
+		expect(source).toContain('storedScrollLeft !== undefined && storedScrollLeft > maxScrollLeft');
+		expect(source).toContain('this.scrollLeftByBlock.set(memoryKey, maxScrollLeft)');
+		expect(source).toContain('this.resizeObserver?.observe(element)');
 		expect(source).not.toContain('const clipWidths = [...scrollbars, ...headers]');
 		expect(source).not.toContain("querySelectorAll<HTMLElement>('.shiki-live-preview-code-content')).map(element => element.scrollWidth)");
 		expect(source).toContain('cache.disabled ? 0 : cache.maxScrollWidth');
@@ -141,7 +147,7 @@ describe('block horizontal scroll identity', () => {
 		const livePreviewCodeLineRule =
 			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.cm-line\.shiki-live-preview-code-line \{([\s\S]*?)\n\}/)?.[1] ?? '';
 
-		expect(livePreviewCodeLineRule).toContain('overflow-x: auto');
+		expect(livePreviewCodeLineRule).toContain('overflow-x: hidden');
 		expect(livePreviewCodeLineRule).toContain('clip-path: inset(0)');
 		expect(livePreviewCodeLineRule).not.toContain('contain: paint');
 	});
@@ -162,7 +168,7 @@ describe('block horizontal scroll identity', () => {
 			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.shiki-live-preview-line-number \{([\s\S]*?)\n\}/)?.[1] ?? '';
 
 		expect(livePreviewRootRule).not.toContain('touch-action');
-		expect(livePreviewCodeLineRule).toContain('overflow-x: auto');
+		expect(livePreviewCodeLineRule).toContain('overflow-x: hidden');
 		expect(livePreviewCodeLineRule).toContain('touch-action: pan-y pinch-zoom');
 		expect(livePreviewCodeLineRule).toContain('scrollbar-width: none');
 		expect(livePreviewCodeContentRule).toContain('touch-action: pan-y pinch-zoom');

@@ -452,7 +452,7 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 	padding-inline-end: 0 !important;
 	box-sizing: border-box;
 	position: relative;
-	overflow-x: auto;
+	overflow-x: hidden;
 	overflow-y: hidden;
 	clip-path: inset(0);
 	overscroll-behavior-x: contain;

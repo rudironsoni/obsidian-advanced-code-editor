@@ -93,11 +93,8 @@ describe('startup bundle', () => {
 		expect(workflow).toContain("'chore/**'");
 		expect(workflow).toContain("'deps/**'");
 		expect(workflow).toContain('git fetch --tags --force');
-		expect(workflow).toContain('require("./package.json")');
-		expect(workflow).toContain('baseVersion');
-		expect(workflow).toContain('git tag --list');
-		expect(workflow).toContain('-beta\\.(\\d+)');
-		expect(workflow).toContain('beta.${latest ? latest.beta + 1 : 1}');
+		expect(workflow).toContain('id: beta-version');
+		expect(workflow).toContain('bun scripts/compute-beta-version.ts');
 		expect(workflow).toContain('Apply beta version to plugin manifests');
 		expect(workflow).toContain('BETA_VERSION: ${{ steps.beta-version.outputs.new_tag }}');
 		expect(workflow).not.toContain('git push origin HEAD:${{ github.ref_name }}');

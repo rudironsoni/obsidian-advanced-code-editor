@@ -29,8 +29,26 @@ type LivePreviewSyntaxState = {
 	tokens: number;
 	text: string;
 	styledText: string;
+	distinctTokenColorCount: number;
+	transparentTokenCount: number;
+	visibleTokenCount: number;
 	width: number;
 	height: number;
+	isMobile: boolean;
+};
+
+type SourceModeSyntaxState = {
+	rawFenceVisible: boolean;
+	pluginTokenCount: number;
+	distinctTokenColorCount: number;
+	transparentTokenCount: number;
+	visibleTokenCount: number;
+	text: string;
+	monacoEditorCount: number;
+	renderedBlockChromeCount: number;
+	internalLineNumberCount: number;
+	blockScrollRowCount: number;
+	blockScrollbarCount: number;
 	isMobile: boolean;
 };
 
@@ -40,6 +58,13 @@ type RuntimeApp = {
 		enabledPlugins: Set<string>;
 		manifests: Record<string, { version?: string } | undefined>;
 		plugins: Record<string, unknown>;
+	};
+	workspace: {
+		leftSplit?: {
+			collapse(): void;
+			expand(): void;
+		};
+		trigger?(name: string): void;
 	};
 };
 
@@ -86,6 +111,17 @@ class ObsidianAppPage {
 		}, path);
 	}
 
+	async openFixtureInSourceMode(path: string): Promise<void> {
+		await executeObsidian(async ({ app, obsidian }, notePath) => {
+			const file = app.vault.getAbstractFileByPath(notePath);
+			if (!(file instanceof obsidian.TFile)) throw new Error(`Fixture not found: ${notePath}`);
+
+			const leaf = app.workspace.getLeaf(true);
+			await leaf.openFile(file, { active: true });
+			await leaf.setViewState({ type: 'markdown', state: { file: notePath, mode: 'source', source: true }, active: true }, { history: false });
+		}, path);
+	}
+
 	async waitForReadingRender(expectedText: string): Promise<RenderState> {
 		let lastState: RenderState | undefined;
 		try {
@@ -106,12 +142,21 @@ class ObsidianAppPage {
 
 	async waitForLivePreviewStyledSource(expectedText: string): Promise<LivePreviewSyntaxState> {
 		let lastState: LivePreviewSyntaxState | undefined;
+		const compactExpectedText = compactSyntaxText(expectedText);
 		try {
 			await browser.waitUntil(
 				async () => {
 					const state = await this.getLivePreviewSyntaxState();
 					lastState = state;
-					return state.lines >= 1 && state.tokens > 0 && state.text.includes(expectedText) && state.styledText.includes(expectedText);
+					return (
+						state.lines >= 1 &&
+						state.tokens > 0 &&
+						state.text.includes(expectedText) &&
+						compactSyntaxText(state.styledText).includes(compactExpectedText) &&
+						state.distinctTokenColorCount >= 3 &&
+						state.visibleTokenCount >= 5 &&
+						state.transparentTokenCount === 0
+					);
 				},
 				{ timeout: 30000, timeoutMsg: 'Live Preview Shiki token styling did not cover the expected source text' },
 			);
@@ -120,6 +165,36 @@ class ObsidianAppPage {
 		}
 
 		return this.getLivePreviewSyntaxState();
+	}
+
+	async waitForSourceModeShiki(expectedText: string): Promise<SourceModeSyntaxState> {
+		let lastState: SourceModeSyntaxState | undefined;
+		try {
+			await browser.waitUntil(
+				async () => {
+					const state = await this.getSourceModeSyntaxState();
+					lastState = state;
+					return (
+						state.rawFenceVisible &&
+						state.text.includes(expectedText) &&
+						state.pluginTokenCount > 0 &&
+						state.distinctTokenColorCount >= 3 &&
+						state.visibleTokenCount >= 5 &&
+						state.transparentTokenCount === 0 &&
+						state.monacoEditorCount === 0 &&
+						state.renderedBlockChromeCount === 0 &&
+						state.internalLineNumberCount === 0 &&
+						state.blockScrollRowCount === 0 &&
+						state.blockScrollbarCount === 0
+					);
+				},
+				{ timeout: 30000, timeoutMsg: 'Source Mode Shiki token styling did not cover the expected source text' },
+			);
+		} catch (error) {
+			throw new Error(`Source Mode Shiki token styling did not cover expected source text: ${JSON.stringify(lastState)}`, { cause: error });
+		}
+
+		return this.getSourceModeSyntaxState();
 	}
 
 	async getReadingRenderState(): Promise<RenderState> {
@@ -178,20 +253,109 @@ class ObsidianAppPage {
 				document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview');
 			const lines = [...(root?.querySelectorAll<HTMLElement>('.cm-line.shiki-live-preview-code-line') ?? [])];
 			const line = lines.find(candidate => candidate.textContent?.includes('// Define constants')) ?? lines[0];
-			const rect = line?.getBoundingClientRect();
-			const tokens = line?.querySelectorAll<HTMLElement>('[style*="color"]').length ?? 0;
-			const styledText = line ? collectStyledText(line) : '';
+			const rect = root?.getBoundingClientRect();
+			const tokenElements = [...(root?.querySelectorAll<HTMLElement>('.cm-line.shiki-live-preview-code-line [style*="color"]') ?? [])].filter(element =>
+				Boolean(element.textContent?.trim()),
+			);
+			const tokenColors = new Set<string>();
+			let transparentTokenCount = 0;
+			let visibleTokenCount = 0;
+			for (const token of tokenElements) {
+				const style = getComputedStyle(token);
+				const color = style.color.trim();
+				const textFillColor = style.getPropertyValue('-webkit-text-fill-color').trim();
+				const tokenRect = token.getBoundingClientRect();
+				const transparent = color === 'rgba(0, 0, 0, 0)' || textFillColor === 'rgba(0, 0, 0, 0)';
+				if (color) tokenColors.add(color);
+				if (transparent) transparentTokenCount++;
+				if (style.display !== 'none' && style.visibility !== 'hidden' && tokenRect.width > 0 && tokenRect.height > 0 && !transparent) {
+					visibleTokenCount++;
+				}
+			}
+			const styledText = root ? collectStyledText(root) : '';
 
 			return {
 				lines: lines.length,
-				tokens,
-				text: line?.textContent ?? '',
+				tokens: tokenElements.length,
+				text: root?.textContent ?? '',
 				styledText,
+				distinctTokenColorCount: tokenColors.size,
+				transparentTokenCount,
+				visibleTokenCount,
 				width: rect?.width ?? 0,
 				height: rect?.height ?? 0,
 				isMobile: runtimeApp.isMobile,
 			};
 		});
+	}
+
+	async getSourceModeSyntaxState(): Promise<SourceModeSyntaxState> {
+		return executeObsidian(({ app }): SourceModeSyntaxState => {
+			const runtimeApp = app as unknown as RuntimeApp;
+			const active = (app.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
+			const root =
+				active?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6:not(.is-live-preview)') ??
+				document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6:not(.is-live-preview)');
+			const scope = root?.querySelector<HTMLElement>('.cm-content') ?? root ?? document.body;
+			const tokenElements = [...scope.querySelectorAll<HTMLElement>('.cm-line.HyperMD-codeblock .shiki-source-token')].filter(element =>
+				Boolean(element.textContent?.trim()),
+			);
+			const tokenColors = new Set<string>();
+			let transparentTokenCount = 0;
+			let visibleTokenCount = 0;
+			for (const token of tokenElements) {
+				const style = getComputedStyle(token);
+				const color = style.color.trim();
+				const textFillColor = style.getPropertyValue('-webkit-text-fill-color').trim();
+				const rect = token.getBoundingClientRect();
+				const transparent = color === 'rgba(0, 0, 0, 0)' || textFillColor === 'rgba(0, 0, 0, 0)';
+				if (color) tokenColors.add(color);
+				if (transparent) transparentTokenCount++;
+				if (style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0 && !transparent) {
+					visibleTokenCount++;
+				}
+			}
+			return {
+				rawFenceVisible: (scope.textContent ?? '').includes('```'),
+				pluginTokenCount: tokenElements.length,
+				distinctTokenColorCount: tokenColors.size,
+				transparentTokenCount,
+				visibleTokenCount,
+				text: scope.textContent ?? '',
+				monacoEditorCount: scope.querySelectorAll('.monaco-editor').length,
+				renderedBlockChromeCount: scope.querySelectorAll(
+					[
+						'.shiki-live-preview-header',
+						'.shiki-block-header',
+						'.shiki-copy-button',
+						'.shiki-live-preview-fence-text',
+						'.shiki-live-preview-code-content',
+						'.shiki-live-preview-block',
+						'.shiki-reading-block',
+						'.shiki-line-numbers',
+					].join(', '),
+				).length,
+				internalLineNumberCount: scope.querySelectorAll('.shiki-live-preview-line-number, .shiki-line-numbers span').length,
+				blockScrollRowCount: scope.querySelectorAll('.shiki-block-scroll-row[data-shiki-block-id], .shiki-source-code-line').length,
+				blockScrollbarCount: scope.querySelectorAll('.shiki-block-horizontal-scrollbar').length,
+				isMobile: runtimeApp.isMobile,
+			};
+		});
+	}
+
+	async collapseAndExpandLeftSidebar(): Promise<void> {
+		await executeObsidian(({ app }) => {
+			const runtimeApp = app as unknown as RuntimeApp;
+			runtimeApp.workspace.leftSplit?.collapse();
+			runtimeApp.workspace.trigger?.('layout-change');
+		});
+		await browser.pause(250);
+		await executeObsidian(({ app }) => {
+			const runtimeApp = app as unknown as RuntimeApp;
+			runtimeApp.workspace.leftSplit?.expand();
+			runtimeApp.workspace.trigger?.('layout-change');
+		});
+		await browser.pause(500);
 	}
 
 	async expectMobileEmulation(): Promise<void> {
@@ -266,6 +430,10 @@ class ObsidianAppPage {
 			throw error;
 		}
 	}
+}
+
+function compactSyntaxText(text: string): string {
+	return text.replace(/\s+/g, '');
 }
 
 export const obsidianApp = new ObsidianAppPage();
