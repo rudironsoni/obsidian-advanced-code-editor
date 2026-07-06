@@ -138,6 +138,7 @@ export type HorizontalScrollState = {
 	sourceInternalLineNumberCount: number;
 	sourceBlockScrollRowCount: number;
 	sourceBlockScrollbarCount: number;
+	sourceShikiTokenDecorationCount: number;
 	blocks: HorizontalScrollBlockState[];
 };
 
@@ -601,7 +602,8 @@ class HorizontalScrollPage {
 				const rect = target.getBoundingClientRect();
 				const clientX = rect.left + Math.min(120, Math.max(8, rect.width / 2));
 				const clientY = rect.top + Math.min(10, Math.max(4, rect.height / 2));
-				const observedBlockScrollLeft = () => Math.max(0, target.scrollLeft, block.scrollbar?.scrollLeft ?? 0, ...block.rows.map(row => row.scrollLeft));
+				const observedBlockScrollLeft = () =>
+					Math.max(0, target.scrollLeft, block.scrollbar?.scrollLeft ?? 0, ...block.rows.map(row => row.scrollLeft));
 				let lastObservedScrollLeft = 0;
 				let unchangedWheelCount = 0;
 
@@ -878,6 +880,10 @@ class HorizontalScrollPage {
 				const sourceBlockScrollRowCount =
 					input.mode === 'source' ? scope.querySelectorAll('.shiki-block-scroll-row[data-shiki-block-id], .shiki-source-code-line').length : 0;
 				const sourceBlockScrollbarCount = input.mode === 'source' ? scope.querySelectorAll('.shiki-block-horizontal-scrollbar').length : 0;
+				const sourceShikiTokenDecorationCount =
+					input.mode === 'source'
+						? scope.querySelectorAll('.cm-line.HyperMD-codeblock [style*="color"], .HyperMD-codeblock [style*="color"]').length
+						: 0;
 				const blockIds = new Set<string>();
 				for (const element of scope.querySelectorAll<HTMLElement>('[data-shiki-block-id]')) {
 					const blockId = element.dataset.shikiBlockId;
@@ -1207,6 +1213,7 @@ class HorizontalScrollPage {
 					sourceInternalLineNumberCount,
 					sourceBlockScrollRowCount,
 					sourceBlockScrollbarCount,
+					sourceShikiTokenDecorationCount,
 					blocks: blockStates,
 				};
 			},

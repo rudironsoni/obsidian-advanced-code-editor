@@ -31,6 +31,7 @@ export default class ShikiPlugin extends Plugin {
 	private inlineCodeProcessorRegistered = false;
 	private settingsLoaded: Promise<void> | undefined;
 	private instanceId = 0;
+	private lastEditorIntegrationSignature = '';
 
 	async onload(): Promise<void> {
 		this.unloaded = false;
@@ -96,18 +97,18 @@ export default class ShikiPlugin extends Plugin {
 		);
 
 		const refreshEditorIntegration = debounce(
-			() => {
-				void this.updateCm6Plugin?.();
+			(force = false) => {
+				this.refreshEditorIntegrationIfChanged(force === true);
 			},
 			100,
 			true,
 		);
-		this.registerEvent(this.app.workspace.on('layout-change', refreshEditorIntegration));
-		this.registerEvent(this.app.workspace.on('active-leaf-change', refreshEditorIntegration));
-		this.registerEvent(this.app.workspace.on('file-open', refreshEditorIntegration));
+		this.registerEvent(this.app.workspace.on('layout-change', () => refreshEditorIntegration(false)));
+		this.registerEvent(this.app.workspace.on('active-leaf-change', () => refreshEditorIntegration(true)));
+		this.registerEvent(this.app.workspace.on('file-open', () => refreshEditorIntegration(true)));
 		const livePreviewModeObserver = new MutationObserver(mutations => {
 			if (mutations.some(mutation => mutation.type === 'attributes' && mutation.attributeName === 'class')) {
-				refreshEditorIntegration();
+				refreshEditorIntegration(false);
 			}
 		});
 		livePreviewModeObserver.observe(this.app.workspace.containerEl.ownerDocument.body, { attributes: true, attributeFilter: ['class'], subtree: true });
@@ -116,7 +117,7 @@ export default class ShikiPlugin extends Plugin {
 			let attempts = 0;
 			const interval = window.setInterval(() => {
 				attempts += 1;
-				refreshEditorIntegration();
+				refreshEditorIntegration(false);
 				if (attempts >= 12) {
 					window.clearInterval(interval);
 				}
@@ -299,6 +300,32 @@ export default class ShikiPlugin extends Plugin {
 
 	getActiveTheme(): string {
 		return getActiveTheme(this);
+	}
+
+	refreshEditorIntegrationIfChanged(force = false): void {
+		const signature = this.editorIntegrationSignature();
+		if (!force && signature === this.lastEditorIntegrationSignature) {
+			return;
+		}
+		this.lastEditorIntegrationSignature = signature;
+		void this.updateCm6Plugin?.();
+	}
+
+	private editorIntegrationSignature(): string {
+		const activeFile = this.app.workspace.getActiveFile()?.path ?? '';
+		const activeContainer = this.app.workspace.activeLeaf?.view?.containerEl;
+		const sourceView = activeContainer?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6');
+		const mode = sourceView?.classList.contains('is-live-preview') ? 'live-preview' : sourceView ? 'source' : 'none';
+		const body = this.app.workspace.containerEl.ownerDocument.body;
+		const colorScheme = body.classList.contains('theme-dark') || this.app.isDarkMode() ? 'dark' : 'light';
+		return [
+			activeFile,
+			mode,
+			colorScheme,
+			this.loadedSettings.wrapLines ? 'wrap' : 'nowrap',
+			this.loadedSettings.showLineNumbers ? 'numbers' : 'no-numbers',
+			this.loadedSettings.useEditorFontSize ? 'editor-font' : 'code-font',
+		].join('::');
 	}
 
 	applyFontSizeClass(): void {

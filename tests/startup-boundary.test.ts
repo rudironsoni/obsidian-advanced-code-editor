@@ -90,19 +90,19 @@ describe('startup module boundary', () => {
 		expect(livePreview).toContain('this.rebuildBlocks();');
 	});
 
-	test('source mode applies Shiki token offsets directly from code block start', () => {
+	test('source mode stays raw without Shiki token decorations', () => {
 		const sourceMode = read('packages/obsidian/src/modes/SourceModeAdapter.ts');
 
 		expect(sourceMode).not.toContain('highlight.tokens.flat(1)');
 		expect(sourceMode).not.toContain('let lineOffset = 0');
-		expect(sourceMode).toContain('this.plugin.highlighter.getTokenSegments(block.code, highlight.tokens)');
-		expect(sourceMode).toContain('block.codeFrom + segment.from');
-		expect(sourceMode).toContain('block.codeFrom + segment.to');
+		expect(sourceMode).not.toContain('getHighlightTokens');
+		expect(sourceMode).not.toContain('getTokenSegments');
+		expect(sourceMode).not.toContain('getTokenStyle');
+		expect(sourceMode).not.toContain('Decoration.mark');
+		expect(sourceMode).not.toContain('Decoration.set');
 		expect(sourceMode).not.toContain('token.content.length');
 		expect(sourceMode).not.toContain('lineOffset += this.lineLength(block.code, lineOffset) + 1');
-		expect(sourceMode).toContain('this.plugin.highlighter.getTokenStyle(segment.token)');
-		expect(sourceMode).toContain('Decoration.set(ranges, true)');
-		expect(sourceMode).not.toContain('RangeSetBuilder');
+		expect(sourceMode).toContain('Decoration.none');
 	});
 
 	test('language listing is static and startup-safe', () => {
@@ -211,11 +211,14 @@ test('plugin refreshes editor integration after workspace mode/layout changes', 
 	const main = read('packages/obsidian/src/main.ts');
 
 	expect(main).toContain('const refreshEditorIntegration = debounce(');
-	expect(main).toContain('() => {');
+	expect(main).toContain('force = false');
+	expect(main).toContain('this.refreshEditorIntegrationIfChanged(force === true);');
+	expect(main).toContain('refreshEditorIntegrationIfChanged(force = false): void');
+	expect(main).toContain('signature === this.lastEditorIntegrationSignature');
 	expect(main).toContain('void this.updateCm6Plugin?.();');
-	expect(main).toContain("this.registerEvent(this.app.workspace.on('layout-change', refreshEditorIntegration));");
-	expect(main).toContain("this.registerEvent(this.app.workspace.on('active-leaf-change', refreshEditorIntegration));");
-	expect(main).toContain("this.registerEvent(this.app.workspace.on('file-open', refreshEditorIntegration));");
+	expect(main).toContain("this.registerEvent(this.app.workspace.on('layout-change', () => refreshEditorIntegration(false)));");
+	expect(main).toContain("this.registerEvent(this.app.workspace.on('active-leaf-change', () => refreshEditorIntegration(true)));");
+	expect(main).toContain("this.registerEvent(this.app.workspace.on('file-open', () => refreshEditorIntegration(true)));");
 	expect(main).toContain('const livePreviewModeObserver = new MutationObserver(');
 	expect(main).toContain('mutations => {');
 	expect(main).toContain(

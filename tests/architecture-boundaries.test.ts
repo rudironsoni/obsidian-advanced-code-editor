@@ -77,12 +77,16 @@ describe('architecture boundaries', () => {
 		expect(highlighterSource).not.toContain('modern-monaco');
 	});
 
-	test('Source mode adapter owns CodeMirror decorations only', () => {
+	test('Source mode adapter keeps raw Source mode undecorated', () => {
 		const sourceMode = readSource('packages/obsidian/src/modes/SourceModeAdapter.ts');
 
 		expect(sourceMode).toContain('Decoration');
-		expect(sourceMode).toContain('Decoration.set(ranges, true)');
-		expect(sourceMode).not.toContain('RangeSetBuilder');
+		expect(sourceMode).toContain('decorations: DecorationSet = Decoration.none');
+		expect(sourceMode).not.toContain('Decoration.mark');
+		expect(sourceMode).not.toContain('Decoration.set');
+		expect(sourceMode).not.toContain('getHighlightTokens');
+		expect(sourceMode).not.toContain('getTokenSegments');
+		expect(sourceMode).not.toContain('getTokenStyle');
 		expect(sourceMode).not.toContain('MonacoCodeBlockSurface');
 		expect(sourceMode).not.toContain('MonacoSurfaceRegistry');
 		expect(sourceMode).not.toContain('monaco.editor.create');
