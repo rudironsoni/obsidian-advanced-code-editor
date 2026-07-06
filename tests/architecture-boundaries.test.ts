@@ -87,7 +87,7 @@ describe('architecture boundaries', () => {
 		expect(sourceMode).toContain('getHighlightTokens');
 		expect(sourceMode).toContain('getTokenSegments');
 		expect(sourceMode).toContain('getTokenStyle');
-		expect(sourceMode).toContain('shiki-source-token');
+		expect(sourceMode).toContain('SHIKI_SOURCE_TOKEN_CLASS');
 		expect(sourceMode).not.toContain('getThemeBackground');
 		expect(sourceMode).not.toContain("style.setProperty('--shiki-code-background'");
 		expect(sourceMode).not.toContain('MonacoCodeBlockSurface');

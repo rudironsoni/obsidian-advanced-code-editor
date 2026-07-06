@@ -101,7 +101,7 @@ describe('startup module boundary', () => {
 		expect(sourceMode).toContain('this.plugin.highlighter.getTokenStyle(segment.token)');
 		expect(sourceMode).toContain('Decoration.mark');
 		expect(sourceMode).toContain('Decoration.set(ranges, true)');
-		expect(sourceMode).toContain('shiki-source-token');
+		expect(sourceMode).toContain('SHIKI_SOURCE_TOKEN_CLASS');
 		expect(sourceMode).not.toContain('token.content.length');
 		expect(sourceMode).not.toContain('lineOffset += this.lineLength(block.code, lineOffset) + 1');
 		expect(sourceMode).not.toContain("style.setProperty('--shiki-code-background'");
@@ -113,7 +113,7 @@ describe('startup module boundary', () => {
 		const metadata = read('packages/obsidian/src/runtime/LanguageMetadata.ts');
 
 		expect(highlighter).toContain('getObsidianSafeLanguageNames');
-		expect(highlighter).toContain("await import('shiki/bundle/web')");
+		expect(highlighter).toContain("await import('shiki/bundle/full')");
 		expect(highlighter).not.toContain("await import('shiki')");
 		expect(main).toContain('getObsidianSafeLanguageNames()');
 		expect(main).not.toContain("from 'shiki'");
@@ -239,7 +239,7 @@ test('ShikiHighlighter does not depend on Monaco runtime', () => {
 	expect(highlighter).not.toContain('Monaco');
 	expect(highlighter).not.toContain('modern-monaco');
 	expect(highlighter).toContain('createHighlighter');
-	expect(highlighter).toContain("await import('shiki/bundle/web')");
+	expect(highlighter).toContain("await import('shiki/bundle/full')");
 	expect(highlighter).toContain('codeToTokens');
 });
 

@@ -124,6 +124,33 @@ Then('raw Source mode should keep C# fenced code editable with Shiki token color
 	await browser.saveScreenshot(path.join(artifactDir, `syntax-source-mode-${state.isMobile ? 'mobile' : 'desktop'}.png`));
 });
 
+Then('the syntax language matrix should have Shiki-owned token colors in {word}', async (mode: 'reading' | 'live-preview' | 'source') => {
+	const state = await obsidianApp.waitForSyntaxLanguageMatrix(mode);
+
+	for (const probe of state.probes) {
+		assert.equal(probe.linePresent, true, `expected ${probe.language} source line in ${mode}: ${JSON.stringify(probe)}`);
+		assert.ok(probe.pluginTokenCount >= probe.needles.length, `expected plugin-owned tokens for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`);
+		assert.ok(probe.distinctTokenColorCount >= 2, `expected multiple Shiki token colors for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`);
+		assert.equal(probe.transparentTokenCount, 0, `expected no transparent Shiki tokens for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`);
+		assert.ok(probe.visibleTokenCount >= probe.needles.length, `expected visible Shiki tokens for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`);
+		for (const needle of probe.needles) {
+			assert.equal(needle.found, true, `expected Shiki-owned token ${needle.needle} for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`);
+			assert.equal(
+				needle.visible,
+				true,
+				`expected visible Shiki-owned token ${needle.needle} for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`,
+			);
+			assert.equal(
+				needle.transparent,
+				false,
+				`expected non-transparent Shiki-owned token ${needle.needle} for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`,
+			);
+		}
+	}
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `syntax-language-matrix-${mode}-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+});
+
 Given('the horizontal scroll fixture notes are reset', async () => {
 	await horizontalScrollPage.resetFixtureNotes();
 });

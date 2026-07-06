@@ -18,8 +18,8 @@ describe('startup bundle', () => {
 	test('startup JavaScript stays small enough for fast Obsidian activation', () => {
 		const bytes = statSync(new URL('../dist/main.js', import.meta.url)).size;
 
-		// Keep the mobile-safe single-file build on Shiki's smaller web bundle, not the full grammar bundle.
-		expect(bytes).toBeLessThanOrEqual(6 * 1024 * 1024);
+		// Keep the mobile-safe release as a single file while supporting the advertised Shiki language matrix.
+		expect(bytes).toBeLessThanOrEqual(16 * 1024 * 1024);
 	});
 
 	test('startup JavaScript is the real Obsidian plugin entrypoint', () => {

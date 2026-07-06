@@ -2,6 +2,7 @@ import type { MarkdownPostProcessorContext } from 'obsidian';
 import { parseCodeBlockMeta } from 'packages/obsidian/src/codeblocks/CodeBlockMeta';
 import type { CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
+import { SHIKI_READING_TOKEN_CLASS, SHIKI_TOKEN_CLASS } from 'packages/obsidian/src/ShikiHighlighter';
 
 interface ReadingBlockState {
 	block: CodeBlockModel;
@@ -10,6 +11,7 @@ interface ReadingBlockState {
 	language: string;
 	observer: MutationObserver | undefined;
 	releaseTimer: number | undefined;
+	renderRequestId: number;
 }
 
 export class ReadingViewAdapter {
@@ -39,6 +41,7 @@ export class ReadingViewAdapter {
 			language: language.toLowerCase(),
 			observer: undefined,
 			releaseTimer: undefined,
+			renderRequestId: 0,
 		};
 		this.blockStates.set(block.id, state);
 		this.enhanceBlock(state);
@@ -95,6 +98,7 @@ export class ReadingViewAdapter {
 		if (this.plugin.loadedSettings.wrapLines) {
 			wrapper.classList.add('wrap-lines');
 		}
+		this.claimRenderedCodeElement(pre, codeElement, state.block.language);
 		pre.dataset.shikiBlockId = state.block.id;
 		codeElement.dataset.shikiBlockId = state.block.id;
 		if (existingHeader) {
@@ -169,9 +173,30 @@ export class ReadingViewAdapter {
 		void this.applyShikiHighlight(state, codeElement);
 	}
 
-	private async applyShikiHighlight(state: ReadingBlockState, codeElement: HTMLElement): Promise<void> {
+	private async applyShikiHighlight(state: ReadingBlockState, codeElement: HTMLElement, attempt = 0): Promise<void> {
+		const requestId = ++state.renderRequestId;
+		const pre = codeElement.closest<HTMLElement>('pre');
+		if (pre) {
+			this.claimRenderedCodeElement(pre, codeElement, state.block.language);
+		}
+		codeElement.textContent = state.block.code;
+		codeElement.dataset.shikiHighlightState = 'pending';
+		this.syncLineNumbers(state, codeElement);
+
 		const highlight = await this.plugin.highlighter.getHighlightTokens(state.block.code, state.block.language);
+		if (!this.isCurrentRender(state, codeElement, requestId)) {
+			return;
+		}
 		if (!highlight) {
+			if (attempt < 2) {
+				window.setTimeout(() => {
+					if (this.isCurrentRender(state, codeElement, requestId)) {
+						void this.applyShikiHighlight(state, codeElement, attempt + 1);
+					}
+				}, 150);
+				return;
+			}
+			codeElement.dataset.shikiHighlightState = 'plain';
 			return;
 		}
 		const themeBackground = this.plugin.highlighter.getThemeBackground(highlight);
@@ -184,6 +209,7 @@ export class ReadingViewAdapter {
 		// Preserve the original code text but replace with Shiki-colored spans
 		codeElement.empty();
 		const tokenLines = this.plugin.highlighter.getTokenSegments(state.block.code, highlight.tokens);
+		let renderedTokenCount = 0;
 		for (let i = 0; i < lines.length; i++) {
 			const lineSegments = tokenLines[i];
 			if (!lineSegments?.length) {
@@ -195,7 +221,17 @@ export class ReadingViewAdapter {
 						continue;
 					}
 					const tokenStyle = this.plugin.highlighter.getTokenStyle(segment.token);
-					codeElement.createSpan({ text: segment.text, cls: tokenStyle.classes.join(' '), attr: { style: tokenStyle.style } });
+					const span = codeElement.ownerDocument.createElement('span');
+					span.textContent = segment.text;
+					span.classList.add(SHIKI_TOKEN_CLASS, SHIKI_READING_TOKEN_CLASS);
+					for (const tokenClass of tokenStyle.classes) {
+						if (tokenClass) {
+							span.classList.add(tokenClass);
+						}
+					}
+					span.style.cssText = tokenStyle.style;
+					codeElement.appendChild(span);
+					renderedTokenCount++;
 				}
 			}
 			if (i < lines.length - 1) {
@@ -203,7 +239,54 @@ export class ReadingViewAdapter {
 			}
 		}
 
-		// Add line numbers if enabled
+		codeElement.dataset.shikiHighlightState = 'rendered';
+		this.syncLineNumbers(state, codeElement);
+		this.scheduleTokenRetentionCheck(state, codeElement, requestId, attempt, renderedTokenCount);
+	}
+
+	private claimRenderedCodeElement(pre: HTMLElement, codeElement: HTMLElement, language: string): void {
+		pre.dataset.shikiLanguage = language;
+		codeElement.dataset.shikiLanguage = language;
+		for (const element of [pre, codeElement]) {
+			for (const className of [...element.classList]) {
+				if (className.startsWith('language-')) {
+					element.classList.remove(className);
+				}
+			}
+		}
+	}
+
+	private isCurrentRender(state: ReadingBlockState, codeElement: HTMLElement, requestId: number): boolean {
+		return (
+			state.renderRequestId === requestId &&
+			this.blockStates.get(state.block.id) === state &&
+			state.container.isConnected &&
+			codeElement.isConnected &&
+			codeElement.dataset.shikiBlockId === state.block.id
+		);
+	}
+
+	private scheduleTokenRetentionCheck(
+		state: ReadingBlockState,
+		codeElement: HTMLElement,
+		requestId: number,
+		attempt: number,
+		expectedTokenCount: number,
+	): void {
+		window.setTimeout(() => {
+			if (!this.isCurrentRender(state, codeElement, requestId)) {
+				return;
+			}
+			if (expectedTokenCount <= 0 || codeElement.querySelector(`.${SHIKI_READING_TOKEN_CLASS}`)) {
+				return;
+			}
+			if (attempt < 2) {
+				void this.applyShikiHighlight(state, codeElement, attempt + 1);
+			}
+		}, 100);
+	}
+
+	private syncLineNumbers(state: ReadingBlockState, codeElement: HTMLElement): void {
 		const blockRoot = codeElement.closest<HTMLElement>('.shiki-reading-block');
 		if (blockRoot) {
 			for (const lineNumbers of [...blockRoot.querySelectorAll('.shiki-line-numbers')]) {
@@ -223,7 +306,7 @@ export class ReadingViewAdapter {
 				lineNumbers.className = 'shiki-line-numbers';
 				lineNumbers.dataset.shikiBlockId = state.block.id;
 				lineNumbers.dataset.shikiScrollOwner = 'false';
-				for (let i = 1; i <= lines.length; i++) {
+				for (let i = 1; i <= state.block.code.split('\n').length; i++) {
 					lineNumbers.createSpan({ text: String(i) });
 				}
 				bodyEl.insertBefore(lineNumbers, bodyEl.firstChild);

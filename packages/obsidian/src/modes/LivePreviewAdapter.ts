@@ -4,6 +4,7 @@ import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParse
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
 import { getActiveTheme } from 'packages/obsidian/src/runtime/ThemeBridge';
+import { SHIKI_LIVE_PREVIEW_TOKEN_CLASS, SHIKI_TOKEN_CLASS } from 'packages/obsidian/src/ShikiHighlighter';
 
 const LIVE_PREVIEW_ADAPTER_OWNER = '__shikiLivePreviewAdapterOwner';
 
@@ -206,7 +207,7 @@ export class LivePreviewAdapter {
 						Decoration.mark({
 							attributes: {
 								style: tokenStyle.style,
-								class: tokenStyle.classes.join(' '),
+								class: [SHIKI_TOKEN_CLASS, SHIKI_LIVE_PREVIEW_TOKEN_CLASS, ...tokenStyle.classes].filter(Boolean).join(' '),
 							},
 						}),
 					);

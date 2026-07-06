@@ -4,8 +4,7 @@ import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParse
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
 import { getActiveTheme } from 'packages/obsidian/src/runtime/ThemeBridge';
-
-const SOURCE_MODE_TOKEN_CLASS = 'shiki-source-token';
+import { SHIKI_SOURCE_TOKEN_CLASS, SHIKI_TOKEN_CLASS } from 'packages/obsidian/src/ShikiHighlighter';
 
 export class SourceModeAdapter {
 	decorations: DecorationSet = Decoration.none;
@@ -91,7 +90,7 @@ export class SourceModeAdapter {
 						Decoration.mark({
 							attributes: {
 								style: tokenStyle.style,
-								class: [SOURCE_MODE_TOKEN_CLASS, ...tokenStyle.classes].filter(Boolean).join(' '),
+								class: [SHIKI_TOKEN_CLASS, SHIKI_SOURCE_TOKEN_CLASS, ...tokenStyle.classes].filter(Boolean).join(' '),
 							},
 						}).range(from, to),
 					);

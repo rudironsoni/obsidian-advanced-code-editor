@@ -201,7 +201,7 @@ export default class ShikiPlugin extends Plugin {
 			const codeElements = el.querySelectorAll<HTMLElement>('pre > code[class*="language-"]');
 			const processedPre = new Set<HTMLElement>();
 			const sourceFromSectionInfo = (pre: HTMLElement): string => {
-				const sectionInfo = ctx.getSectionInfo(pre);
+				const sectionInfo = ctx.getSectionInfo(pre.parentElement ?? pre) ?? ctx.getSectionInfo(pre);
 				if (!sectionInfo) {
 					return pre.textContent ?? '';
 				}
@@ -229,10 +229,11 @@ export default class ShikiPlugin extends Plugin {
 				}
 
 				processedPre.add(pre);
+				const sectionSource = sourceFromSectionInfo(pre);
 				const codeBlock = new CodeBlock(
 					this,
 					pre.parentElement ?? pre,
-					codeElement.textContent?.trim() ? codeElement.textContent : sourceFromSectionInfo(pre),
+					sectionSource.trim() ? sectionSource : (codeElement.textContent ?? ''),
 					language,
 					ctx,
 				);
@@ -248,13 +249,8 @@ export default class ShikiPlugin extends Plugin {
 					continue;
 				}
 				processedPre.add(pre);
-				const codeBlock = new CodeBlock(
-					this,
-					pre.parentElement ?? pre,
-					pre.textContent?.trim() ? pre.textContent : sourceFromSectionInfo(pre),
-					language,
-					ctx,
-				);
+				const sectionSource = sourceFromSectionInfo(pre);
+				const codeBlock = new CodeBlock(this, pre.parentElement ?? pre, sectionSource.trim() ? sectionSource : (pre.textContent ?? ''), language, ctx);
 				ctx.addChild(codeBlock);
 			}
 		}, 1000);
