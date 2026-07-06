@@ -11,7 +11,7 @@
 		"build:test": "bun run build && bun run copy:test-vault",
 		"typecheck": "tsc -noEmit -skipLibCheck",
 		"test": "bun run test:unit",
-		"test:unit": "bun test tests/architecture-boundaries.test.ts tests/block-horizontal-scroll.test.ts tests/codeblock-parser.test.ts tests/live-preview-structure-extension.test.ts tests/render-children.test.ts tests/source-mode-tokenization-cache.test.ts tests/startup-boundary.test.ts tests/theme-bridge.test.ts tests/wdio-session-errors.test.ts",
+		"test:unit": "bun test tests/architecture-boundaries.test.ts tests/beta-version.test.ts tests/block-horizontal-scroll.test.ts tests/codeblock-parser.test.ts tests/live-preview-structure-extension.test.ts tests/render-children.test.ts tests/source-mode-tokenization-cache.test.ts tests/startup-boundary.test.ts tests/theme-bridge.test.ts tests/wdio-session-errors.test.ts",
 		"test:artifacts": "bun test tests/startup-bundle.test.ts tests/integration",
 		"test:integration": "bun run build && bun run test:artifacts",
 		"test:log": "LOG_TESTS=true bun run test:unit",
