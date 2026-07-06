@@ -24,6 +24,16 @@ type RenderState = {
 	debug: string[];
 };
 
+type LivePreviewSyntaxState = {
+	lines: number;
+	tokens: number;
+	text: string;
+	styledText: string;
+	width: number;
+	height: number;
+	isMobile: boolean;
+};
+
 type RuntimeApp = {
 	isMobile: boolean;
 	plugins: {
@@ -65,6 +75,17 @@ class ObsidianAppPage {
 		}, path);
 	}
 
+	async openFixtureInLivePreview(path: string): Promise<void> {
+		await executeObsidian(async ({ app, obsidian }, notePath) => {
+			const file = app.vault.getAbstractFileByPath(notePath);
+			if (!(file instanceof obsidian.TFile)) throw new Error(`Fixture not found: ${notePath}`);
+
+			const leaf = app.workspace.getLeaf(true);
+			await leaf.openFile(file, { active: true });
+			await leaf.setViewState({ type: 'markdown', state: { file: notePath, mode: 'source', source: false }, active: true }, { history: false });
+		}, path);
+	}
+
 	async waitForReadingRender(expectedText: string): Promise<RenderState> {
 		let lastState: RenderState | undefined;
 		try {
@@ -81,6 +102,24 @@ class ObsidianAppPage {
 		}
 
 		return this.getReadingRenderState();
+	}
+
+	async waitForLivePreviewStyledSource(expectedText: string): Promise<LivePreviewSyntaxState> {
+		let lastState: LivePreviewSyntaxState | undefined;
+		try {
+			await browser.waitUntil(
+				async () => {
+					const state = await this.getLivePreviewSyntaxState();
+					lastState = state;
+					return state.lines >= 1 && state.tokens > 0 && state.text.includes(expectedText) && state.styledText.includes(expectedText);
+				},
+				{ timeout: 30000, timeoutMsg: 'Live Preview Shiki token styling did not cover the expected source text' },
+			);
+		} catch (error) {
+			throw new Error(`Live Preview Shiki token styling did not cover the expected source text: ${JSON.stringify(lastState)}`, { cause: error });
+		}
+
+		return this.getLivePreviewSyntaxState();
 	}
 
 	async getReadingRenderState(): Promise<RenderState> {
@@ -117,6 +156,44 @@ class ObsidianAppPage {
 		});
 	}
 
+	async getLivePreviewSyntaxState(): Promise<LivePreviewSyntaxState> {
+		return executeObsidian(({ app }): LivePreviewSyntaxState => {
+			const collectStyledText = (target: HTMLElement): string => {
+				const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+				let text = '';
+				let node = walker.nextNode();
+				while (node) {
+					const parent = node.parentElement;
+					if (parent?.closest<HTMLElement>('[style*="color"]')) {
+						text += node.textContent ?? '';
+					}
+					node = walker.nextNode();
+				}
+				return text;
+			};
+			const runtimeApp = app as unknown as RuntimeApp;
+			const active = (app.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
+			const root =
+				active?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview') ??
+				document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview');
+			const lines = [...(root?.querySelectorAll<HTMLElement>('.cm-line.shiki-live-preview-code-line') ?? [])];
+			const line = lines.find(candidate => candidate.textContent?.includes('// Define constants')) ?? lines[0];
+			const rect = line?.getBoundingClientRect();
+			const tokens = line?.querySelectorAll<HTMLElement>('[style*="color"]').length ?? 0;
+			const styledText = line ? collectStyledText(line) : '';
+
+			return {
+				lines: lines.length,
+				tokens,
+				text: line?.textContent ?? '',
+				styledText,
+				width: rect?.width ?? 0,
+				height: rect?.height ?? 0,
+				isMobile: runtimeApp.isMobile,
+			};
+		});
+	}
+
 	async expectMobileEmulation(): Promise<void> {
 		await browser.waitUntil(async () => this.isMobileEmulationActive(), {
 			timeout: 30000,
@@ -126,12 +203,13 @@ class ObsidianAppPage {
 	}
 
 	async resizeToPhonePortrait(): Promise<void> {
-		await executeObsidian((_, input) => {
-			document.body.classList.add(input.className);
-			document.getElementById(input.styleId)?.remove();
-			const style = document.createElement('style');
-			style.id = input.styleId;
-			style.textContent = `
+		await executeObsidian(
+			(_, input) => {
+				document.body.classList.add(input.className);
+				document.getElementById(input.styleId)?.remove();
+				const style = document.createElement('style');
+				style.id = input.styleId;
+				style.textContent = `
 				body.${input.className} .workspace-leaf.mod-active .view-content {
 					width: 430px !important;
 					max-width: 430px !important;
@@ -143,8 +221,10 @@ class ObsidianAppPage {
 					max-width: 100% !important;
 				}
 			`;
-			document.head.appendChild(style);
-		}, { className: phonePortraitClass, styleId: phonePortraitStyleId });
+				document.head.appendChild(style);
+			},
+			{ className: phonePortraitClass, styleId: phonePortraitStyleId },
+		);
 		phonePortraitStyleApplied = true;
 	}
 
@@ -153,10 +233,13 @@ class ObsidianAppPage {
 			return;
 		}
 		phonePortraitStyleApplied = false;
-		await executeObsidian((_, input) => {
-			document.body.classList.remove(input.className);
-			document.getElementById(input.styleId)?.remove();
-		}, { className: phonePortraitClass, styleId: phonePortraitStyleId });
+		await executeObsidian(
+			(_, input) => {
+				document.body.classList.remove(input.className);
+				document.getElementById(input.styleId)?.remove();
+			},
+			{ className: phonePortraitClass, styleId: phonePortraitStyleId },
+		);
 	}
 
 	async resetMobileEmulation(): Promise<void> {

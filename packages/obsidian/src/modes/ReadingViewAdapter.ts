@@ -183,14 +183,19 @@ export class ReadingViewAdapter {
 
 		// Preserve the original code text but replace with Shiki-colored spans
 		codeElement.empty();
+		const tokenLines = this.plugin.highlighter.getTokenSegments(state.block.code, highlight.tokens);
 		for (let i = 0; i < lines.length; i++) {
-			const lineTokens = highlight.tokens[i];
-			if (!lineTokens) {
+			const lineSegments = tokenLines[i];
+			if (!lineSegments?.length) {
 				codeElement.appendChild(codeElement.ownerDocument.createTextNode(lines[i] ?? ''));
 			} else {
-				for (const token of lineTokens) {
-					const tokenStyle = this.plugin.highlighter.getTokenStyle(token);
-					codeElement.createSpan({ text: token.content, cls: tokenStyle.classes.join(' '), attr: { style: tokenStyle.style } });
+				for (const segment of lineSegments) {
+					if (!segment.token) {
+						codeElement.appendChild(codeElement.ownerDocument.createTextNode(segment.text));
+						continue;
+					}
+					const tokenStyle = this.plugin.highlighter.getTokenStyle(segment.token);
+					codeElement.createSpan({ text: segment.text, cls: tokenStyle.classes.join(' '), attr: { style: tokenStyle.style } });
 				}
 			}
 			if (i < lines.length - 1) {

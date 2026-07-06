@@ -3,6 +3,55 @@ import { getConfiguredThemes } from 'packages/obsidian/src/runtime/ThemeBridge';
 import type ShikiPlugin from 'packages/obsidian/src/main';
 import { getObsidianSafeLanguageNames, resolveLanguageAliasFromMetadata } from 'packages/obsidian/src/runtime/LanguageMetadata';
 
+export interface ShikiTokenSegment {
+	from: number;
+	to: number;
+	text: string;
+	token: ThemedToken | undefined;
+}
+
+function clampOffset(offset: number, min: number, max: number): number {
+	return Math.max(min, Math.min(offset, max));
+}
+
+export function buildShikiTokenSegments(code: string, tokenLines: readonly (readonly ThemedToken[])[]): ShikiTokenSegment[][] {
+	const lines = code.split('\n');
+	const segments: ShikiTokenSegment[][] = [];
+	let lineStart = 0;
+
+	for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+		const line = lines[lineIndex] ?? '';
+		const lineEnd = lineStart + line.length;
+		const lineTokens = tokenLines[lineIndex] ?? [];
+		const lineSegments: ShikiTokenSegment[] = [];
+		let cursor = lineStart;
+
+		for (let tokenIndex = 0; tokenIndex < lineTokens.length; tokenIndex++) {
+			const token = lineTokens[tokenIndex];
+			const next = lineTokens[tokenIndex + 1];
+			const from = clampOffset(token.offset, lineStart, lineEnd);
+			const to = clampOffset(next?.offset ?? lineEnd, from, lineEnd);
+
+			if (from > cursor) {
+				lineSegments.push({ from: cursor, to: from, text: code.slice(cursor, from), token: undefined });
+			}
+			if (to > from) {
+				lineSegments.push({ from, to, text: code.slice(from, to), token });
+			}
+			cursor = Math.max(cursor, to);
+		}
+
+		if (cursor < lineEnd) {
+			lineSegments.push({ from: cursor, to: lineEnd, text: code.slice(cursor, lineEnd), token: undefined });
+		}
+
+		segments.push(lineSegments);
+		lineStart = lineEnd + 1;
+	}
+
+	return segments;
+}
+
 export class ShikiHighlighter {
 	private highlighter: Highlighter | undefined;
 	private readonly plugin: ShikiPlugin;
@@ -114,6 +163,10 @@ export class ShikiHighlighter {
 				if (token.fontStyle & 4) span.style.textDecoration = 'underline';
 			}
 		}
+	}
+
+	getTokenSegments(code: string, tokenLines: readonly (readonly ThemedToken[])[]): ShikiTokenSegment[][] {
+		return buildShikiTokenSegments(code, tokenLines);
 	}
 
 	getTokenStyle(token: ThemedToken): { style: string; classes: string[] } {

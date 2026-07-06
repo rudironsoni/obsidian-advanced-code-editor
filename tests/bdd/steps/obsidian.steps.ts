@@ -31,6 +31,10 @@ Given('the fixture note {string} is open in reading mode', async (notePath: stri
 	await obsidianApp.openFixtureInReadingMode(notePath);
 });
 
+Given('the fixture note {string} is open in Live Preview', async (notePath: string) => {
+	await obsidianApp.openFixtureInLivePreview(notePath);
+});
+
 Given('Obsidian is running in mobile emulation', async () => {
 	await obsidianApp.expectMobileEmulation();
 });
@@ -62,6 +66,17 @@ Then('a visible Shiki code block should render {string}', async (expectedText: s
 	assert.ok(state.text.includes(expectedText), 'expected fixture code text');
 	assert.ok(state.width > 80, 'expected visible block width');
 	assert.ok(state.height > 20, 'expected visible block height');
+});
+
+Then('the Live Preview code block should style the full source text {string}', async (expectedText: string) => {
+	const state = await obsidianApp.waitForLivePreviewStyledSource(expectedText);
+
+	assert.ok(state.lines >= 1, 'expected at least one Live Preview code line');
+	assert.ok(state.tokens > 0, 'expected syntax-highlighted token spans');
+	assert.ok(state.text.includes(expectedText), 'expected Live Preview code text');
+	assert.ok(state.styledText.includes(expectedText), `expected styled token text to include ${expectedText}, got ${JSON.stringify(state)}`);
+	assert.ok(state.width > 80, 'expected visible Live Preview code line width');
+	assert.ok(state.height > 10, 'expected visible Live Preview code line height');
 });
 
 Given('the horizontal scroll fixture notes are reset', async () => {

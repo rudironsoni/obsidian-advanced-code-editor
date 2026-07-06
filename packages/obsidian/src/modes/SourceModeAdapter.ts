@@ -82,14 +82,17 @@ export class SourceModeAdapter {
 			if (themeBackground) {
 				sourceViewRoot?.style.setProperty('--shiki-code-background', themeBackground);
 			}
-			for (const lineTokens of highlight.tokens) {
-				for (const token of lineTokens) {
-					const from = block.codeFrom + token.offset;
-					const to = Math.min(from + token.content.length, block.codeTo);
+			for (const lineSegments of this.plugin.highlighter.getTokenSegments(block.code, highlight.tokens)) {
+				for (const segment of lineSegments) {
+					if (!segment.token) {
+						continue;
+					}
+					const from = block.codeFrom + segment.from;
+					const to = Math.min(block.codeFrom + segment.to, block.codeTo);
 					if (to <= from) {
 						continue;
 					}
-					const tokenStyle = this.plugin.highlighter.getTokenStyle(token);
+					const tokenStyle = this.plugin.highlighter.getTokenStyle(segment.token);
 					ranges.push(
 						Decoration.mark({
 							attributes: {

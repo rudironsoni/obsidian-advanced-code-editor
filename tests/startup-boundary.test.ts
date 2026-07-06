@@ -95,9 +95,12 @@ describe('startup module boundary', () => {
 
 		expect(sourceMode).not.toContain('highlight.tokens.flat(1)');
 		expect(sourceMode).not.toContain('let lineOffset = 0');
-		expect(sourceMode).toContain('block.codeFrom + token.offset');
+		expect(sourceMode).toContain('this.plugin.highlighter.getTokenSegments(block.code, highlight.tokens)');
+		expect(sourceMode).toContain('block.codeFrom + segment.from');
+		expect(sourceMode).toContain('block.codeFrom + segment.to');
+		expect(sourceMode).not.toContain('token.content.length');
 		expect(sourceMode).not.toContain('lineOffset += this.lineLength(block.code, lineOffset) + 1');
-		expect(sourceMode).toContain('this.plugin.highlighter.getTokenStyle(token)');
+		expect(sourceMode).toContain('this.plugin.highlighter.getTokenStyle(segment.token)');
 		expect(sourceMode).toContain('Decoration.set(ranges, true)');
 		expect(sourceMode).not.toContain('RangeSetBuilder');
 	});
@@ -158,7 +161,11 @@ describe('startup module boundary', () => {
 		expect(structure).not.toContain('shiki-note-line-numbers');
 		expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged)');
 		expect(livePreview).toContain('retokenizeBlocks');
-		expect(livePreview).toContain('this.plugin.highlighter.getTokenStyle(token)');
+		expect(livePreview).toContain('this.plugin.highlighter.getTokenSegments(block.code, highlight.tokens)');
+		expect(livePreview).toContain('block.codeFrom + segment.from');
+		expect(livePreview).toContain('block.codeFrom + segment.to');
+		expect(livePreview).toContain('this.plugin.highlighter.getTokenStyle(segment.token)');
+		expect(livePreview).not.toContain('token.content.length');
 		expect(livePreview).not.toContain('shiki-editing-codeblock-active-line');
 		expect(livePreview).not.toContain('syncActiveLineHorizontalScroll');
 		expect(livePreview).not.toContain('otherLine.scrollLeft = line.scrollLeft');
