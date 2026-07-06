@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'obsidian-shiki-plugin harness active | Desktop + Mobile emulation | MCPs: obsidian-cli, wdio-mcp'"
+            "command": "echo 'obsidian-advanced-code-editor harness active | Desktop + Mobile emulation | MCPs: obsidian-cli, wdio-mcp'"
           }
         ]
       }

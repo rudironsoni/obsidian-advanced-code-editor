@@ -10,10 +10,10 @@ targets:
   - '*'
 opencode:
   metadata:
-    author: obsidian-shiki-plugin
+    author: obsidian-advanced-code-editor
     version: '1.2'
 ---
-# Obsidian CLI For Advanced Code Block
+# Obsidian CLI For Advanced Code Editor
 
 Use this skill to inspect a running Obsidian instance while developing `advanced-code-block`.
 Prefix shell commands with `rtk` in this repo.

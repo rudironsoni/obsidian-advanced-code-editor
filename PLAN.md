@@ -1,4 +1,4 @@
-# Advanced Code Block Migration Plan v0.9.0
+# Advanced Code Editor Migration Plan v0.9.0
 
 Status: complete.
 
@@ -12,7 +12,7 @@ and the WDIO-backed acceptance harness.
 | --- | ----------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------- |
 | 1   | Remove Monaco entirely, use direct Shiki                                                        | 2026-06-28 | `tests/architecture-boundaries.test.ts`, `tests/startup-bundle.test.ts`   |
 | 2   | Plugin ID: `advanced-code-block`                                                                | 2026-06-28 | `tests/startup-bundle.test.ts`, WDIO plugin-load scenario                 |
-| 3   | Display name: `Advanced Code Block`                                                             | 2026-06-28 | `manifest.json`, `manifest-beta.json`, `tests/startup-bundle.test.ts`     |
+| 3   | Display name: `Advanced Code Editor`                                                            | 2026-06-28 | `manifest.json`, `manifest-beta.json`, `tests/startup-bundle.test.ts`     |
 | 4   | Version: `0.9.0`                                                                                | 2026-06-28 | `package.json`, `manifest.json`, `manifest-beta.json`, `versions.json`    |
 | 5   | Settings names: `showLineNumbers` and `wrapLines`                                               | 2026-06-28 | `tests/startup-boundary.test.ts`                                          |
 | 6   | No backward-compatible BRAT path for the old plugin ID                                          | 2026-06-28 | Release artifact integration installs only `advanced-code-block` payloads |
@@ -31,7 +31,7 @@ and the WDIO-backed acceptance harness.
 ### Plugin Identity
 
 - Renamed the package and plugin ID to `advanced-code-block`.
-- Renamed the display name to `Advanced Code Block`.
+- Renamed the display name to `Advanced Code Editor`.
 - Set the base version to `0.9.0`.
 - Updated release and beta workflows to publish artifacts under the new plugin ID.
 - Updated README install text and repository links.

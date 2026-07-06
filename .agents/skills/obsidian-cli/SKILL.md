@@ -7,7 +7,7 @@ description: >-
   highlighting, screenshots, and mobile emulation with app.emulateMobile(true).
   Use WebdriverIO for automated runtime acceptance.
 ---
-# Obsidian CLI For Advanced Code Block
+# Obsidian CLI For Advanced Code Editor
 
 Use this skill to inspect a running Obsidian instance while developing `advanced-code-block`.
 Prefix shell commands with `rtk` in this repo.

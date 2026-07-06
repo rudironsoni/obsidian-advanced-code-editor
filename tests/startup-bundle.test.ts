@@ -41,7 +41,7 @@ describe('startup bundle', () => {
 		expect(manifest).not.toContain('shikiModernMonacoFallback');
 	});
 
-	test('plugin identity metadata matches the Advanced Code Block migration plan', () => {
+	test('plugin identity metadata matches the Advanced Code Editor migration plan', () => {
 		const packageJson = readJson<{ name: string; version: string }>('../package.json');
 		const manifest = readJson<PluginManifest>('../manifest.json');
 		const betaManifest = readJson<PluginManifest>('../manifest-beta.json');
@@ -50,7 +50,7 @@ describe('startup bundle', () => {
 		expect(packageJson.name).toBe('advanced-code-block');
 		expect(packageJson.version).toBe('0.9.0');
 		expect(manifest.id).toBe(packageJson.name);
-		expect(manifest.name).toBe('Advanced Code Block');
+		expect(manifest.name).toBe('Advanced Code Editor');
 		expect(manifest.version).toBe(packageJson.version);
 		expect(betaManifest.id).toBe(manifest.id);
 		expect(betaManifest.name).toBe(manifest.name);

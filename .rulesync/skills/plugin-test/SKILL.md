@@ -1,7 +1,7 @@
 ---
 name: plugin-test
 description: >-
-  Acceptance test workflow for the obsidian-shiki-plugin Obsidian plugin. Use
+  Acceptance test workflow for the obsidian-advanced-code-editor Obsidian plugin. Use
   when the user asks to test the plugin, smoke test a release, verify before
   release, test BRAT/mobile installs, validate syntax highlighting, or judge
   whether startup and rendering still work. Uses local checks first, then
@@ -11,10 +11,10 @@ targets:
   - '*'
 opencode:
   metadata:
-    author: obsidian-shiki-plugin
+    author: obsidian-advanced-code-editor
     version: '1.1'
 ---
-# Advanced Code Block Acceptance Test
+# Advanced Code Editor Acceptance Test
 
 Use this skill for release-level verification of `advanced-code-block`. Keep the bar high: startup under 50 ms, Shiki highlighting working in reading mode and live preview, settings tab available, desktop and mobile paths covered.
 
@@ -107,7 +107,7 @@ rtk obsidian dev:dom selector=".cm-content [style*='color'], .cm-content [class*
 Write `planning/test-reports/<YYYY-MM-DD-HH-MM>/REPORT.md`:
 
 ```markdown
-# Advanced Code Block acceptance test
+# Advanced Code Editor acceptance test
 
 ## Scope
 

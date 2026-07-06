@@ -1,7 +1,7 @@
 ---
 name: plugin-test
 description: >-
-    Acceptance test workflow for the obsidian-shiki-plugin Obsidian plugin. Use
+    Acceptance test workflow for the obsidian-advanced-code-editor Obsidian plugin. Use
     when the user asks to test the plugin, smoke test a release, verify before
     release, test BRAT/mobile installs, validate syntax highlighting, or judge
     whether startup and rendering still work. Uses local checks first, then

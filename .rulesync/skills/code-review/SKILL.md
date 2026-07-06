@@ -11,7 +11,7 @@ targets:
   - '*'
 opencode:
   metadata:
-    author: obsidian-shiki-plugin
+    author: obsidian-advanced-code-editor
     version: '1.0'
 ---
 # Code Review

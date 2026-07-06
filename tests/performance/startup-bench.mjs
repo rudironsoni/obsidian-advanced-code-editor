@@ -22,7 +22,7 @@ HTMLElement.prototype.createEl = function createEl(tag, options = {}) {
 
 class MockPlugin {
 	constructor() {
-		this.manifest = { id: 'advanced-code-block', name: 'Advanced Code Block', version: '0.0.0' };
+		this.manifest = { id: 'advanced-code-block', name: 'Advanced Code Editor', version: '0.0.0' };
 		this.app = {
 			isMobile: emulateMobile,
 			emulateMobile: value => {
