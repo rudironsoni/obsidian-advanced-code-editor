@@ -560,6 +560,104 @@ class HorizontalScrollPage {
 		return this.collectScrollState(mode, 'native-row-overflow-after');
 	}
 
+	async wheelOverscrollRightEdge(mode: HorizontalScrollMode, blockIndex: number): Promise<HorizontalScrollState> {
+		await executeObsidian(
+			async ({ app }, input: NativeRowOverflowInput): Promise<void> => {
+				const runtimeApp = app as unknown as RuntimeApp;
+				const root =
+					runtimeApp.workspace.activeLeaf?.view?.containerEl ??
+					runtimeApp.workspace.activeLeaf?.view?.contentEl ??
+					document.querySelector('.workspace-leaf.mod-active') ??
+					document;
+				const noteScroller =
+					input.mode === 'reading' ? root.querySelector<HTMLElement>('.markdown-preview-view') : root.querySelector<HTMLElement>('.cm-scroller');
+				const scope = noteScroller ?? root;
+				const blockIds = new Set<string>();
+				for (const element of scope.querySelectorAll<HTMLElement>('[data-shiki-block-id]')) {
+					const blockId = element.dataset.shikiBlockId;
+					if (blockId) blockIds.add(blockId);
+				}
+				const blocks = [...blockIds]
+					.map(blockId => {
+						const escapedBlockId = CSS.escape(blockId);
+						const rows = [...scope.querySelectorAll<HTMLElement>(`.shiki-block-scroll-row[data-shiki-block-id="${escapedBlockId}"]`)];
+						const scrollbars = [
+							...scope.querySelectorAll<HTMLElement>(`.shiki-block-horizontal-scrollbar[data-shiki-block-id="${escapedBlockId}"]`),
+						];
+						return { rows, scrollbar: scrollbars[0] ?? null };
+					})
+					.filter(block => block.rows.length > 0 || block.scrollbar !== null);
+				const block = blocks[input.blockIndex];
+				if (!block) throw new Error(`Code block ${input.blockIndex + 1} was not found`);
+
+				const target = input.mode === 'live-preview' ? (block.rows[0] ?? block.scrollbar) : (block.scrollbar ?? block.rows[0]);
+				if (!target) throw new Error(`Code block ${input.blockIndex + 1} has no horizontal scroll target`);
+
+				if (noteScroller) {
+					noteScroller.scrollLeft = 0;
+				}
+				document.scrollingElement?.scrollTo({ left: 0 });
+
+				const rect = target.getBoundingClientRect();
+				const clientX = rect.left + Math.min(120, Math.max(8, rect.width / 2));
+				const clientY = rect.top + Math.min(10, Math.max(4, rect.height / 2));
+				const observedBlockScrollLeft = () => Math.max(0, target.scrollLeft, block.scrollbar?.scrollLeft ?? 0, ...block.rows.map(row => row.scrollLeft));
+				let lastObservedScrollLeft = 0;
+				let unchangedWheelCount = 0;
+
+				for (let index = 0; index < 40; index++) {
+					target.dispatchEvent(
+						new WheelEvent('wheel', {
+							bubbles: true,
+							cancelable: true,
+							clientX,
+							clientY,
+							deltaX: 480,
+						}),
+					);
+					await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+					const observedScrollLeft = observedBlockScrollLeft();
+					if (observedScrollLeft <= lastObservedScrollLeft + 1) {
+						unchangedWheelCount++;
+					} else {
+						unchangedWheelCount = 0;
+					}
+					lastObservedScrollLeft = observedScrollLeft;
+					if (unchangedWheelCount >= 3) {
+						break;
+					}
+				}
+				if (lastObservedScrollLeft <= 0) {
+					throw new Error('Expected right-edge setup to scroll the Live Preview block horizontally');
+				}
+
+				for (let index = 0; index < 8; index++) {
+					const event = new WheelEvent('wheel', {
+						bubbles: true,
+						cancelable: true,
+						clientX,
+						clientY,
+						deltaX: 240,
+					});
+					target.dispatchEvent(event);
+					if (!event.defaultPrevented) {
+						throw new Error(`Expected right-edge wheel overscroll to be prevented at event ${index + 1}`);
+					}
+					await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+					const observedScrollLeft = observedBlockScrollLeft();
+					if (observedScrollLeft > lastObservedScrollLeft + 1) {
+						throw new Error(`Expected right-edge overscroll not to advance beyond ${lastObservedScrollLeft}, observed ${observedScrollLeft}`);
+					}
+				}
+				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+			},
+			{ mode, blockIndex },
+		);
+
+		await browser.pause(150);
+		return this.collectScrollState(mode, 'right-edge-wheel-overscroll-after');
+	}
+
 	async measureRepeatedWheelScroll(mode: HorizontalScrollMode, blockIndex: number): Promise<HorizontalScrollPerformanceResult> {
 		const metrics = await executeObsidian(
 			async ({ app }, input: RepeatedWheelInput): Promise<HorizontalScrollPerformanceMetrics> => {

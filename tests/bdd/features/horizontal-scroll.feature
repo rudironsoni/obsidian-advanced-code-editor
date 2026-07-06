@@ -64,6 +64,14 @@ Feature: Block-owned horizontal scroll
     And the surrounding note should not move horizontally
 
   @desktop
+  Scenario: Live Preview stops wheel scrolling at the right edge
+    Given horizontal scroll settings use nowrap with line numbers
+    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+    When I wheel overscroll the first code block past the right edge
+    Then the first Live Preview code block should remain at its horizontal end
+    And the surrounding note should not move horizontally
+
+  @desktop
   Scenario: Live Preview keeps code text visible after native row overflow
     Given horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll

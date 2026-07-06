@@ -157,6 +157,12 @@ When('I repeatedly scroll the first code block horizontally with wheel gestures'
 	writeJsonArtifact(`horizontal-scroll-${activeHorizontalScrollMode}-wheel-performance`, lastHorizontalScrollPerformance);
 });
 
+When('I wheel overscroll the first code block past the right edge', async () => {
+	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected right-edge overscroll to run in Live Preview');
+	lastHorizontalScrollState = await horizontalScrollPage.wheelOverscrollRightEdge(activeHorizontalScrollMode, 0);
+	writeJsonArtifact(`horizontal-scroll-${activeHorizontalScrollMode}-right-edge-overscroll`, lastHorizontalScrollState);
+});
+
 When('I compare the first code block line-number layout with Reading mode', async () => {
 	assert.ok(activeHorizontalScrollNotePath, 'expected an active horizontal scroll fixture note');
 	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected comparison to start from Live Preview');
@@ -208,6 +214,18 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assertLivePreviewBlockUsesSharedRowScroll(state, first);
+});
+
+Then('the first Live Preview code block should remain at its horizontal end', async () => {
+	const state = lastHorizontalScrollState ?? (await currentHorizontalScrollState('assert-right-edge'));
+	const first = state.blocks[0];
+	assert.ok(first, `expected a first code block: ${JSON.stringify(state)}`);
+	assert.equal(state.mode, 'live-preview', `expected Live Preview mode: ${JSON.stringify(state)}`);
+	assert.ok(first.maxScrollLeft > 0, `expected overflowing Live Preview block content: ${JSON.stringify(state)}`);
+	assert.ok(first.scrollLeft > 0, `expected first block to remain horizontally scrolled: ${JSON.stringify(state)}`);
+	assertLivePreviewBlockUsesSharedRowScroll(state, first);
+	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(state)}`);
+	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(state)}`);
 });
 
 Then('the Live Preview code block line-number gutter should match Reading mode', async () => {

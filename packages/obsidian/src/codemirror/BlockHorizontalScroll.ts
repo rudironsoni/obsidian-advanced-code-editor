@@ -195,15 +195,8 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					return;
 				}
 				const normalizedDelta = this.normalizeWheelDelta(horizontalDelta, event.deltaMode, target.blockId);
-				const nextScrollLeft = this.clampBlockScrollLeft(target.blockId, target.scrollLeft + normalizedDelta);
-				if (nextScrollLeft === target.scrollLeft) {
-					return;
-				}
-				if (event.cancelable) {
-					event.preventDefault();
-				}
-				event.stopPropagation();
-				this.syncBlock(target.blockId, nextScrollLeft);
+				this.cancelHorizontalGesture(event);
+				this.applyHorizontalGestureScroll(target.blockId, target.scrollLeft + normalizedDelta, false);
 			};
 
 			private readonly onPointerDown = (event: PointerEvent): void => {
@@ -246,8 +239,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					return;
 				}
 				this.cancelHorizontalGesture(event);
-				event.stopPropagation();
-				this.syncBlockImmediate(this.pointerBlockId, this.pointerStartScrollLeft - deltaX);
+				this.applyHorizontalGestureScroll(this.pointerBlockId, this.pointerStartScrollLeft - deltaX, true);
 			};
 
 			private readonly onPointerEnd = (event: PointerEvent): void => {
@@ -292,8 +284,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					return;
 				}
 				this.cancelHorizontalGesture(event);
-				event.stopPropagation();
-				this.syncBlockImmediate(this.touchBlockId, this.touchStartScrollLeft - deltaX);
+				this.applyHorizontalGestureScroll(this.touchBlockId, this.touchStartScrollLeft - deltaX, true);
 			};
 
 			private readonly onTouchEnd = (): void => {
@@ -325,6 +316,19 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				} finally {
 					this.syncing = false;
 				}
+			}
+
+			private applyHorizontalGestureScroll(blockId: string, scrollLeft: number, immediate: boolean): void {
+				const currentScrollLeft = this.clampBlockScrollLeft(blockId, this.blockScrollLeft(blockId));
+				const nextScrollLeft = this.clampBlockScrollLeft(blockId, scrollLeft);
+				if (nextScrollLeft === currentScrollLeft) {
+					return;
+				}
+				if (immediate) {
+					this.syncBlockImmediate(blockId, nextScrollLeft);
+					return;
+				}
+				this.syncBlock(blockId, nextScrollLeft);
 			}
 
 			private cancelHorizontalGesture(event: Event): void {

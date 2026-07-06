@@ -181,12 +181,12 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('const touch = this.findTouch(event.changedTouches, this.touchId);');
 		expect(source).toContain('this.cancelHorizontalGesture(event);');
 		expect(source).toContain('event.stopImmediatePropagation();');
-		expect(source).toContain('this.syncBlockImmediate(blockId, scrollLeft);');
+		expect(source).toContain('private applyHorizontalGestureScroll(blockId: string, scrollLeft: number, immediate: boolean): void {');
 		expect(source).toContain('this.pointerCaptureTarget?.setPointerCapture(event.pointerId);');
 		expect(source).toContain('this.pointerCaptureTarget?.releasePointerCapture(this.pointerId);');
 		expect(source).toContain('private syncBlockImmediate(blockId: string, scrollLeft: number): void {');
-		expect(source).toContain('this.syncBlockImmediate(this.pointerBlockId, this.pointerStartScrollLeft - deltaX);');
-		expect(source).toContain('this.syncBlockImmediate(this.touchBlockId, this.touchStartScrollLeft - deltaX);');
+		expect(source).toContain('this.applyHorizontalGestureScroll(this.pointerBlockId, this.pointerStartScrollLeft - deltaX, true);');
+		expect(source).toContain('this.applyHorizontalGestureScroll(this.touchBlockId, this.touchStartScrollLeft - deltaX, true);');
 		expect(source).toContain('this.applyBlockScroll(blockId, nextScrollLeft);');
 	});
 
@@ -320,6 +320,48 @@ describe('block horizontal scroll identity', () => {
 
 			expect(longRow.scrollLeft).toBe(180);
 			expect(shortRow.scrollLeft).toBe(180);
+		} finally {
+			view.destroy();
+			parent.remove();
+		}
+	});
+
+	test('cancels wheel overscroll at Live Preview block boundaries', () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const view = new EditorView({
+			doc: '',
+			extensions: [createBlockHorizontalScrollPlugin()],
+			parent,
+		});
+		const blockId = 'Note.md::live-preview::5::120::5::ts::wheel-boundary';
+		const row = document.createElement('div');
+		let bubbledWheelEvents = 0;
+
+		row.className = `${SHIKI_BLOCK_SCROLL_ROW_CLASS} shiki-live-preview-code-line`;
+		row.dataset.shikiBlockId = blockId;
+		view.scrollDOM.appendChild(row);
+		defineLayout(row, { clientWidth: 300, scrollWidth: 1000 });
+		view.scrollDOM.addEventListener('wheel', () => {
+			bubbledWheelEvents++;
+		});
+
+		try {
+			row.scrollLeft = 700;
+			const rightEdgeWheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: 120 });
+			row.dispatchEvent(rightEdgeWheel);
+
+			expect(rightEdgeWheel.defaultPrevented).toBe(true);
+			expect(row.scrollLeft).toBe(700);
+			expect(bubbledWheelEvents).toBe(0);
+
+			row.scrollLeft = 0;
+			const leftEdgeWheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: -120 });
+			row.dispatchEvent(leftEdgeWheel);
+
+			expect(leftEdgeWheel.defaultPrevented).toBe(true);
+			expect(row.scrollLeft).toBe(0);
+			expect(bubbledWheelEvents).toBe(0);
 		} finally {
 			view.destroy();
 			parent.remove();
