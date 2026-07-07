@@ -408,6 +408,10 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 	min-width: var(--shiki-block-clip-width, 100%);
 	max-width: var(--shiki-block-clip-width, 100%);
 	box-sizing: border-box;
+	border-top: 1px solid var(--background-modifier-border);
+	border-right: 1px solid var(--background-modifier-border);
+	border-left: 1px solid var(--background-modifier-border);
+	border-radius: var(--code-radius) var(--code-radius) 0 0;
 }
 
 .markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-header .shiki-header-left,
@@ -452,6 +456,8 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 	width: var(--shiki-block-clip-width, 100%) !important;
 	min-width: var(--shiki-block-clip-width, 100%) !important;
 	max-width: var(--shiki-block-clip-width, 100%) !important;
+	border-right: 1px solid var(--background-modifier-border);
+	border-left: 1px solid var(--background-modifier-border);
 	padding-inline-start: 5px !important;
 	padding-inline-end: 0 !important;
 	box-sizing: border-box;
@@ -514,10 +520,18 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 	font-size: var(--code-size);
 	line-height: var(--line-height-normal);
 	max-width: 100%;
+	border-right: 1px solid var(--background-modifier-border);
+	border-left: 1px solid var(--background-modifier-border);
+	box-sizing: border-box;
 	position: relative;
 	overflow: hidden;
 	contain: paint;
 	white-space: pre !important;
+}
+
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-live-preview-closing-fence-line {
+	border-bottom: 1px solid var(--background-modifier-border);
+	border-radius: 0 0 var(--code-radius) var(--code-radius);
 }
 
 .markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-live-preview-fence-line .shiki-live-preview-fence-text {

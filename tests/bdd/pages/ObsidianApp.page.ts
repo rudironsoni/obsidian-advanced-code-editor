@@ -255,50 +255,45 @@ class ObsidianAppPage {
 			probe.transparentTokenCount === 0 &&
 			probe.needles.every(needle => needle.found && needle.visible && !needle.transparent);
 
-		if (mode !== 'reading') {
-			const probes: SyntaxMatrixProbeState[] = [];
-			for (const expected of syntaxLanguageMatrix) {
-				await this.revealSyntaxLanguageLine(expected.lineText);
-				let matched: SyntaxMatrixProbeState | undefined;
-				try {
-					await browser.waitUntil(
-						async () => {
-							const state = await this.getSyntaxLanguageMatrixState(mode);
-							lastState = state;
-							matched = state.probes.find(probe => probe.language === expected.language);
-							return matched !== undefined && passes(matched);
-						},
-						{ timeout: 45000, timeoutMsg: `Syntax language matrix did not render ${expected.language} Shiki-owned tokens in ${mode}` },
-					);
-				} catch (error) {
-					throw new Error(`Syntax language matrix did not render ${expected.language} Shiki-owned tokens in ${mode}: ${JSON.stringify(lastState)}`, {
-						cause: error,
-					});
-				}
-				probes.push(matched!);
+		const probes: SyntaxMatrixProbeState[] = [];
+		for (const expected of syntaxLanguageMatrix) {
+			await this.revealSyntaxLanguageLine(expected.lineText);
+			let matched: SyntaxMatrixProbeState | undefined;
+			try {
+				await browser.waitUntil(
+					async () => {
+						const state = await this.getSyntaxLanguageMatrixState(mode);
+						lastState = state;
+						matched = state.probes.find(probe => probe.language === expected.language);
+						return matched !== undefined && passes(matched);
+					},
+					{ timeout: 45000, timeoutMsg: `Syntax language matrix did not render ${expected.language} Shiki-owned tokens in ${mode}` },
+				);
+			} catch (error) {
+				throw new Error(`Syntax language matrix did not render ${expected.language} Shiki-owned tokens in ${mode}: ${JSON.stringify(lastState)}`, {
+					cause: error,
+				});
 			}
-			const finalState = await this.getSyntaxLanguageMatrixState(mode);
-			return { ...finalState, probes };
+			probes.push(matched!);
 		}
-
-		try {
-			await browser.waitUntil(
-				async () => {
-					const state = await this.getSyntaxLanguageMatrixState(mode);
-					lastState = state;
-					return state.probes.every(passes);
-				},
-				{ timeout: 45000, timeoutMsg: `Syntax language matrix did not render Shiki-owned tokens in ${mode}` },
-			);
-		} catch (error) {
-			throw new Error(`Syntax language matrix did not render Shiki-owned tokens in ${mode}: ${JSON.stringify(lastState)}`, { cause: error });
-		}
-
-		return this.getSyntaxLanguageMatrixState(mode);
+		const finalState = await this.getSyntaxLanguageMatrixState(mode);
+		return { ...finalState, probes };
 	}
 
 	async revealSyntaxLanguageLine(lineText: string): Promise<void> {
 		await executeObsidian(({ app }, expectedLine) => {
+			const normalizeText = (value: string): string => value.replace(/\s+/g, ' ').trim();
+			const expected = normalizeText(expectedLine);
+			const active = (app.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
+			const root = active?.querySelector<HTMLElement>('.markdown-preview-view') ?? document.querySelector<HTMLElement>('.markdown-preview-view');
+			const blocks = [...(root?.querySelectorAll<HTMLElement>('.shiki-reading-block') ?? [])];
+			const block = blocks.find(candidate => normalizeText(candidate.textContent ?? '').includes(expected));
+			if (block) {
+				block.scrollIntoView({ block: 'center', inline: 'nearest' });
+				root?.dispatchEvent(new Event('scroll', { bubbles: true }));
+				return;
+			}
+
 			type RuntimeEditor = {
 				getValue(): string;
 				getLine(line: number): string;
@@ -310,8 +305,6 @@ class ObsidianAppPage {
 			if (!editor) {
 				return;
 			}
-			const normalizeText = (value: string): string => value.replace(/\s+/g, ' ').trim();
-			const expected = normalizeText(expectedLine);
 			const lines = editor.getValue().split('\n');
 			const lineIndex = lines.findIndex(line => normalizeText(line).includes(expected));
 			if (lineIndex < 0) {
@@ -483,9 +476,7 @@ class ObsidianAppPage {
 				rootBackgroundColor,
 				codeLineBackgroundColor,
 				backgroundMatchesExpected:
-					expectedBackgroundColor !== '' &&
-					rootBackgroundColor === expectedBackgroundColor &&
-					codeLineBackgroundColor === expectedBackgroundColor,
+					expectedBackgroundColor !== '' && rootBackgroundColor === expectedBackgroundColor && codeLineBackgroundColor === expectedBackgroundColor,
 				monacoEditorCount: scope.querySelectorAll('.monaco-editor').length,
 				renderedBlockChromeCount: scope.querySelectorAll(
 					[

@@ -108,10 +108,21 @@ export type HorizontalScrollBlockState = {
 	headerHeight: number | null;
 	headerDisplay: string | null;
 	headerFlexDirection: string | null;
+	headerBorderTopWidth: string | null;
+	headerBorderRightWidth: string | null;
+	headerBorderLeftWidth: string | null;
+	headerBorderTopColor: string | null;
 	headerLangLeft: number | null;
 	headerLangCenterY: number | null;
 	headerCopyRight: number | null;
 	headerCopyCenterY: number | null;
+	rowLeft: number | null;
+	rowRight: number | null;
+	rowBorderRightWidth: string | null;
+	rowBorderLeftWidth: string | null;
+	rowBorderRightColor: string | null;
+	rootBorderTopWidth: string | null;
+	rootBorderTopColor: string | null;
 	gutterLeft: number | null;
 	gutterRight: number | null;
 	codeContentLeft: number | null;
@@ -949,6 +960,9 @@ class HorizontalScrollPage {
 					const targets = block.targets;
 					const rowScrollLeftValues = block.rows.map(element => element.scrollLeft);
 					const rectProbe = block.code ?? block.row ?? block.body ?? block.scrollbar ?? block.root;
+					const rootStyle = getComputedStyle(block.root);
+					const rowRect = block.row?.getBoundingClientRect() ?? null;
+					const rowStyle = block.row ? getComputedStyle(block.row) : null;
 					const headerRect = block.header?.getBoundingClientRect() ?? null;
 					const headerStyle = block.header ? getComputedStyle(block.header) : null;
 					const headerLangRect = block.header?.querySelector<HTMLElement>('.shiki-lang-name')?.getBoundingClientRect() ?? null;
@@ -1182,10 +1196,21 @@ class HorizontalScrollPage {
 						headerHeight: headerRect?.height ?? null,
 						headerDisplay: headerStyle?.display ?? null,
 						headerFlexDirection: headerStyle?.flexDirection ?? null,
+						headerBorderTopWidth: headerStyle?.borderTopWidth ?? null,
+						headerBorderRightWidth: headerStyle?.borderRightWidth ?? null,
+						headerBorderLeftWidth: headerStyle?.borderLeftWidth ?? null,
+						headerBorderTopColor: headerStyle?.borderTopColor ?? null,
 						headerLangLeft: headerLangRect?.left ?? null,
 						headerLangCenterY: headerLangRect ? headerLangRect.top + headerLangRect.height / 2 : null,
 						headerCopyRight: headerCopyRect?.right ?? null,
 						headerCopyCenterY: headerCopyRect ? headerCopyRect.top + headerCopyRect.height / 2 : null,
+						rowLeft: rowRect?.left ?? null,
+						rowRight: rowRect?.right ?? null,
+						rowBorderRightWidth: rowStyle?.borderRightWidth ?? null,
+						rowBorderLeftWidth: rowStyle?.borderLeftWidth ?? null,
+						rowBorderRightColor: rowStyle?.borderRightColor ?? null,
+						rootBorderTopWidth: rootStyle.borderTopWidth,
+						rootBorderTopColor: rootStyle.borderTopColor,
 						gutterLeft: beforeGutterLeft,
 						gutterRight: lineNumberRect?.right ?? null,
 						codeContentLeft,

@@ -133,11 +133,7 @@ Then('raw Source mode background should match the selected Shiki theme', async (
 
 	assert.ok(state.activeTheme, `expected active Shiki theme id: ${JSON.stringify(state)}`);
 	assert.ok(state.expectedThemeBackground, `expected Shiki theme background for ${state.activeTheme}: ${JSON.stringify(state)}`);
-	assert.equal(
-		state.backgroundMatchesExpected,
-		true,
-		`expected Source Mode background to match ${state.activeTheme}: ${JSON.stringify(state)}`,
-	);
+	assert.equal(state.backgroundMatchesExpected, true, `expected Source Mode background to match ${state.activeTheme}: ${JSON.stringify(state)}`);
 });
 
 Then('the syntax language matrix should have Shiki-owned token colors in {word}', async (mode: 'reading' | 'live-preview' | 'source') => {
@@ -376,6 +372,41 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	};
 	assert.equal(livePreviewBlock.headerDisplay, 'flex', `expected Live Preview block header to use flex layout: ${layoutJson}`);
 	assert.equal(livePreviewBlock.headerFlexDirection, 'row', `expected Live Preview block header to use row layout: ${layoutJson}`);
+	assert.equal(
+		livePreviewBlock.headerBorderTopWidth,
+		readingBlock.rootBorderTopWidth,
+		`expected Live Preview header top border width to match Reading mode block: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.headerBorderTopColor,
+		readingBlock.rootBorderTopColor,
+		`expected Live Preview header border color to match Reading mode block: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.headerBorderLeftWidth,
+		readingBlock.rootBorderTopWidth,
+		`expected Live Preview header left border to be visible: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.headerBorderRightWidth,
+		readingBlock.rootBorderTopWidth,
+		`expected Live Preview header right border to be visible: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.rowBorderLeftWidth,
+		readingBlock.rootBorderTopWidth,
+		`expected Live Preview row left border to continue the block shell: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.rowBorderRightWidth,
+		readingBlock.rootBorderTopWidth,
+		`expected Live Preview row right border to continue the block shell: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.rowBorderRightColor,
+		readingBlock.rootBorderTopColor,
+		`expected Live Preview row border color to match Reading mode block: ${layoutJson}`,
+	);
 	if (
 		liveHeader.right === null ||
 		liveHeader.height === null ||
@@ -394,6 +425,14 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	}
 	assert.ok(Math.abs(liveHeader.height - readingHeader.height) <= 2, `expected Live Preview block header height to match Reading mode: ${layoutJson}`);
 	assert.ok(Math.abs(liveHeader.right - readingHeader.right) <= 2, `expected Live Preview block header right edge to match Reading mode: ${layoutJson}`);
+	assert.ok(
+		livePreviewBlock.rowLeft !== null && livePreviewBlock.headerLeft !== null && Math.abs(livePreviewBlock.rowLeft - livePreviewBlock.headerLeft) <= 1,
+		`expected Live Preview row left edge to align with header left edge: ${layoutJson}`,
+	);
+	assert.ok(
+		livePreviewBlock.rowRight !== null && livePreviewBlock.headerRight !== null && Math.abs(livePreviewBlock.rowRight - livePreviewBlock.headerRight) <= 1,
+		`expected Live Preview row right edge to align with header right edge: ${layoutJson}`,
+	);
 	assert.ok(
 		Math.abs(liveHeader.copyRight - liveHeader.right - (readingHeader.copyRight - readingHeader.right)) <= 2,
 		`expected Live Preview Copy button right padding to match Reading mode: ${layoutJson}`,
