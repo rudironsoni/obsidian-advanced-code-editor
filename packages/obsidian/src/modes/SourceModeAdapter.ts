@@ -1,11 +1,10 @@
-import { type Range } from '@codemirror/state';
 import { Decoration, type DecorationSet, type EditorView, type ViewUpdate } from '@codemirror/view';
+import { buildCm6ShikiTokenDecorations } from 'packages/obsidian/src/codemirror/Cm6_ShikiTokenDecorations';
 import { getCm6SourceViewRoot, resolveCm6SourcePath } from 'packages/obsidian/src/codemirror/Cm6_ViewContext';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
-import { getActiveTheme } from 'packages/obsidian/src/runtime/ThemeBridge';
-import { SHIKI_SOURCE_TOKEN_CLASS, SHIKI_TOKEN_CLASS } from 'packages/obsidian/src/ShikiHighlighter';
+import { SHIKI_SOURCE_TOKEN_CLASS } from 'packages/obsidian/src/ShikiHighlighter';
 
 export class SourceModeAdapter {
 	decorations: DecorationSet = Decoration.none;
@@ -47,64 +46,17 @@ export class SourceModeAdapter {
 			.filter(block => block.codeTo >= this.view.viewport.from && block.codeFrom <= this.view.viewport.to)
 			.filter(block => block.language && !this.plugin.loadedSettings.disabledLanguages.includes(block.language));
 
-		const ranges: Range<Decoration>[] = [];
-		const theme = getActiveTheme(this.plugin);
-		const settingsSignature = JSON.stringify({ disabledLanguages: this.plugin.loadedSettings.disabledLanguages, theme });
-		let themeBackground: string | undefined;
-
-		for (const block of visibleBlocks) {
-			const cached = this.plugin.sourceModeTokenizationCache.get({
-				sourcePath: block.sourcePath,
-				language: block.language,
-				theme,
-				contentHash: block.contentHash,
-				settingsSignature,
-			});
-			const highlight = cached ?? (await this.plugin.highlighter.getHighlightTokens(block.code, block.language));
-			if (!cached) {
-				this.plugin.sourceModeTokenizationCache.set(
-					{
-						sourcePath: block.sourcePath,
-						language: block.language,
-						theme,
-						contentHash: block.contentHash,
-						settingsSignature,
-					},
-					highlight,
-				);
-			}
-			if (requestId !== this.tokenizationRequest || !highlight || block.codeFrom === undefined || block.codeTo === undefined) {
-				continue;
-			}
-			themeBackground ??= this.plugin.highlighter.getThemeBackground(highlight);
-			for (const lineSegments of this.plugin.highlighter.getTokenSegments(block.code, highlight.tokens)) {
-				for (const segment of lineSegments) {
-					if (!segment.token) {
-						continue;
-					}
-					const from = block.codeFrom + segment.from;
-					const to = Math.min(block.codeFrom + segment.to, block.codeTo);
-					if (to <= from) {
-						continue;
-					}
-					const tokenStyle = this.plugin.highlighter.getTokenStyle(segment.token);
-					ranges.push(
-						Decoration.mark({
-							attributes: {
-								style: tokenStyle.style,
-								class: [SHIKI_TOKEN_CLASS, SHIKI_SOURCE_TOKEN_CLASS, ...tokenStyle.classes].filter(Boolean).join(' '),
-							},
-						}).range(from, to),
-					);
-				}
-			}
-		}
-
-		if (requestId !== this.tokenizationRequest) {
+		const result = await buildCm6ShikiTokenDecorations({
+			plugin: this.plugin,
+			blocks: visibleBlocks,
+			tokenClassName: SHIKI_SOURCE_TOKEN_CLASS,
+			shouldContinue: () => requestId === this.tokenizationRequest,
+		});
+		if (!result || requestId !== this.tokenizationRequest) {
 			return;
 		}
-		this.decorations = ranges.length ? Decoration.set(ranges, true) : Decoration.none;
-		this.applySourceModeBackground(themeBackground);
+		this.decorations = result.decorations;
+		this.applySourceModeBackground(result.themeBackground);
 		this.requestDecorationRefresh();
 	}
 

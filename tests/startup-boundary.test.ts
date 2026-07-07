@@ -94,17 +94,19 @@ describe('startup module boundary', () => {
 
 	test('source mode applies Shiki token offsets directly from code block start', () => {
 		const sourceMode = read('packages/obsidian/src/modes/SourceModeAdapter.ts');
+		const cm6Tokens = read('packages/obsidian/src/codemirror/Cm6_ShikiTokenDecorations.ts');
 
 		expect(sourceMode).not.toContain('highlight.tokens.flat(1)');
 		expect(sourceMode).not.toContain('let lineOffset = 0');
-		expect(sourceMode).toContain('this.plugin.highlighter.getTokenSegments(block.code, highlight.tokens)');
-		expect(sourceMode).toContain('block.codeFrom + segment.from');
-		expect(sourceMode).toContain('block.codeFrom + segment.to');
-		expect(sourceMode).toContain('this.plugin.highlighter.getTokenStyle(segment.token)');
-		expect(sourceMode).toContain('Decoration.mark');
-		expect(sourceMode).toContain('Decoration.set(ranges, true)');
+		expect(sourceMode).toContain('buildCm6ShikiTokenDecorations');
 		expect(sourceMode).toContain('SHIKI_SOURCE_TOKEN_CLASS');
-		expect(sourceMode).toContain('this.plugin.highlighter.getThemeBackground(highlight)');
+		expect(cm6Tokens).toContain('plugin.highlighter.getTokenSegments(block.code, highlight.tokens)');
+		expect(cm6Tokens).toContain('block.codeFrom + segment.from');
+		expect(cm6Tokens).toContain('block.codeFrom + segment.to');
+		expect(cm6Tokens).toContain('plugin.highlighter.getTokenStyle(segment.token)');
+		expect(cm6Tokens).toContain('Decoration.mark');
+		expect(cm6Tokens).toContain('builder.finish()');
+		expect(cm6Tokens).toContain('plugin.highlighter.getThemeBackground(highlight)');
 		expect(sourceMode).toContain("sourceViewRoot.style.setProperty('--shiki-code-background', themeBackground)");
 		expect(sourceMode).not.toContain('token.content.length');
 		expect(sourceMode).not.toContain('lineOffset += this.lineLength(block.code, lineOffset) + 1');
@@ -152,6 +154,7 @@ describe('startup module boundary', () => {
 	test('live preview preserves native CodeMirror rows', () => {
 		const livePreview = read('packages/obsidian/src/modes/LivePreviewAdapter.ts');
 		const structure = read('packages/obsidian/src/modes/LivePreviewStructureExtension.ts');
+		const cm6Tokens = read('packages/obsidian/src/codemirror/Cm6_ShikiTokenDecorations.ts');
 		expect(livePreview).not.toContain('new ShikiLivePreviewWidget');
 		expect(structure).not.toContain('BlockWrapper');
 		expect(structure).not.toContain('blockWrappers');
@@ -164,12 +167,13 @@ describe('startup module boundary', () => {
 		expect(structure).toContain('ShikiLivePreviewLineNumberWidget');
 		expect(structure).not.toContain('isBlockSelected');
 		expect(structure).not.toContain('shiki-note-line-numbers');
-	expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged && !update.focusChanged)');
+		expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged && !update.focusChanged)');
 		expect(livePreview).toContain('retokenizeBlocks');
-		expect(livePreview).toContain('this.plugin.highlighter.getTokenSegments(block.code, highlight.tokens)');
-		expect(livePreview).toContain('block.codeFrom + segment.from');
-		expect(livePreview).toContain('block.codeFrom + segment.to');
-		expect(livePreview).toContain('this.plugin.highlighter.getTokenStyle(segment.token)');
+		expect(livePreview).toContain('buildCm6ShikiTokenDecorations');
+		expect(cm6Tokens).toContain('plugin.highlighter.getTokenSegments(block.code, highlight.tokens)');
+		expect(cm6Tokens).toContain('block.codeFrom + segment.from');
+		expect(cm6Tokens).toContain('block.codeFrom + segment.to');
+		expect(cm6Tokens).toContain('plugin.highlighter.getTokenStyle(segment.token)');
 		expect(livePreview).not.toContain('token.content.length');
 		expect(livePreview).not.toContain('shiki-editing-codeblock-active-line');
 		expect(livePreview).not.toContain('syncActiveLineHorizontalScroll');
