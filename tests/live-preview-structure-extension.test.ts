@@ -3,6 +3,7 @@ import { EditorView } from '@codemirror/view';
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { CodeBlockRegistry } from 'packages/obsidian/src/codeblocks/CodeBlockRegistry';
+import { resolveCm6SourcePath } from 'packages/obsidian/src/codemirror/Cm6_ViewContext';
 import { createLivePreviewStructureExtension } from 'packages/obsidian/src/modes/LivePreviewStructureExtension';
 import './happydom';
 
@@ -73,5 +74,36 @@ describe('Live Preview structure extension', () => {
 		expect(livePreviewAdapter).not.toContain('fencedBlockLineNumbers');
 		expect(livePreviewAdapter).not.toContain('gutter.classList.add(LivePreviewAdapter.HIDDEN_GUTTER_CLASS)');
 		expect(styles).not.toContain('.cm-lineNumbers .cm-gutterElement.shiki-gutter-line-hidden');
+	});
+
+	test('resolves source path from the leaf containing the CM6 view', () => {
+		const activeContainer = document.createElement('div');
+		const visibleContainer = document.createElement('div');
+		const sourceRoot = visibleContainer.createDiv({ cls: 'markdown-source-view mod-cm6' });
+		const editorParent = sourceRoot.createDiv();
+		document.body.appendChild(visibleContainer);
+		const view = new EditorView({
+			parent: editorParent,
+			state: EditorState.create({ doc: '```ts\nconst value = true;\n```' }),
+		});
+		const plugin = {
+			app: {
+				workspace: {
+					activeLeaf: { view: { containerEl: activeContainer, file: { path: 'Active.md' } } },
+					getActiveFile: () => ({ path: 'Active.md' }),
+					iterateAllLeaves: (callback: (leaf: unknown) => void): void => {
+						callback({ view: { containerEl: activeContainer, file: { path: 'Active.md' } } });
+						callback({ view: { containerEl: visibleContainer, file: { path: 'Visible.md' } } });
+					},
+				},
+			},
+		};
+
+		try {
+			expect(resolveCm6SourcePath(plugin as never, view)).toBe('Visible.md');
+		} finally {
+			view.destroy();
+			visibleContainer.remove();
+		}
 	});
 });

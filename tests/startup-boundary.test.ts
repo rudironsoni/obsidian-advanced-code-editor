@@ -75,6 +75,8 @@ describe('startup module boundary', () => {
 		expect(cm6Plugin).not.toContain('update.docChanged || update.viewportChanged || update.selectionSet');
 		expect(livePreview).not.toContain('!update.docChanged && !update.viewportChanged && !update.selectionSet');
 		expect(sourceMode).not.toContain('update.docChanged || update.viewportChanged || update.selectionSet');
+		expect(livePreview).toContain('!update.docChanged && !update.viewportChanged && !update.focusChanged');
+		expect(sourceMode).toContain('update.docChanged || update.viewportChanged || update.focusChanged');
 	});
 
 	test('live preview adapter owns a single widget overlay per editor view', () => {
@@ -102,9 +104,10 @@ describe('startup module boundary', () => {
 		expect(sourceMode).toContain('Decoration.mark');
 		expect(sourceMode).toContain('Decoration.set(ranges, true)');
 		expect(sourceMode).toContain('SHIKI_SOURCE_TOKEN_CLASS');
+		expect(sourceMode).toContain('this.plugin.highlighter.getThemeBackground(highlight)');
+		expect(sourceMode).toContain("sourceViewRoot.style.setProperty('--shiki-code-background', themeBackground)");
 		expect(sourceMode).not.toContain('token.content.length');
 		expect(sourceMode).not.toContain('lineOffset += this.lineLength(block.code, lineOffset) + 1');
-		expect(sourceMode).not.toContain("style.setProperty('--shiki-code-background'");
 	});
 
 	test('language listing is static and startup-safe', () => {
@@ -161,7 +164,7 @@ describe('startup module boundary', () => {
 		expect(structure).toContain('ShikiLivePreviewLineNumberWidget');
 		expect(structure).not.toContain('isBlockSelected');
 		expect(structure).not.toContain('shiki-note-line-numbers');
-		expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged)');
+	expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged && !update.focusChanged)');
 		expect(livePreview).toContain('retokenizeBlocks');
 		expect(livePreview).toContain('this.plugin.highlighter.getTokenSegments(block.code, highlight.tokens)');
 		expect(livePreview).toContain('block.codeFrom + segment.from');
@@ -206,7 +209,8 @@ test('Live Preview refreshes Shiki widgets when editor mode toggles', () => {
 	expect(livePreview).toContain('new MutationObserver(this.handleModeClassChange)');
 	expect(livePreview).toContain('this.modeClassObserver.disconnect();');
 	expect(cm6).toContain('this.livePreviewAdapter.refreshForModeChange();');
-	expect(cm6).toContain("this.view.dom.closest('.markdown-source-view.mod-cm6.is-live-preview') !== null");
+	expect(cm6).toContain('isCm6LivePreview(this.view, state)');
+	expect(read('packages/obsidian/src/codemirror/Cm6_ViewContext.ts')).toContain('state.field(editorLivePreviewField, false)');
 });
 
 test('plugin refreshes editor integration after workspace mode/layout changes', () => {
@@ -250,7 +254,7 @@ test('styles contain Shiki block styles and no Monaco styles', () => {
 	expect(styles).toContain('.shiki-block-header');
 	expect(styles).toContain('.shiki-block-body');
 	expect(styles).not.toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-scroller');
-	expect(styles).not.toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line');
+	expect(styles).toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line.HyperMD-codeblock');
 	expect(styles).not.toContain('--shiki-editing-scroll-left');
 	expect(styles).not.toContain('--shiki-live-preview-scroll-left');
 	expect(styles).not.toContain('.shiki-live-preview-horizontal-scroll');

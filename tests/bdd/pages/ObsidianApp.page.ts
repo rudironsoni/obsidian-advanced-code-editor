@@ -44,6 +44,12 @@ type SourceModeSyntaxState = {
 	transparentTokenCount: number;
 	visibleTokenCount: number;
 	text: string;
+	activeTheme: string;
+	expectedThemeBackground: string;
+	rootBackgroundValue: string;
+	rootBackgroundColor: string;
+	codeLineBackgroundColor: string;
+	backgroundMatchesExpected: boolean;
 	monacoEditorCount: number;
 	renderedBlockChromeCount: number;
 	internalLineNumberCount: number;
@@ -413,16 +419,42 @@ class ObsidianAppPage {
 	}
 
 	async getSourceModeSyntaxState(): Promise<SourceModeSyntaxState> {
-		return executeObsidian(({ app }): SourceModeSyntaxState => {
+		return executeObsidian(async ({ app }, id): Promise<SourceModeSyntaxState> => {
 			const runtimeApp = app as unknown as RuntimeApp;
 			const active = (app.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
 			const root =
 				active?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6:not(.is-live-preview)') ??
 				document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6:not(.is-live-preview)');
 			const scope = root?.querySelector<HTMLElement>('.cm-content') ?? root ?? document.body;
+			const codeLine = scope.querySelector<HTMLElement>('.cm-line.HyperMD-codeblock');
 			const tokenElements = [...scope.querySelectorAll<HTMLElement>('.cm-line.HyperMD-codeblock .shiki-source-token')].filter(element =>
 				Boolean(element.textContent?.trim()),
 			);
+			const plugin = runtimeApp.plugins.plugins[id] as
+				| {
+						getActiveTheme?(): string;
+						highlighter?: {
+							getHighlightTokens?(code: string, language: string): Promise<unknown>;
+							getThemeBackground?(highlight: unknown): string | undefined;
+						};
+				  }
+				| undefined;
+			const activeTheme = plugin?.getActiveTheme?.() ?? '';
+			const highlight = await plugin?.highlighter?.getHighlightTokens?.('public sealed class Solution {}', 'cs');
+			const expectedThemeBackground = plugin?.highlighter?.getThemeBackground?.(highlight) ?? '';
+			const normalizeColor = (value: string | undefined): string => {
+				if (!value) return '';
+				const probe = document.createElement('span');
+				probe.style.color = value;
+				document.body.appendChild(probe);
+				const normalized = getComputedStyle(probe).color;
+				probe.remove();
+				return normalized;
+			};
+			const rootBackgroundValue = root?.style.getPropertyValue('--shiki-code-background').trim() ?? '';
+			const rootBackgroundColor = normalizeColor(rootBackgroundValue);
+			const codeLineBackgroundColor = codeLine ? getComputedStyle(codeLine).backgroundColor.trim() : '';
+			const expectedBackgroundColor = normalizeColor(expectedThemeBackground);
 			const tokenColors = new Set<string>();
 			let transparentTokenCount = 0;
 			let visibleTokenCount = 0;
@@ -445,6 +477,15 @@ class ObsidianAppPage {
 				transparentTokenCount,
 				visibleTokenCount,
 				text: scope.textContent ?? '',
+				activeTheme,
+				expectedThemeBackground,
+				rootBackgroundValue,
+				rootBackgroundColor,
+				codeLineBackgroundColor,
+				backgroundMatchesExpected:
+					expectedBackgroundColor !== '' &&
+					rootBackgroundColor === expectedBackgroundColor &&
+					codeLineBackgroundColor === expectedBackgroundColor,
 				monacoEditorCount: scope.querySelectorAll('.monaco-editor').length,
 				renderedBlockChromeCount: scope.querySelectorAll(
 					[
@@ -463,7 +504,7 @@ class ObsidianAppPage {
 				blockScrollbarCount: scope.querySelectorAll('.shiki-block-horizontal-scrollbar').length,
 				isMobile: runtimeApp.isMobile,
 			};
-		});
+		}, pluginId);
 	}
 
 	async getSyntaxLanguageMatrixState(mode: SyntaxMatrixMode): Promise<SyntaxMatrixState> {
@@ -574,6 +615,31 @@ class ObsidianAppPage {
 			},
 			{ mode, matrix: syntaxLanguageMatrix },
 		);
+	}
+
+	async moveFocusAwayFromNote(): Promise<void> {
+		await executeObsidian(() => {
+			const root = document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6, .markdown-preview-view');
+			let target = document.getElementById('shiki-wdio-focus-away') as HTMLButtonElement | null;
+			if (!target) {
+				target = document.createElement('button');
+				target.id = 'shiki-wdio-focus-away';
+				target.textContent = 'focus';
+				target.style.position = 'fixed';
+				target.style.left = '0';
+				target.style.bottom = '0';
+				target.style.width = '1px';
+				target.style.height = '1px';
+				target.style.opacity = '0';
+				document.body.appendChild(target);
+			}
+			target.focus();
+			target.click();
+			if (root?.contains(document.activeElement)) {
+				throw new Error('Failed to move focus away from the note');
+			}
+		});
+		await browser.pause(500);
 	}
 
 	async collapseAndExpandLeftSidebar(): Promise<void> {

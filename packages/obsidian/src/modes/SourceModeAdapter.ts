@@ -1,5 +1,6 @@
 import { type Range } from '@codemirror/state';
 import { Decoration, type DecorationSet, type EditorView, type ViewUpdate } from '@codemirror/view';
+import { getCm6SourceViewRoot, resolveCm6SourcePath } from 'packages/obsidian/src/codemirror/Cm6_ViewContext';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
@@ -27,7 +28,7 @@ export class SourceModeAdapter {
 			this.clearDecorations();
 			return;
 		}
-		if (update.docChanged || update.viewportChanged) {
+		if (update.docChanged || update.viewportChanged || update.focusChanged) {
 			void this.retokenize();
 		}
 	}
@@ -49,7 +50,7 @@ export class SourceModeAdapter {
 		const ranges: Range<Decoration>[] = [];
 		const theme = getActiveTheme(this.plugin);
 		const settingsSignature = JSON.stringify({ disabledLanguages: this.plugin.loadedSettings.disabledLanguages, theme });
-		this.clearSourceModeBackground();
+		let themeBackground: string | undefined;
 
 		for (const block of visibleBlocks) {
 			const cached = this.plugin.sourceModeTokenizationCache.get({
@@ -75,6 +76,7 @@ export class SourceModeAdapter {
 			if (requestId !== this.tokenizationRequest || !highlight || block.codeFrom === undefined || block.codeTo === undefined) {
 				continue;
 			}
+			themeBackground ??= this.plugin.highlighter.getThemeBackground(highlight);
 			for (const lineSegments of this.plugin.highlighter.getTokenSegments(block.code, highlight.tokens)) {
 				for (const segment of lineSegments) {
 					if (!segment.token) {
@@ -102,6 +104,7 @@ export class SourceModeAdapter {
 			return;
 		}
 		this.decorations = ranges.length ? Decoration.set(ranges, true) : Decoration.none;
+		this.applySourceModeBackground(themeBackground);
 		this.requestDecorationRefresh();
 	}
 
@@ -117,10 +120,19 @@ export class SourceModeAdapter {
 	}
 
 	private clearSourceModeBackground(): void {
-		const sourceViewRoot = this.view.dom.closest<HTMLElement>('.markdown-source-view.mod-cm6');
-		if (!sourceViewRoot?.classList.contains('is-live-preview')) {
-			sourceViewRoot?.style.removeProperty('--shiki-code-background');
+		this.applySourceModeBackground(undefined);
+	}
+
+	private applySourceModeBackground(themeBackground: string | undefined): void {
+		const sourceViewRoot = getCm6SourceViewRoot(this.view);
+		if (sourceViewRoot.classList.contains('is-live-preview')) {
+			return;
 		}
+		if (themeBackground) {
+			sourceViewRoot.style.setProperty('--shiki-code-background', themeBackground);
+			return;
+		}
+		sourceViewRoot.style.removeProperty('--shiki-code-background');
 	}
 
 	private collectLines(): CodeBlockLineInfo[] {
@@ -134,7 +146,7 @@ export class SourceModeAdapter {
 
 	private toSourceBlock(parsed: ReturnType<CodeBlockParser['parseLivePreviewBlocks']>[number]): CodeBlockModel {
 		return this.plugin.codeBlockRegistry.createModel({
-			sourcePath: this.plugin.app.workspace.getActiveFile()?.path ?? '',
+			sourcePath: resolveCm6SourcePath(this.plugin, this.view),
 			hostMode: 'source',
 			language: parsed.language,
 			meta: parsed.meta.raw.trim(),

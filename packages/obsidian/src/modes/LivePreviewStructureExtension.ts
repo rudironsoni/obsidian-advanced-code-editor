@@ -5,6 +5,7 @@ import {
 	createBlockHorizontalScrollSpacerDecoration,
 	SHIKI_BLOCK_SCROLL_ROW_CLASS,
 } from 'packages/obsidian/src/codemirror/BlockHorizontalScroll';
+import { isActiveLeafLivePreview, isLivePreviewState } from 'packages/obsidian/src/codemirror/Cm6_ViewContext';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
@@ -116,7 +117,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 	const parser = new CodeBlockParser();
 
 	const buildState = (state: EditorState): LivePreviewStructureState => {
-		const inputs = readInputs(plugin);
+		const inputs = readInputs(plugin, state);
 		if (!inputs.isLivePreview) {
 			return { decorations: Decoration.none, inputs };
 		}
@@ -209,7 +210,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 	const structureField = StateField.define<LivePreviewStructureState>({
 		create: buildState,
 		update(value, transaction) {
-			const inputs = readInputs(plugin);
+			const inputs = readInputs(plugin, transaction.state);
 			if (!transaction.docChanged && sameInputs(value.inputs, inputs)) {
 				return value;
 			}
@@ -221,14 +222,9 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 	return [structureField];
 }
 
-function isLivePreviewActive(plugin: ShikiPlugin): boolean {
-	const activeContainer = plugin.app.workspace.activeLeaf?.view?.containerEl;
-	return !!activeContainer && activeContainer.querySelector('.markdown-source-view.mod-cm6.is-live-preview') !== null;
-}
-
-function readInputs(plugin: ShikiPlugin): LivePreviewStructureInputs {
+function readInputs(plugin: ShikiPlugin, state: EditorState): LivePreviewStructureInputs {
 	return {
-		isLivePreview: isLivePreviewActive(plugin),
+		isLivePreview: isLivePreviewState(state) ?? isActiveLeafLivePreview(plugin),
 		showLineNumbers: plugin.loadedSettings.showLineNumbers,
 		sourcePath: plugin.app.workspace.getActiveFile()?.path ?? '',
 		wrapLines: plugin.loadedSettings.wrapLines,

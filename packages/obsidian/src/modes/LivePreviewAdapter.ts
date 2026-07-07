@@ -1,5 +1,6 @@
 import { Decoration, type DecorationSet, type EditorView, type ViewUpdate } from '@codemirror/view';
 import { RangeSetBuilder, type Range } from '@codemirror/state';
+import { getCm6SourceViewRoot, resolveCm6SourcePath } from 'packages/obsidian/src/codemirror/Cm6_ViewContext';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
@@ -59,7 +60,7 @@ export class LivePreviewAdapter {
 
 		this.livePreviewActive = true;
 
-		if (!update.docChanged && !update.viewportChanged) {
+		if (!update.docChanged && !update.viewportChanged && !update.focusChanged) {
 			return;
 		}
 
@@ -112,9 +113,10 @@ export class LivePreviewAdapter {
 
 	private rebuildBlocks(): void {
 		const parsed = this.parser.parseLivePreviewBlocks(this.collectLines());
+		const sourcePath = resolveCm6SourcePath(this.plugin, this.view);
 		this.blocks = parsed.map(block =>
 			this.plugin.codeBlockRegistry.createModel({
-				sourcePath: this.plugin.app.workspace.getActiveFile()?.path ?? '',
+				sourcePath,
 				hostMode: 'live-preview',
 				language: block.language,
 				meta: block.meta.raw.trim(),
@@ -264,6 +266,6 @@ export class LivePreviewAdapter {
 	}
 
 	private getSourceViewRoot(): HTMLElement {
-		return this.view.dom.closest<HTMLElement>('.markdown-source-view.mod-cm6') ?? this.view.dom;
+		return getCm6SourceViewRoot(this.view);
 	}
 }

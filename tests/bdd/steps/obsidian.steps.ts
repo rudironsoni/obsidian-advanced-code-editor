@@ -58,6 +58,10 @@ When('I collapse and expand the left sidebar', async () => {
 	await obsidianApp.collapseAndExpandLeftSidebar();
 });
 
+When('I move focus away from the note', async () => {
+	await obsidianApp.moveFocusAwayFromNote();
+});
+
 Then('the Advanced Code Editor plugin should be loaded from the built payload', async () => {
 	const state = await obsidianApp.waitForPluginLoaded();
 
@@ -122,6 +126,18 @@ Then('raw Source mode should keep C# fenced code editable with Shiki token color
 	assert.equal(state.blockScrollbarCount, 0, `expected Source mode not to render block scrollbar: ${JSON.stringify(state)}`);
 	mkdirSync(artifactDir, { recursive: true });
 	await browser.saveScreenshot(path.join(artifactDir, `syntax-source-mode-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+});
+
+Then('raw Source mode background should match the selected Shiki theme', async () => {
+	const state = await obsidianApp.getSourceModeSyntaxState();
+
+	assert.ok(state.activeTheme, `expected active Shiki theme id: ${JSON.stringify(state)}`);
+	assert.ok(state.expectedThemeBackground, `expected Shiki theme background for ${state.activeTheme}: ${JSON.stringify(state)}`);
+	assert.equal(
+		state.backgroundMatchesExpected,
+		true,
+		`expected Source Mode background to match ${state.activeTheme}: ${JSON.stringify(state)}`,
+	);
 });
 
 Then('the syntax language matrix should have Shiki-owned token colors in {word}', async (mode: 'reading' | 'live-preview' | 'source') => {
