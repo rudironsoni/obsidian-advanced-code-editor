@@ -4,8 +4,9 @@ Feature: Mobile-emulated syntax highlighting
   Scenario: A C# fenced code block renders in mobile Reading mode without Markdown fences
     Given Obsidian is running in mobile emulation
     And the built Advanced Code Editor plugin is enabled in the fixture vault
-    And the fixture note "CSharp token slicing.md" is open in reading mode
-    Then a visible Shiki code block should render "public sealed class Solution"
+    And the fixture note "CSharp padded reading.md" is open in reading mode
+    Then a visible Shiki code block should render "List<int[]> intervals"
+    And Reading mode should color repeated C# generic type names consistently
 
   Scenario: A C# fenced code block preserves full token source slices in mobile Live Preview
     Given Obsidian is running in mobile emulation

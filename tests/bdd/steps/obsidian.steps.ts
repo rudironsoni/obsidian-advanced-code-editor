@@ -81,6 +81,18 @@ Then('a visible Shiki code block should render {string}', async (expectedText: s
 	assert.ok(state.height > 20, 'expected visible block height');
 });
 
+Then('Reading mode should color repeated C# generic type names consistently', async () => {
+	const state = await obsidianApp.getReadingRenderState();
+	const distinctListColors = new Set(state.csharpListTokenColors);
+
+	assert.ok(!state.text.includes('```'), `expected rendered code text not to include Markdown fences: ${JSON.stringify(state)}`);
+	assert.ok(state.text.includes('List<int[]> intervals'), `expected first C# generic declaration: ${JSON.stringify(state)}`);
+	assert.ok(state.text.includes('List<int[]> expectedResult'), `expected second C# generic declaration: ${JSON.stringify(state)}`);
+	assert.ok(state.text.includes('List<int[]> mergedIntervals'), `expected later C# generic declaration: ${JSON.stringify(state)}`);
+	assert.ok(state.csharpListTokenColors.length >= 3, `expected at least three Shiki-owned List tokens: ${JSON.stringify(state)}`);
+	assert.equal(distinctListColors.size, 1, `expected repeated C# List type tokens to use one color: ${JSON.stringify(state)}`);
+});
+
 Then('the Live Preview code block should style the full source text {string}', async (expectedText: string) => {
 	const state = await obsidianApp.waitForLivePreviewStyledSource(expectedText);
 

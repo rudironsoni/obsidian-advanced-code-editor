@@ -349,20 +349,25 @@ export class ReadingViewAdapter {
 export function normalizeReadingCodeSource(source: string): string {
 	const normalized = source.endsWith('\n') ? source.slice(0, -1) : source;
 	const lines = normalized.split('\n');
-	const opening = parseCodeBlockMeta(lines[0] ?? '');
+	const openingLineIndex = lines.findIndex(line => line.trim() !== '');
+	if (openingLineIndex < 0) {
+		return normalized;
+	}
+
+	const opening = parseCodeBlockMeta(lines[openingLineIndex] ?? '');
 	if (!opening) {
 		return normalized;
 	}
 
 	let closingLineIndex = lines.length - 1;
-	while (closingLineIndex > 0 && (lines[closingLineIndex] ?? '').trim() === '') {
+	while (closingLineIndex > openingLineIndex && (lines[closingLineIndex] ?? '').trim() === '') {
 		closingLineIndex -= 1;
 	}
 	if (!isClosingFenceLine(lines[closingLineIndex] ?? '', opening.openingFence)) {
 		return normalized;
 	}
 
-	return lines.slice(1, closingLineIndex).join('\n');
+	return lines.slice(openingLineIndex + 1, closingLineIndex).join('\n');
 }
 
 function isClosingFenceLine(line: string, openingFence: string): boolean {

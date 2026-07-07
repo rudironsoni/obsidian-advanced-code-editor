@@ -8,6 +8,7 @@ export type RenderState = {
 	codeBlocks: number;
 	tokens: number;
 	text: string;
+	csharpListTokenColors: string[];
 	width: number;
 	height: number;
 	isMobile: boolean;
@@ -151,6 +152,11 @@ class SyntaxSurfaceVerifier {
 			const block = blocks[0];
 			const rect = block?.getBoundingClientRect();
 			const tokens = block?.querySelectorAll('.shiki-reading-token').length ?? 0;
+			const csharpListTokenColors = block
+				? [...block.querySelectorAll<HTMLElement>('.shiki-reading-token')]
+						.filter(token => token.textContent === 'List')
+						.map(token => getComputedStyle(token).color.trim())
+				: [];
 			const codeBlocks = document.querySelectorAll('.markdown-preview-view pre code').length;
 			const debug = [...document.querySelectorAll<HTMLElement>('.markdown-preview-view pre, .markdown-preview-view div, .markdown-preview-view code')]
 				.filter(el => el.textContent?.includes('wdioValue'))
@@ -162,6 +168,7 @@ class SyntaxSurfaceVerifier {
 				codeBlocks,
 				tokens,
 				text: block?.textContent ?? '',
+				csharpListTokenColors,
 				width: rect?.width ?? 0,
 				height: rect?.height ?? 0,
 				isMobile: runtimeApp.isMobile,

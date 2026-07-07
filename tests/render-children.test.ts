@@ -50,11 +50,17 @@ describe('render children', () => {
 	test('ReadingViewAdapter strips fence markers when Obsidian section source includes them', () => {
 		expect(normalizeReadingCodeSource('```csharp\nList<int[]> intervals = [];\n```')).toBe('List<int[]> intervals = [];');
 		expect(normalizeReadingCodeSource('~~~~ts\nconst x = 1;\n~~~~\n')).toBe('const x = 1;');
+		expect(normalizeReadingCodeSource('\n\n```csharp\nList<int[]> intervals = [];\n\nList<int[]> mergedIntervals = new();\n```\n')).toBe(
+			'List<int[]> intervals = [];\n\nList<int[]> mergedIntervals = new();',
+		);
 	});
 
 	test('ReadingViewAdapter keeps ordinary unfenced code unchanged', () => {
 		expect(normalizeReadingCodeSource('List<int[]> intervals = [];\n')).toBe('List<int[]> intervals = [];');
 		expect(normalizeReadingCodeSource('const fence = "```";')).toBe('const fence = "```";');
+		expect(normalizeReadingCodeSource('const before = true;\n```csharp\nconst sample = true;\n```')).toBe(
+			'const before = true;\n```csharp\nconst sample = true;\n```',
+		);
 	});
 
 	test('InlineCodeBlock renders tokens and clears on unload', async () => {
