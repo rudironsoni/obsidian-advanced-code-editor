@@ -346,6 +346,32 @@ export class ReadingViewAdapter {
 	}
 }
 
-function normalizeReadingCodeSource(source: string): string {
-	return source.endsWith('\n') ? source.slice(0, -1) : source;
+export function normalizeReadingCodeSource(source: string): string {
+	const normalized = source.endsWith('\n') ? source.slice(0, -1) : source;
+	const lines = normalized.split('\n');
+	const opening = parseCodeBlockMeta(lines[0] ?? '');
+	if (!opening) {
+		return normalized;
+	}
+
+	let closingLineIndex = lines.length - 1;
+	while (closingLineIndex > 0 && (lines[closingLineIndex] ?? '').trim() === '') {
+		closingLineIndex -= 1;
+	}
+	if (!isClosingFenceLine(lines[closingLineIndex] ?? '', opening.openingFence)) {
+		return normalized;
+	}
+
+	return lines.slice(1, closingLineIndex).join('\n');
+}
+
+function isClosingFenceLine(line: string, openingFence: string): boolean {
+	const trimmed = line.trim();
+	if (trimmed.length < openingFence.length) {
+		return false;
+	}
+	if (!trimmed.startsWith(openingFence)) {
+		return false;
+	}
+	return [...trimmed].every(character => character === openingFence[0]);
 }

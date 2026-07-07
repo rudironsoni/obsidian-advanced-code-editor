@@ -76,6 +76,7 @@ Then('a visible Shiki code block should render {string}', async (expectedText: s
 	assert.equal(state.blocks, 1);
 	assert.ok(state.tokens > 0, 'expected syntax-highlighted token spans');
 	assert.ok(state.text.includes(expectedText), 'expected fixture code text');
+	assert.ok(!state.text.includes('```'), `expected rendered code text not to include Markdown fences: ${JSON.stringify(state)}`);
 	assert.ok(state.width > 80, 'expected visible block width');
 	assert.ok(state.height > 20, 'expected visible block height');
 });

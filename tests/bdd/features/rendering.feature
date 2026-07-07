@@ -1,6 +1,11 @@
 @desktop
 Feature: Reading mode syntax highlighting
 
+  Scenario: A C# fenced code block renders in Reading mode without Markdown fences
+    Given the built Advanced Code Editor plugin is enabled in the fixture vault
+    And the fixture note "CSharp token slicing.md" is open in reading mode
+    Then a visible Shiki code block should render "public sealed class Solution"
+
   Scenario: A C# fenced code block preserves full token source slices in Live Preview
     Given the built Advanced Code Editor plugin is enabled in the fixture vault
     And the fixture note "CSharp token slicing.md" is open in Live Preview
