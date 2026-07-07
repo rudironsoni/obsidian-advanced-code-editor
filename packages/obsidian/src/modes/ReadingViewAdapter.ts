@@ -359,11 +359,8 @@ export function normalizeReadingCodeSource(source: string): string {
 		return normalized;
 	}
 
-	let closingLineIndex = lines.length - 1;
-	while (closingLineIndex > openingLineIndex && (lines[closingLineIndex] ?? '').trim() === '') {
-		closingLineIndex -= 1;
-	}
-	if (!isClosingFenceLine(lines[closingLineIndex] ?? '', opening.openingFence)) {
+	const closingLineIndex = lines.findIndex((line, index) => index > openingLineIndex && isClosingFenceLine(line, opening.openingFence));
+	if (closingLineIndex < 0) {
 		return normalized;
 	}
 

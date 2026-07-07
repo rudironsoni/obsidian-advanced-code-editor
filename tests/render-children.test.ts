@@ -53,6 +53,7 @@ describe('render children', () => {
 		expect(normalizeReadingCodeSource('\n\n```csharp\nList<int[]> intervals = [];\n\nList<int[]> mergedIntervals = new();\n```\n')).toBe(
 			'List<int[]> intervals = [];\n\nList<int[]> mergedIntervals = new();',
 		);
+		expect(normalizeReadingCodeSource('\n\n```csharp\nList<int[]> intervals = [];\n```\ntrailing section text')).toBe('List<int[]> intervals = [];');
 	});
 
 	test('ReadingViewAdapter keeps ordinary unfenced code unchanged', () => {

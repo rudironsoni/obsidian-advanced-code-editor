@@ -200,13 +200,17 @@ export default class ShikiPlugin extends Plugin {
 
 			const codeElements = el.querySelectorAll<HTMLElement>('pre > code[class*="language-"]');
 			const processedPre = new Set<HTMLElement>();
-			const sourceFromSectionInfo = (pre: HTMLElement): string => {
+			const sourceFromSectionInfo = (pre: HTMLElement, renderedText: string): string => {
 				const sectionInfo = ctx.getSectionInfo(pre.parentElement ?? pre) ?? ctx.getSectionInfo(pre);
 				if (!sectionInfo) {
 					return pre.textContent ?? '';
 				}
 				const lines = sectionInfo.text.split('\n');
-				return lines.slice(sectionInfo.lineStart + 1, sectionInfo.lineEnd).join('\n');
+				const sectionSource = lines.slice(sectionInfo.lineStart + 1, sectionInfo.lineEnd).join('\n');
+				if (renderedText.trim() && sectionSource.split('\n').some(line => /^\s*([`~]{3,})([^\s`~]*)?(.*)$/.test(line))) {
+					return renderedText;
+				}
+				return sectionSource;
 			};
 			for (const codeElement of codeElements) {
 				const className = [...codeElement.classList].find(value => value.startsWith('language-'));
@@ -229,7 +233,7 @@ export default class ShikiPlugin extends Plugin {
 				}
 
 				processedPre.add(pre);
-				const sectionSource = sourceFromSectionInfo(pre);
+				const sectionSource = sourceFromSectionInfo(pre, codeElement.textContent ?? '');
 				const codeBlock = new CodeBlock(
 					this,
 					pre.parentElement ?? pre,
@@ -249,7 +253,7 @@ export default class ShikiPlugin extends Plugin {
 					continue;
 				}
 				processedPre.add(pre);
-				const sectionSource = sourceFromSectionInfo(pre);
+				const sectionSource = sourceFromSectionInfo(pre, pre.textContent ?? '');
 				const codeBlock = new CodeBlock(this, pre.parentElement ?? pre, sectionSource.trim() ? sectionSource : (pre.textContent ?? ''), language, ctx);
 				ctx.addChild(codeBlock);
 			}
