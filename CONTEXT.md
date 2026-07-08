@@ -63,3 +63,15 @@ _Avoid_: Smoke-only check, helper script
 **Single Obsidian session**:
 A test run model where related WDIO scenarios reuse one launched Obsidian instance instead of starting a new instance per feature, scenario, or mode.
 _Avoid_: Per-scenario launch, parallel Obsidian launch
+
+**Scroll responsiveness**:
+The user-visible ability to keep Obsidian interactive while repeatedly scrolling an overflowing code block horizontally.
+_Avoid_: Dispatch-only performance, synthetic smoothness
+
+**Performance regression gate**:
+An automated acceptance check that fails when horizontal-scroll responsiveness becomes slower than the agreed budget or slower than the same-run reference surface.
+_Avoid_: Best-effort benchmark, informational metric
+
+**Same-run reference surface**:
+A behaviorally comparable rendering mode measured in the same WDIO run to keep performance assertions tied to the current machine and Obsidian session.
+_Avoid_: Historical baseline, static benchmark
