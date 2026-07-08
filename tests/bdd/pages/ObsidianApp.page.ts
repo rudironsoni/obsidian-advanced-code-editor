@@ -1,6 +1,12 @@
 import { browser } from '@wdio/globals';
 import { syntaxMatrixVerifier, type SyntaxMatrixMode, type SyntaxMatrixState } from './SyntaxMatrixVerifier.js';
-import { syntaxSurfaceVerifier, type LivePreviewSyntaxState, type RenderState, type SourceModeSyntaxState } from './SyntaxSurfaceVerifier.js';
+import {
+	syntaxSurfaceVerifier,
+	type LivePreviewFenceCursorState,
+	type LivePreviewSyntaxState,
+	type RenderState,
+	type SourceModeSyntaxState,
+} from './SyntaxSurfaceVerifier.js';
 import { executeObsidian, waitForObsidianServiceHelper } from '../support/executeObsidian.js';
 import { isWebDriverSessionGoneError } from '../support/wdioSession.js';
 
@@ -106,6 +112,10 @@ class ObsidianAppPage {
 
 	async getLivePreviewSyntaxState(): Promise<LivePreviewSyntaxState> {
 		return syntaxSurfaceVerifier.getLivePreviewSyntaxState();
+	}
+
+	async getLivePreviewFenceCursorState(): Promise<LivePreviewFenceCursorState> {
+		return syntaxSurfaceVerifier.getLivePreviewFenceCursorState();
 	}
 
 	async getSourceModeSyntaxState(): Promise<SourceModeSyntaxState> {

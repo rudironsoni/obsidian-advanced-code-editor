@@ -11,6 +11,7 @@ import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/co
 import type ShikiPlugin from 'packages/obsidian/src/main';
 
 const SHIKI_LIVE_PREVIEW_CODE_CONTENT_CLASS = 'shiki-live-preview-code-content';
+const SHIKI_LIVE_PREVIEW_FENCE_TEXT_CLASS = 'shiki-live-preview-fence-text';
 
 interface LivePreviewStructureState {
 	decorations: DecorationSet;
@@ -86,33 +87,6 @@ class ShikiLivePreviewLineNumberWidget extends WidgetType {
 	}
 }
 
-class ShikiLivePreviewFenceWidget extends WidgetType {
-	constructor(private readonly text: string) {
-		super();
-	}
-
-	eq(other: ShikiLivePreviewFenceWidget): boolean {
-		return other.text === this.text;
-	}
-
-	toDOM(): HTMLElement {
-		const span = document.createElement('span');
-		span.className = 'shiki-live-preview-fence-text';
-		span.textContent = this.text;
-		return span;
-	}
-
-	ignoreEvent(): boolean {
-		return false;
-	}
-}
-
-function openingFenceText(block: CodeBlockModel): string {
-	const fence = block.openingFence ?? '```';
-	const meta = block.meta.trim();
-	return `${fence}${block.language}${meta ? ` ${meta}` : ''}`;
-}
-
 export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extension {
 	const parser = new CodeBlockParser();
 
@@ -172,8 +146,11 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 
 				if (isOpeningFence || isClosingFence) {
 					ranges.push(
-						Decoration.replace({
-							widget: new ShikiLivePreviewFenceWidget(isOpeningFence ? openingFenceText(block) : (block.openingFence ?? '```')),
+						Decoration.mark({
+							attributes: {
+								class: SHIKI_LIVE_PREVIEW_FENCE_TEXT_CLASS,
+								'data-shiki-block-id': block.id,
+							},
 						}).range(line.from, line.to),
 					);
 				}

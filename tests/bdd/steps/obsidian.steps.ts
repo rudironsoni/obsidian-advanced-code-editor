@@ -123,6 +123,18 @@ Then('the Live Preview code block should keep visible Shiki token colors for {st
 	await browser.saveScreenshot(path.join(artifactDir, `syntax-live-preview-layout-change-${state.isMobile ? 'mobile' : 'desktop'}.png`));
 });
 
+Then('Live Preview fence rows should keep a visible editor cursor', async () => {
+	const state = await obsidianApp.getLivePreviewFenceCursorState();
+	const transparent = new Set(['', 'transparent', 'rgba(0, 0, 0, 0)']);
+	writeJsonArtifact(`live-preview-fence-cursor-${state.isMobile ? 'mobile' : 'desktop'}`, state);
+
+	for (const probe of [state.opening, state.closing]) {
+		assert.ok(probe.lineText.trim().startsWith('```'), `expected cursor probe to target a fence row: ${JSON.stringify(state)}`);
+		assert.equal(probe.fenceLineHasFenceClass, true, `expected probed editor line to be the fence row: ${JSON.stringify(state)}`);
+		assert.equal(transparent.has(probe.caretColor), false, `expected visible fence line caret color: ${JSON.stringify(state)}`);
+	}
+});
+
 Then('raw Source mode should keep C# fenced code editable with Shiki token colors for {string}', async (expectedText: string) => {
 	const state = await obsidianApp.waitForSourceModeShiki(expectedText);
 

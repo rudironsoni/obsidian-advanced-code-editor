@@ -65,6 +65,27 @@ describe('Live Preview structure extension', () => {
 		view.destroy();
 	});
 
+	test('keeps live preview fence text editable instead of replacing it with widgets', () => {
+		const plugin = createPluginMock();
+		const parent = document.createElement('div');
+		const view = new EditorView({
+			parent,
+			state: EditorState.create({
+				doc: ['```ts', 'const value = true;', '```'].join('\n'),
+				extensions: [createLivePreviewStructureExtension(plugin as never)],
+			}),
+		});
+
+		try {
+			const fenceText = [...view.dom.querySelectorAll<HTMLElement>('.shiki-live-preview-fence-text')].map(element => element.textContent);
+
+			expect(fenceText).toEqual(['```ts', '```']);
+			expect(view.dom.querySelector('.shiki-live-preview-fence-line .cm-widgetBuffer')).toBeNull();
+		} finally {
+			view.destroy();
+		}
+	});
+
 	test('keeps Obsidian native note gutters visible', () => {
 		const livePreviewAdapter = readFileSync(new URL('../packages/obsidian/src/modes/LivePreviewAdapter.ts', import.meta.url), 'utf8');
 		const structure = readFileSync(new URL('../packages/obsidian/src/modes/LivePreviewStructureExtension.ts', import.meta.url), 'utf8');

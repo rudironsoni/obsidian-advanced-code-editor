@@ -28,6 +28,24 @@ export type LivePreviewSyntaxState = {
 	isMobile: boolean;
 };
 
+export type LivePreviewFenceCursorState = {
+	opening: LivePreviewFenceCursorProbe;
+	closing: LivePreviewFenceCursorProbe;
+	isMobile: boolean;
+};
+
+export type LivePreviewFenceCursorProbe = {
+	lineText: string;
+	fenceText: string;
+	activeLineText: string;
+	fenceLineHasFenceClass: boolean;
+	caretColor: string;
+	fenceCaretColor: string;
+	cursorBorderColor: string;
+	hasReplacementWidget: boolean;
+	cursor: { line: number; ch: number };
+};
+
 export type SourceModeSyntaxState = {
 	rawFenceVisible: boolean;
 	pluginTokenCount: number;
@@ -105,6 +123,73 @@ class SyntaxSurfaceVerifier {
 		}
 
 		return this.getLivePreviewSyntaxState();
+	}
+
+	async getLivePreviewFenceCursorState(): Promise<LivePreviewFenceCursorState> {
+		return executeObsidian(async ({ app }): Promise<LivePreviewFenceCursorState> => {
+			type RuntimeEditor = {
+				getValue(): string;
+				getLine(line: number): string;
+				setCursor(cursor: { line: number; ch: number }): void;
+				scrollIntoView?(range: { from: { line: number; ch: number }; to: { line: number; ch: number } }, center?: boolean): void;
+				focus?(): void;
+			};
+			const runtimeApp = app as unknown as RuntimeApp;
+			const view = runtimeApp.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement; editor?: RuntimeEditor };
+			const editor = view?.editor;
+			if (!editor) {
+				throw new Error('Active markdown editor was not available');
+			}
+			const lines = editor.getValue().split('\n');
+			const openingLine = lines.findIndex(line => line.trim().startsWith('```'));
+			const closingLine = lines.findIndex((line, index) => index > openingLine && line.trim().startsWith('```'));
+			if (openingLine < 0 || closingLine < 0) {
+				throw new Error(`Live Preview fenced block was not found: ${JSON.stringify(lines)}`);
+			}
+
+			const probeFenceLine = async (lineIndex: number, fenceLineClass: string): Promise<LivePreviewFenceCursorProbe> => {
+				const lineText = editor.getLine(lineIndex);
+				const cursor = { line: lineIndex, ch: Math.min(1, lineText.length) };
+				editor.setCursor(cursor);
+				editor.scrollIntoView?.({ from: cursor, to: { line: lineIndex, ch: lineText.length } }, true);
+				editor.focus?.();
+				await new Promise(resolve => window.setTimeout(resolve, 100));
+
+				const active = (runtimeApp.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
+				const root =
+					active?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview') ??
+					document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview');
+				const activeLine = root?.querySelector<HTMLElement>('.cm-line.cm-activeLine');
+				const fenceLine =
+					root?.querySelector<HTMLElement>(`.cm-line.shiki-live-preview-fence-line.${fenceLineClass}`) ??
+					[...(root?.querySelectorAll<HTMLElement>('.cm-line.shiki-live-preview-fence-line') ?? [])].find(element =>
+						(element.textContent ?? '').includes(lineText.trim()),
+					);
+				const fenceText = fenceLine?.querySelector<HTMLElement>('.shiki-live-preview-fence-text');
+				const cursorElement = root?.querySelector<HTMLElement>('.cm-cursor-primary, .cm-cursor');
+				const lineStyle = fenceLine ? getComputedStyle(fenceLine) : undefined;
+				const fenceStyle = fenceText ? getComputedStyle(fenceText) : undefined;
+				const cursorStyle = cursorElement ? getComputedStyle(cursorElement) : undefined;
+
+				return {
+					lineText,
+					fenceText: fenceText?.textContent ?? '',
+					activeLineText: activeLine?.textContent ?? '',
+					fenceLineHasFenceClass: fenceLine?.classList.contains('shiki-live-preview-fence-line') ?? false,
+					caretColor: lineStyle?.caretColor.trim() ?? '',
+					fenceCaretColor: fenceStyle?.caretColor.trim() ?? '',
+					cursorBorderColor: cursorStyle?.borderLeftColor.trim() ?? cursorStyle?.borderColor.trim() ?? '',
+					hasReplacementWidget: fenceLine?.querySelector('.cm-widgetBuffer') !== null,
+					cursor,
+				};
+			};
+
+			return {
+				opening: await probeFenceLine(openingLine, 'shiki-live-preview-opening-fence-line'),
+				closing: await probeFenceLine(closingLine, 'shiki-live-preview-closing-fence-line'),
+				isMobile: runtimeApp.isMobile,
+			};
+		});
 	}
 
 	async waitForSourceModeShiki(expectedText: string): Promise<SourceModeSyntaxState> {
