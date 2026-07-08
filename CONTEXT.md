@@ -1,4 +1,4 @@
-# Obsidian Shiki Plugin
+# Advanced Code Editor
 
 This context defines the language for Obsidian code block rendering, scrolling, and automated verification in this plugin.
 
@@ -11,6 +11,10 @@ _Avoid_: Note-owned scroll, editor-wide scroll, page horizontal scroll
 **Block scrollbar**:
 The single native horizontal scrollbar rendered at the bottom of an overflowing fenced code block.
 _Avoid_: Fake scrollbar, synthetic scrollbar, per-row scrollbar
+
+**Native row scroll**:
+Horizontal movement produced by the browser's own row and scrollbar scroll positions rather than by visual offset tricks.
+_Avoid_: Transform scroll, generated-style scroll, fake row movement
 
 **Fenced code block**:
 A Markdown code block delimited by opening and closing fences, including its optional language and metadata.
@@ -43,6 +47,14 @@ _Avoid_: Session persistence, restart persistence, saved scroll state
 **Render churn**:
 Normal Obsidian or plugin updates that refresh code block DOM without intentionally replacing the user-visible block.
 _Avoid_: Full reload, restart
+
+**Gesture hot path**:
+The smallest interaction path that runs while a wheel, pointer, or touch gesture is actively moving a code block horizontally.
+_Avoid_: Refresh path, measurement path, cleanup path
+
+**Measurement phase**:
+A coordinated read/write pass used to calculate scroll dimensions and apply derived layout state outside the gesture hot path.
+_Avoid_: Gesture measurement, ad hoc layout read
 
 **Exact edit after scroll**:
 A verification behavior where a test scrolls horizontally, clicks or taps a visible marker, inserts text, and verifies the file changed at the expected line and column.
