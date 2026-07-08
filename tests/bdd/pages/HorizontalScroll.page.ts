@@ -177,15 +177,9 @@ export type HorizontalScrollPerformanceResult = {
 };
 
 export type HorizontalScrollWheelLatencyResult = {
-	gesture: 'wheel' | 'touch';
 	dispatchMs: number;
 	scrollLeftImmediatelyAfterDispatch: number;
-	visualScrollLeftImmediatelyAfterDispatch: number;
-	nativeRowScrollLeftImmediatelyAfterDispatch: number;
 	scrollLeftAfterOneAnimationFrame: number;
-	scrollLeftAfterNativeSync: number;
-	visualScrollLeftAfterNativeSync: number;
-	nativeRowScrollLeftAfterNativeSync: number;
 	noteScrollLeft: number;
 	documentScrollLeft: number;
 	state: HorizontalScrollState;
@@ -681,7 +675,7 @@ class HorizontalScrollPage {
 						throw new Error(`Expected right-edge overscroll not to advance beyond ${lastObservedScrollLeft}, observed ${observedScrollLeft}`);
 					}
 				}
-				await new Promise<void>(resolve => window.setTimeout(resolve, 120));
+				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 			},
 			{ mode, blockIndex },
 		);
@@ -777,10 +771,7 @@ class HorizontalScrollPage {
 					const matrix = new DOMMatrixReadOnly(transform);
 					return matrix.m41;
 				});
-				const effectiveContentScrollLeft = Math.max(
-					0,
-					...contentTranslateXValues.map((value, index) => (block.rows[index]?.scrollLeft ?? 0) + -value),
-				);
+				const effectiveContentScrollLeft = Math.max(0, ...contentTranslateXValues.map(value => -value));
 				const rowScrollLeftValues = block.rows.map(row => row.scrollLeft);
 				const sortedDurations = [...dispatchDurations].sort((first, second) => first - second);
 				const p95Index = Math.max(0, Math.ceil(sortedDurations.length * 0.95) - 1);
@@ -806,20 +797,7 @@ class HorizontalScrollPage {
 			},
 			{ mode, blockIndex, frames: 60, deltaX: 24 },
 		);
-		let state = await this.collectScrollState(mode, 'repeated-wheel-after');
-		await browser.waitUntil(
-			async () => {
-				state = await this.collectScrollState(mode, 'repeated-wheel-after');
-				const first = state.blocks[blockIndex];
-				if (!first) return false;
-				return (
-					Math.abs(first.rowScrollLeftMin - first.scrollLeft) <= 1 &&
-					Math.abs(first.rowScrollLeftMax - first.scrollLeft) <= 1 &&
-					first.livePreviewContentTranslateXValues.every(value => Math.abs(value) <= 1)
-				);
-			},
-			{ timeout: 3000, timeoutMsg: 'Live Preview repeated wheel scroll did not settle to native row scroll' },
-		);
+		const state = await this.collectScrollState(mode, 'repeated-wheel-after');
 		return { metrics, state };
 	}
 
@@ -855,37 +833,11 @@ class HorizontalScrollPage {
 
 				const target = input.mode === 'live-preview' ? (block.rows[0] ?? block.scrollbar) : (block.scrollbar ?? block.rows[0]);
 				if (!target) throw new Error(`Code block ${input.blockIndex + 1} has no horizontal scroll target`);
-				const contentElements = [
-					...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-code-content[data-shiki-block-id="${CSS.escape(block.blockId)}"]`),
-				];
-				const visualScrollLeft = (): number =>
-					Math.max(
-						0,
-						...contentElements.map(element => {
-							const transform = getComputedStyle(element).transform;
-							return !transform || transform === 'none' ? 0 : -new DOMMatrixReadOnly(transform).m41;
-						}),
-					);
-				const effectiveContentScrollLeft = (): number =>
-					Math.max(
-						0,
-						...contentElements.map(element => {
-							const row = element.closest<HTMLElement>('.shiki-block-scroll-row');
-							return (row?.scrollLeft ?? 0) + visualScrollLeft();
-						}),
-					);
-				const nativeRowScrollLeft = (): number => Math.max(0, ...block.rows.map(row => row.scrollLeft));
-				const blockScrollLeft = (): number =>
-					Math.max(0, target.scrollLeft, block.scrollbar?.scrollLeft ?? 0, nativeRowScrollLeft(), effectiveContentScrollLeft());
 				for (const row of block.rows) {
 					row.scrollLeft = 0;
 				}
 				if (block.scrollbar) {
 					block.scrollbar.scrollLeft = 0;
-				}
-				for (const content of contentElements) {
-					content.style.transform = '';
-					content.style.willChange = '';
 				}
 				if (noteScroller) {
 					noteScroller.scrollLeft = 0;
@@ -907,26 +859,24 @@ class HorizontalScrollPage {
 					}),
 				);
 				const dispatchMs = performance.now() - beforeDispatch;
-				const visualScrollLeftImmediatelyAfterDispatch = visualScrollLeft();
-				const nativeRowScrollLeftImmediatelyAfterDispatch = nativeRowScrollLeft();
-				const scrollLeftImmediatelyAfterDispatch = blockScrollLeft();
+				const scrollLeftImmediatelyAfterDispatch = Math.max(
+					0,
+					target.scrollLeft,
+					block.scrollbar?.scrollLeft ?? 0,
+					...block.rows.map(row => row.scrollLeft),
+				);
 				await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-				const scrollLeftAfterOneAnimationFrame = blockScrollLeft();
-				await new Promise<void>(resolve => window.setTimeout(resolve, 120));
-				const scrollLeftAfterNativeSync = blockScrollLeft();
-				const visualScrollLeftAfterNativeSync = visualScrollLeft();
-				const nativeRowScrollLeftAfterNativeSync = nativeRowScrollLeft();
+				const scrollLeftAfterOneAnimationFrame = Math.max(
+					0,
+					target.scrollLeft,
+					block.scrollbar?.scrollLeft ?? 0,
+					...block.rows.map(row => row.scrollLeft),
+				);
 
 				return {
-					gesture: 'wheel' as const,
 					dispatchMs,
 					scrollLeftImmediatelyAfterDispatch,
-					visualScrollLeftImmediatelyAfterDispatch,
-					nativeRowScrollLeftImmediatelyAfterDispatch,
 					scrollLeftAfterOneAnimationFrame,
-					scrollLeftAfterNativeSync,
-					visualScrollLeftAfterNativeSync,
-					nativeRowScrollLeftAfterNativeSync,
 					noteScrollLeft: noteScroller?.scrollLeft ?? 0,
 					documentScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
 				};
@@ -934,142 +884,6 @@ class HorizontalScrollPage {
 			{ mode, blockIndex, deltaX: 48 },
 		);
 		const state = await this.collectScrollState(mode, 'first-wheel-latency-after');
-		return { ...metrics, state };
-	}
-
-	async measureFirstTouchLatency(mode: HorizontalScrollMode, blockIndex: number): Promise<HorizontalScrollWheelLatencyResult> {
-		const metrics = await executeObsidian(
-			async ({ app }, input: { mode: HorizontalScrollMode; blockIndex: number; deltaX: number }) => {
-				const runtimeApp = app as unknown as RuntimeApp;
-				const root =
-					runtimeApp.workspace.activeLeaf?.view?.containerEl ??
-					runtimeApp.workspace.activeLeaf?.view?.contentEl ??
-					document.querySelector('.workspace-leaf.mod-active') ??
-					document;
-				const noteScroller =
-					input.mode === 'reading' ? root.querySelector<HTMLElement>('.markdown-preview-view') : root.querySelector<HTMLElement>('.cm-scroller');
-				const scope = noteScroller ?? root;
-				const blockIds = new Set<string>();
-				for (const element of scope.querySelectorAll<HTMLElement>('[data-shiki-block-id]')) {
-					const blockId = element.dataset.shikiBlockId;
-					if (blockId) blockIds.add(blockId);
-				}
-				const blocks = [...blockIds]
-					.map(blockId => {
-						const escapedBlockId = CSS.escape(blockId);
-						const rows = [...scope.querySelectorAll<HTMLElement>(`.shiki-block-scroll-row[data-shiki-block-id="${escapedBlockId}"]`)];
-						const scrollbars = [
-							...scope.querySelectorAll<HTMLElement>(`.shiki-block-horizontal-scrollbar[data-shiki-block-id="${escapedBlockId}"]`),
-						];
-						return { blockId, rows, scrollbar: scrollbars[0] ?? null };
-					})
-					.filter(block => block.rows.length > 0 || block.scrollbar !== null);
-				const block = blocks[input.blockIndex];
-				if (!block) throw new Error(`Code block ${input.blockIndex + 1} was not found`);
-
-				const target = input.mode === 'live-preview' ? (block.rows[0] ?? block.scrollbar) : (block.scrollbar ?? block.rows[0]);
-				if (!target) throw new Error(`Code block ${input.blockIndex + 1} has no horizontal scroll target`);
-				const contentElements = [
-					...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-code-content[data-shiki-block-id="${CSS.escape(block.blockId)}"]`),
-				];
-				const visualScrollLeft = (): number =>
-					Math.max(
-						0,
-						...contentElements.map(element => {
-							const transform = getComputedStyle(element).transform;
-							return !transform || transform === 'none' ? 0 : -new DOMMatrixReadOnly(transform).m41;
-						}),
-					);
-				const effectiveContentScrollLeft = (): number =>
-					Math.max(
-						0,
-						...contentElements.map(element => {
-							const row = element.closest<HTMLElement>('.shiki-block-scroll-row');
-							return (row?.scrollLeft ?? 0) + visualScrollLeft();
-						}),
-					);
-				const nativeRowScrollLeft = (): number => Math.max(0, ...block.rows.map(row => row.scrollLeft));
-				const blockScrollLeft = (): number =>
-					Math.max(0, target.scrollLeft, block.scrollbar?.scrollLeft ?? 0, nativeRowScrollLeft(), effectiveContentScrollLeft());
-				for (const row of block.rows) {
-					row.scrollLeft = 0;
-				}
-				if (block.scrollbar) {
-					block.scrollbar.scrollLeft = 0;
-				}
-				for (const content of contentElements) {
-					content.style.transform = '';
-					content.style.willChange = '';
-				}
-				if (noteScroller) {
-					noteScroller.scrollLeft = 0;
-				}
-				document.scrollingElement?.scrollTo({ left: 0 });
-
-				const rect = target.getBoundingClientRect();
-				const startX = rect.left + Math.min(rect.width - 8, Math.max(24, rect.width * 0.8));
-				const endX = startX - input.deltaX;
-				const clientY = rect.top + Math.min(10, Math.max(4, rect.height / 2));
-				await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-				target.dispatchEvent(
-					new PointerEvent('pointerdown', {
-						bubbles: true,
-						cancelable: true,
-						clientX: startX,
-						clientY,
-						pointerId: 71,
-						pointerType: 'touch',
-					}),
-				);
-				const beforeDispatch = performance.now();
-				target.dispatchEvent(
-					new PointerEvent('pointermove', {
-						bubbles: true,
-						cancelable: true,
-						clientX: endX,
-						clientY,
-						pointerId: 71,
-						pointerType: 'touch',
-					}),
-				);
-				const dispatchMs = performance.now() - beforeDispatch;
-				const visualScrollLeftImmediatelyAfterDispatch = visualScrollLeft();
-				const nativeRowScrollLeftImmediatelyAfterDispatch = nativeRowScrollLeft();
-				const scrollLeftImmediatelyAfterDispatch = blockScrollLeft();
-				await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-				const scrollLeftAfterOneAnimationFrame = blockScrollLeft();
-				target.dispatchEvent(
-					new PointerEvent('pointerup', {
-						bubbles: true,
-						cancelable: true,
-						clientX: endX,
-						clientY,
-						pointerId: 71,
-						pointerType: 'touch',
-					}),
-				);
-				await new Promise<void>(resolve => window.setTimeout(resolve, 120));
-				const scrollLeftAfterNativeSync = blockScrollLeft();
-				const visualScrollLeftAfterNativeSync = visualScrollLeft();
-				const nativeRowScrollLeftAfterNativeSync = nativeRowScrollLeft();
-
-				return {
-					gesture: 'touch' as const,
-					dispatchMs,
-					scrollLeftImmediatelyAfterDispatch,
-					visualScrollLeftImmediatelyAfterDispatch,
-					nativeRowScrollLeftImmediatelyAfterDispatch,
-					scrollLeftAfterOneAnimationFrame,
-					scrollLeftAfterNativeSync,
-					visualScrollLeftAfterNativeSync,
-					nativeRowScrollLeftAfterNativeSync,
-					noteScrollLeft: noteScroller?.scrollLeft ?? 0,
-					documentScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
-				};
-			},
-			{ mode, blockIndex, deltaX: 48 },
-		);
-		const state = await this.collectScrollState(mode, 'first-touch-latency-after');
 		return { ...metrics, state };
 	}
 
