@@ -129,6 +129,20 @@ export type HorizontalScrollBlockState = {
 	gutterMaskBorderLeftColor: string | null;
 	gutterLeft: number | null;
 	gutterRight: number | null;
+	gutterWidth: number | null;
+	gutterMinWidth: string | null;
+	gutterPaddingRight: string | null;
+	gutterMarginRight: string | null;
+	gutterBackgroundColor: string | null;
+	gutterColor: string | null;
+	gutterFontFamily: string | null;
+	gutterFontSize: string | null;
+	gutterLineHeight: string | null;
+	gutterTextAlign: string | null;
+	gutterJustifyContent: string | null;
+	gutterBoxSizing: string | null;
+	firstLineNumberTextRight: number | null;
+	firstLineNumberTextCenterY: number | null;
 	codeContentLeft: number | null;
 	gutterToCodeGap: number | null;
 	codeLeft: number | null;
@@ -1220,6 +1234,20 @@ class HorizontalScrollPage {
 					const gutterStyle = gutterEdge ? getComputedStyle(gutterEdge) : null;
 					const gutterBeforeStyle = gutterEdge ? getComputedStyle(gutterEdge, '::before') : null;
 					const gutterAfterStyle = gutterEdge ? getComputedStyle(gutterEdge, '::after') : null;
+					const firstLineNumberTextRect = (() => {
+						const firstLineNumber = lineNumbers[0] ?? null;
+						const textNode = [...(firstLineNumber?.childNodes ?? [])].find(
+							node => node.nodeType === Node.TEXT_NODE && /\S/.test(node.textContent ?? ''),
+						);
+						if (!textNode) {
+							return null;
+						}
+						const range = document.createRange();
+						range.selectNodeContents(textNode);
+						const rect = range.getBoundingClientRect();
+						range.detach();
+						return rect.width > 0 && rect.height > 0 ? rect : null;
+					})();
 					const contentElements = [
 						...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-code-content[data-shiki-block-id="${CSS.escape(block.blockId)}"]`),
 					];
@@ -1457,8 +1485,22 @@ class HorizontalScrollPage {
 						gutterBorderRightColor: gutterStyle?.borderRightColor ?? null,
 						gutterMaskBorderLeftWidth: gutterAfterStyle?.borderLeftWidth ?? null,
 						gutterMaskBorderLeftColor: gutterAfterStyle?.borderLeftColor ?? null,
-						gutterLeft: beforeGutterLeft,
+						gutterLeft: lineNumberRect?.left ?? beforeGutterLeft,
 						gutterRight: lineNumberRect?.right ?? null,
+						gutterWidth: lineNumberRect?.width ?? null,
+						gutterMinWidth: gutterStyle?.minWidth ?? null,
+						gutterPaddingRight: gutterStyle?.paddingRight ?? null,
+						gutterMarginRight: gutterStyle?.marginRight ?? null,
+						gutterBackgroundColor: gutterStyle?.backgroundColor ?? null,
+						gutterColor: gutterStyle?.color ?? null,
+						gutterFontFamily: gutterStyle?.fontFamily ?? null,
+						gutterFontSize: gutterStyle?.fontSize ?? null,
+						gutterLineHeight: gutterStyle?.lineHeight ?? null,
+						gutterTextAlign: gutterStyle?.textAlign ?? null,
+						gutterJustifyContent: gutterStyle?.justifyContent ?? null,
+						gutterBoxSizing: gutterStyle?.boxSizing ?? null,
+						firstLineNumberTextRight: firstLineNumberTextRect?.right ?? null,
+						firstLineNumberTextCenterY: firstLineNumberTextRect ? firstLineNumberTextRect.top + firstLineNumberTextRect.height / 2 : null,
 						codeContentLeft,
 						gutterToCodeGap: lineNumberRect && codeContentLeft !== null ? codeContentLeft - lineNumberRect.right : null,
 						codeLeft: beforeCodeLeft,

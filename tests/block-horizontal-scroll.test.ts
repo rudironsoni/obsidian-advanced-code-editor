@@ -212,6 +212,33 @@ describe('block horizontal scroll identity', () => {
 		expect(styles).not.toContain('transform: translateX(calc(-1 * var(--shiki-block-scroll-left, 0px)))');
 	});
 
+	test('shares Reading mode gutter tokens with Live Preview line numbers', () => {
+		const styles = read('packages/obsidian/src/styles.css');
+		const readingGutterRule = styles.match(/\.shiki-line-numbers \{([\s\S]*?)\n\}/)?.[1] ?? '';
+		const livePreviewLineNumberRule =
+			styles.match(/(?:^|\n)\.markdown-source-view\.mod-cm6\.is-live-preview \.shiki-live-preview-line-number \{([\s\S]*?)\n\}/)?.[1] ?? '';
+		const livePreviewEditorFontLineNumberRule =
+			styles.match(
+				/body\.shiki-use-editor-font-size \.markdown-source-view\.mod-cm6\.is-live-preview \.shiki-live-preview-line-number \{([\s\S]*?)\n\}/,
+			)?.[1] ?? '';
+
+		for (const token of ['--shiki-gutter-background', '--shiki-gutter-code-gap', '--shiki-gutter-min-width', '--shiki-gutter-padding-right']) {
+			expect(styles).toContain(token);
+		}
+		expect(readingGutterRule).toContain('min-width: var(--shiki-gutter-min-width)');
+		expect(readingGutterRule).toContain('padding-right: var(--shiki-gutter-padding-right)');
+		expect(readingGutterRule).toContain('background: var(--shiki-gutter-background)');
+		expect(readingGutterRule).toContain('color: var(--shiki-gutter-text-color)');
+		expect(styles).toContain('padding-left: var(--shiki-gutter-code-gap);');
+		expect(livePreviewLineNumberRule).toContain('min-width: var(--shiki-gutter-min-width)');
+		expect(livePreviewLineNumberRule).toContain('padding-right: var(--shiki-gutter-padding-right)');
+		expect(livePreviewLineNumberRule).toContain('margin-right: var(--shiki-gutter-code-gap)');
+		expect(livePreviewLineNumberRule).toContain('background-color: var(--shiki-gutter-background)');
+		expect(livePreviewLineNumberRule).toContain('color: var(--shiki-gutter-text-color)');
+		expect(styles).toContain('width: var(--shiki-gutter-code-gap);');
+		expect(livePreviewEditorFontLineNumberRule).toContain('font-size: calc(var(--font-text-size) * 0.875)');
+	});
+
 	test('does not paint-contain Live Preview code rows', () => {
 		const styles = read('packages/obsidian/src/styles.css');
 		const livePreviewCodeLineRule =
@@ -235,7 +262,7 @@ describe('block horizontal scroll identity', () => {
 		const livePreviewScrollerRule = styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.cm-scroller \{([\s\S]*?)\n\}/)?.[1] ?? '';
 		const livePreviewContentRule = styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.cm-content \{([\s\S]*?)\n\}/)?.[1] ?? '';
 		const livePreviewLineNumberRule =
-			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.shiki-live-preview-line-number \{([\s\S]*?)\n\}/)?.[1] ?? '';
+			styles.match(/(?:^|\n)\.markdown-source-view\.mod-cm6\.is-live-preview \.shiki-live-preview-line-number \{([\s\S]*?)\n\}/)?.[1] ?? '';
 
 		expect(livePreviewRootRule).not.toContain('touch-action');
 		expect(livePreviewCodeLineRule).toContain('overflow-x: hidden');

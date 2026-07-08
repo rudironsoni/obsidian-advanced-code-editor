@@ -26,6 +26,10 @@ body {
 
 	--shiki-gutter-border-color: var(--background-modifier-border);
 	--shiki-gutter-border-width: var(--border-width);
+	--shiki-gutter-background: var(--shiki-code-background);
+	--shiki-gutter-code-gap: 12px;
+	--shiki-gutter-min-width: 3.5ch;
+	--shiki-gutter-padding-right: 12px;
 	--shiki-gutter-text-color: var(--text-faint);
 	--shiki-gutter-text-color-highlight: var(--shiki-code-normal);
 }
@@ -254,14 +258,14 @@ span.shiki-ul {
 	left: 0;
 	z-index: 1;
 	text-align: right;
-	padding-right: 12px;
-	background: var(--shiki-code-background);
-	color: var(--text-faint);
+	padding-right: var(--shiki-gutter-padding-right);
+	background: var(--shiki-gutter-background);
+	color: var(--shiki-gutter-text-color);
 	font-family: var(--font-monospace);
 	font-size: var(--code-size);
 	line-height: var(--line-height-normal);
 	user-select: none;
-	min-width: 3.5ch;
+	min-width: var(--shiki-gutter-min-width);
 	flex-shrink: 0;
 	border-right: var(--shiki-gutter-border-width) solid var(--shiki-gutter-border-color);
 	margin-right: 0;
@@ -275,7 +279,7 @@ span.shiki-ul {
 .shiki-code-scroll {
 	flex: 0 0 auto;
 	overflow-x: visible;
-	padding-left: 12px;
+	padding-left: var(--shiki-gutter-code-gap);
 	min-width: max-content;
 	position: relative;
 }
@@ -385,6 +389,10 @@ span.shiki-ul {
 body.shiki-use-editor-font-size .shiki-live-preview-block .shiki-block-body,
 body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block .shiki-block-body {
 	font-size: var(--font-text-size);
+}
+
+body.shiki-use-editor-font-size .markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-line-number {
+	font-size: calc(var(--font-text-size) * 0.875);
 }
 
 body.shiki-use-editor-font-size .shiki-live-preview-block .shiki-block-body pre,
@@ -548,13 +556,13 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 	z-index: 20;
 	display: inline-flex;
 	justify-content: flex-end;
-	min-width: 3.5ch;
-	margin-right: 12px;
-	padding-right: 12px;
+	min-width: var(--shiki-gutter-min-width);
+	margin-right: var(--shiki-gutter-code-gap);
+	padding-right: var(--shiki-gutter-padding-right);
 	border-right: var(--shiki-gutter-border-width) solid var(--shiki-gutter-border-color);
-	background-color: var(--shiki-code-background);
+	background-color: var(--shiki-gutter-background);
 	box-sizing: content-box;
-	color: var(--text-faint);
+	color: var(--shiki-gutter-text-color);
 	font-family: var(--font-monospace);
 	font-size: var(--code-size);
 	line-height: var(--line-height-normal);
@@ -570,7 +578,7 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 	z-index: 4;
 	top: 0;
 	bottom: 0;
-	background: var(--shiki-code-background);
+	background: var(--shiki-gutter-background);
 	pointer-events: none;
 }
 
@@ -581,7 +589,7 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 
 .markdown-source-view.mod-cm6.is-live-preview .shiki-live-preview-line-number::after {
 	left: 100%;
-	width: 12px;
+	width: var(--shiki-gutter-code-gap);
 	border-left: var(--shiki-gutter-border-width) solid var(--shiki-gutter-border-color);
 	box-sizing: border-box;
 }

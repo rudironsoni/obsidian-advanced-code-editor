@@ -443,6 +443,14 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 		`expected Live Preview gutter/code gap to match Reading mode: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`,
 	);
 	const layoutJson = JSON.stringify(lastHorizontalScrollLineNumberLayout);
+	const assertPixelClose = (actual: number | null, expected: number | null, label: string, tolerance = 2): void => {
+		assert.ok(actual !== null && expected !== null, `expected measurable ${label}: ${layoutJson}`);
+		assert.ok(Math.abs(actual - expected) <= tolerance, `expected Live Preview ${label} to match Reading mode: ${layoutJson}`);
+	};
+	const assertStyleEqual = (actual: string | null, expected: string | null, label: string): void => {
+		assert.ok(actual !== null && expected !== null, `expected measurable ${label}: ${layoutJson}`);
+		assert.equal(actual, expected, `expected Live Preview ${label} to match Reading mode: ${layoutJson}`);
+	};
 	assert.equal(
 		livePreviewBlock.gutterBorderRightWidth,
 		readingBlock.gutterBorderRightWidth,
@@ -463,6 +471,30 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 		readingBlock.gutterBorderRightColor,
 		`expected Live Preview gutter mask to preserve the separator color: ${layoutJson}`,
 	);
+	assertPixelClose(livePreviewBlock.gutterWidth, readingBlock.gutterWidth, 'line-number gutter width');
+	assertPixelClose(
+		livePreviewBlock.gutterRight !== null && livePreviewBlock.firstLineNumberTextRight !== null
+			? livePreviewBlock.gutterRight - livePreviewBlock.firstLineNumberTextRight
+			: null,
+		readingBlock.gutterRight !== null && readingBlock.firstLineNumberTextRight !== null
+			? readingBlock.gutterRight - readingBlock.firstLineNumberTextRight
+			: null,
+		'line-number text right inset',
+	);
+	assertStyleEqual(livePreviewBlock.gutterMinWidth, readingBlock.gutterMinWidth, 'line-number gutter minimum width');
+	assertStyleEqual(livePreviewBlock.gutterPaddingRight, readingBlock.gutterPaddingRight, 'line-number gutter right padding');
+	assertStyleEqual(livePreviewBlock.gutterBackgroundColor, readingBlock.gutterBackgroundColor, 'line-number gutter background');
+	assertStyleEqual(livePreviewBlock.gutterColor, readingBlock.gutterColor, 'line-number gutter text color');
+	assertStyleEqual(livePreviewBlock.gutterFontFamily, readingBlock.gutterFontFamily, 'line-number gutter font family');
+	assertStyleEqual(livePreviewBlock.gutterFontSize, readingBlock.gutterFontSize, 'line-number gutter font size');
+	assertStyleEqual(livePreviewBlock.gutterLineHeight, readingBlock.gutterLineHeight, 'line-number gutter line height');
+	assertStyleEqual(livePreviewBlock.gutterTextAlign, readingBlock.gutterTextAlign, 'line-number gutter text alignment');
+	assertStyleEqual(livePreviewBlock.gutterBoxSizing, readingBlock.gutterBoxSizing, 'line-number gutter box sizing');
+	assert.ok(
+		livePreviewBlock.gutterMarginRight !== null && Number.parseFloat(livePreviewBlock.gutterMarginRight) === readingBlock.gutterToCodeGap,
+		`expected Live Preview gutter margin to equal Reading mode code gap: ${layoutJson}`,
+	);
+	assert.equal(livePreviewBlock.gutterJustifyContent, 'flex-end', `expected Live Preview line numbers to align to the gutter edge: ${layoutJson}`);
 	const liveHeader = {
 		right: livePreviewBlock.headerRight,
 		height: livePreviewBlock.headerHeight,
