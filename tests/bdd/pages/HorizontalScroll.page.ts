@@ -123,6 +123,10 @@ export type HorizontalScrollBlockState = {
 	rowBorderRightColor: string | null;
 	rootBorderTopWidth: string | null;
 	rootBorderTopColor: string | null;
+	gutterBorderRightWidth: string | null;
+	gutterBorderRightColor: string | null;
+	gutterMaskBorderLeftWidth: string | null;
+	gutterMaskBorderLeftColor: string | null;
 	gutterLeft: number | null;
 	gutterRight: number | null;
 	codeContentLeft: number | null;
@@ -1211,6 +1215,10 @@ class HorizontalScrollPage {
 						rowBorderRightColor: rowStyle?.borderRightColor ?? null,
 						rootBorderTopWidth: rootStyle.borderTopWidth,
 						rootBorderTopColor: rootStyle.borderTopColor,
+						gutterBorderRightWidth: gutterStyle?.borderRightWidth ?? null,
+						gutterBorderRightColor: gutterStyle?.borderRightColor ?? null,
+						gutterMaskBorderLeftWidth: gutterAfterStyle?.borderLeftWidth ?? null,
+						gutterMaskBorderLeftColor: gutterAfterStyle?.borderLeftColor ?? null,
 						gutterLeft: beforeGutterLeft,
 						gutterRight: lineNumberRect?.right ?? null,
 						codeContentLeft,

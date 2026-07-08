@@ -379,6 +379,26 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 		`expected Live Preview gutter/code gap to match Reading mode: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`,
 	);
 	const layoutJson = JSON.stringify(lastHorizontalScrollLineNumberLayout);
+	assert.equal(
+		livePreviewBlock.gutterBorderRightWidth,
+		readingBlock.gutterBorderRightWidth,
+		`expected Live Preview gutter separator width to match Reading mode: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.gutterBorderRightColor,
+		readingBlock.gutterBorderRightColor,
+		`expected Live Preview gutter separator color to match Reading mode: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.gutterMaskBorderLeftWidth,
+		readingBlock.gutterBorderRightWidth,
+		`expected Live Preview gutter mask to preserve the separator width: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.gutterMaskBorderLeftColor,
+		readingBlock.gutterBorderRightColor,
+		`expected Live Preview gutter mask to preserve the separator color: ${layoutJson}`,
+	);
 	const liveHeader = {
 		right: livePreviewBlock.headerRight,
 		height: livePreviewBlock.headerHeight,
