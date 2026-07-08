@@ -113,8 +113,10 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private readonly domObserver: MutationObserver;
 			private readonly blockCacheById = new Map<string, BlockScrollCache>();
 			private readonly pendingScrollLeftByBlock = new Map<string, number>();
+			private readonly immediateGestureSyncBlockIds = new Set<string>();
 			private readonly gestureRoot: EventTarget;
 			private scrollFlushFrame: number | undefined;
+			private gestureFrameReset: number | undefined;
 
 			constructor(private readonly view: EditorView) {
 				this.gestureRoot = this.view.root as unknown as EventTarget;
@@ -160,6 +162,9 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				if (this.scrollFlushFrame !== undefined) {
 					window.cancelAnimationFrame(this.scrollFlushFrame);
+				}
+				if (this.gestureFrameReset !== undefined) {
+					window.cancelAnimationFrame(this.gestureFrameReset);
 				}
 				for (const target of this.observedScrollTargets) {
 					target.removeEventListener('scroll', this.onScroll);
@@ -248,6 +253,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 
 			private readonly onPointerEnd = (event: PointerEvent): void => {
 				if (this.pointerId === event.pointerId) {
+					this.flushScheduledScrolls();
 					this.resetPointer();
 				}
 			};
@@ -292,6 +298,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			};
 
 			private readonly onTouchEnd = (): void => {
+				this.flushScheduledScrolls();
 				this.resetTouch();
 			};
 
@@ -327,6 +334,25 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 			}
 
+			private syncGestureBlock(blockId: string, scrollLeft: number): void {
+				const nextScrollLeft = this.clampBlockScrollLeft(blockId, scrollLeft);
+				this.scrollLeftByBlock.set(stableBlockScrollMemoryKey(blockId), nextScrollLeft);
+				if (this.immediateGestureSyncBlockIds.has(blockId)) {
+					this.pendingScrollLeftByBlock.set(blockId, nextScrollLeft);
+					this.scheduleScrollFlush();
+					return;
+				}
+				this.immediateGestureSyncBlockIds.add(blockId);
+				this.scheduleGestureFrameReset();
+				this.pendingScrollLeftByBlock.delete(blockId);
+				this.syncing = true;
+				try {
+					this.applyBlockScroll(blockId, nextScrollLeft);
+				} finally {
+					this.syncing = false;
+				}
+			}
+
 			private applyHorizontalGestureScroll(blockId: string, scrollLeft: number, immediate: boolean): void {
 				const currentScrollLeft = this.clampBlockScrollLeft(blockId, this.blockScrollLeft(blockId));
 				const nextScrollLeft = this.clampBlockScrollLeft(blockId, scrollLeft);
@@ -334,7 +360,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					return;
 				}
 				if (immediate) {
-					this.syncBlockImmediate(blockId, nextScrollLeft);
+					this.syncGestureBlock(blockId, nextScrollLeft);
 					return;
 				}
 				this.syncBlock(blockId, nextScrollLeft);
@@ -364,6 +390,16 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.scrollFlushFrame = window.requestAnimationFrame(() => {
 					this.scrollFlushFrame = undefined;
 					this.flushPendingScrolls();
+				});
+			}
+
+			private scheduleGestureFrameReset(): void {
+				if (this.gestureFrameReset !== undefined) {
+					return;
+				}
+				this.gestureFrameReset = window.requestAnimationFrame(() => {
+					this.gestureFrameReset = undefined;
+					this.immediateGestureSyncBlockIds.clear();
 				});
 			}
 
@@ -563,6 +599,10 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			}
 
 			private blockScrollLeft(blockId: string): number {
+				const pendingScrollLeft = this.pendingScrollLeftByBlock.get(blockId);
+				if (pendingScrollLeft !== undefined) {
+					return pendingScrollLeft;
+				}
 				return Math.max(
 					0,
 					...this.cacheForBlock(blockId).rows.map(row => row.scrollLeft),

@@ -191,6 +191,8 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('this.pointerCaptureTarget?.setPointerCapture(event.pointerId);');
 		expect(source).toContain('this.pointerCaptureTarget?.releasePointerCapture(this.pointerId);');
 		expect(source).toContain('private syncBlockImmediate(blockId: string, scrollLeft: number): void {');
+		expect(source).toContain('private syncGestureBlock(blockId: string, scrollLeft: number): void {');
+		expect(source).toContain('this.immediateGestureSyncBlockIds.has(blockId)');
 		expect(source).toContain('this.applyHorizontalGestureScroll(this.pointerBlockId, this.pointerStartScrollLeft - deltaX, true);');
 		expect(source).toContain('this.applyHorizontalGestureScroll(this.touchBlockId, this.touchStartScrollLeft - deltaX, true);');
 		expect(source).toContain('this.applyBlockScroll(blockId, nextScrollLeft);');
@@ -227,6 +229,48 @@ describe('block horizontal scroll identity', () => {
 			expect(move.defaultPrevented).toBe(true);
 			expect(longRow.scrollLeft).toBe(200);
 			expect(shortRow.scrollLeft).toBe(200);
+		} finally {
+			view.destroy();
+			parent.remove();
+		}
+	});
+
+	test('coalesces repeated touch moves in the same animation frame', async () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const view = new EditorView({
+			doc: '',
+			extensions: [createBlockHorizontalScrollPlugin()],
+			parent,
+		});
+		const blockId = 'Note.md::live-preview::5::120::5::ts::coalesce';
+		const longRow = document.createElement('div');
+		const shortRow = document.createElement('div');
+		const content = document.createElement('span');
+
+		for (const row of [longRow, shortRow]) {
+			row.className = `${SHIKI_BLOCK_SCROLL_ROW_CLASS} shiki-live-preview-code-line`;
+			row.dataset.shikiBlockId = blockId;
+			view.scrollDOM.appendChild(row);
+			defineLayout(row, { clientWidth: 300, scrollWidth: 1000 });
+		}
+
+		content.className = 'shiki-live-preview-code-content';
+		content.textContent = 'longLineThatReceivesTheFinger';
+		longRow.appendChild(content);
+
+		try {
+			dispatchTouch(content, 'touchstart', 260, 20);
+			dispatchTouch(document, 'touchmove', 60, 22, content);
+			dispatchTouch(document, 'touchmove', 40, 22, content);
+
+			expect(longRow.scrollLeft).toBe(200);
+			expect(shortRow.scrollLeft).toBe(200);
+
+			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+
+			expect(longRow.scrollLeft).toBe(220);
+			expect(shortRow.scrollLeft).toBe(220);
 		} finally {
 			view.destroy();
 			parent.remove();
