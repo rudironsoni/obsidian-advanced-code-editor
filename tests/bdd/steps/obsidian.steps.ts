@@ -277,10 +277,29 @@ When('I edit the raw Source mode horizontal scroll marker', async () => {
 });
 
 When('I repeatedly scroll the first code block horizontally with wheel gestures', async () => {
+	let referenceMetrics: HorizontalScrollPerformanceResult['metrics'] | undefined;
+	if (activeHorizontalScrollMode === 'live-preview' && activeHorizontalScrollNotePath) {
+		await horizontalScrollPage.openFixture(activeHorizontalScrollNotePath, 'reading');
+		await horizontalScrollPage.waitForHorizontalScrollReady('reading', 1, true);
+		await horizontalScrollPage.resetScrollPositions('reading');
+		referenceMetrics = (await horizontalScrollPage.measureRepeatedWheelScroll('reading', 0)).metrics;
+		await horizontalScrollPage.openFixture(activeHorizontalScrollNotePath, 'live-preview');
+		await horizontalScrollPage.waitForHorizontalScrollReady('live-preview', 1, true);
+		activeHorizontalScrollMode = 'live-preview';
+	}
 	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
 	lastHorizontalScrollPerformance = await horizontalScrollPage.measureRepeatedWheelScroll(activeHorizontalScrollMode, 0);
+	lastHorizontalScrollPerformance.referenceMetrics = referenceMetrics;
 	lastHorizontalScrollState = lastHorizontalScrollPerformance.state;
 	writeJsonArtifact(`horizontal-scroll-${activeHorizontalScrollMode}-wheel-performance`, lastHorizontalScrollPerformance);
+});
+
+When('I repeatedly scroll the first code block horizontally with touch gestures', async () => {
+	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected repeated touch performance check to run in Live Preview');
+	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
+	lastHorizontalScrollPerformance = await horizontalScrollPage.measureRepeatedTouchScroll(activeHorizontalScrollMode, 0);
+	lastHorizontalScrollState = lastHorizontalScrollPerformance.state;
+	writeJsonArtifact(`horizontal-scroll-${activeHorizontalScrollMode}-touch-performance`, lastHorizontalScrollPerformance);
 });
 
 When('I send one horizontal wheel event to the first Live Preview code block', async () => {
@@ -339,9 +358,24 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	const first = state.blocks[0];
 	assert.ok(first, `expected a first code block after performance scroll: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.mode, 'live-preview', `expected Live Preview mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
-	assert.ok(metrics.eventCount >= 55, `expected at least 55 measured wheel events: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
-	assert.ok(metrics.p95DispatchMs <= 12, `expected p95 wheel dispatch under 12ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
-	assert.ok(metrics.maxDispatchMs <= 50, `expected max wheel dispatch under 50ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(metrics.eventCount >= 55, `expected at least 55 measured scroll events: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(metrics.p95DispatchMs <= 12, `expected p95 scroll dispatch under 12ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(metrics.maxDispatchMs <= 50, `expected max scroll dispatch under 50ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(
+		(lastHorizontalScrollPerformance.responsivenessProbeMs ?? 0) <= 80,
+		`expected post-scroll responsiveness probe under 80ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+	);
+	if (lastHorizontalScrollPerformance.referenceMetrics) {
+		const reference = lastHorizontalScrollPerformance.referenceMetrics;
+		assert.ok(
+			metrics.p95DispatchMs <= Math.max(8, reference.p95DispatchMs * 3 + 2),
+			`expected Live Preview p95 dispatch to stay near Reading mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+		);
+		assert.ok(
+			metrics.maxFrameGapMs <= Math.max(120, reference.maxFrameGapMs * 3 + 20),
+			`expected Live Preview frame gaps not to regress far beyond Reading mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+		);
+	}
 	assert.equal(metrics.backtrackCount, 0, `expected horizontal scroll not to jump backward: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(metrics.maxBacktrackPx, 0, `expected no horizontal scroll backtrack distance: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(first.scrollLeft > 0, `expected first block to scroll horizontally: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
