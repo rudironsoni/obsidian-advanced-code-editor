@@ -5,6 +5,8 @@ export const SHIKI_BLOCK_SCROLL_ROW_CLASS = 'shiki-block-scroll-row';
 export const SHIKI_BLOCK_SCROLLBAR_CLASS = 'shiki-block-horizontal-scrollbar';
 export const SHIKI_BLOCK_SCROLLBAR_INNER_CLASS = 'shiki-block-horizontal-scrollbar-inner';
 export const SHIKI_BLOCK_SCROLL_SPACER_CLASS = 'shiki-block-scroll-spacer';
+const SHIKI_LIVE_PREVIEW_CODE_CONTENT_CLASS = 'shiki-live-preview-code-content';
+const NATIVE_SCROLL_SYNC_IDLE_MS = 80;
 
 export class ShikiBlockHorizontalScrollbarWidget extends WidgetType {
 	constructor(
@@ -83,6 +85,7 @@ interface BlockScrollCache {
 	rows: HTMLElement[];
 	scrollbars: HTMLElement[];
 	headers: HTMLElement[];
+	contents: HTMLElement[];
 	maxScrollLeft: number;
 	maxScrollWidth: number;
 	clipWidth: number;
@@ -113,6 +116,8 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private readonly domObserver: MutationObserver;
 			private readonly blockCacheById = new Map<string, BlockScrollCache>();
 			private readonly pendingScrollLeftByBlock = new Map<string, number>();
+			private readonly visualScrollLeftByBlock = new Map<string, number>();
+			private readonly nativeSyncTimersByBlock = new Map<string, number>();
 			private readonly gestureRoot: EventTarget;
 			private scrollFlushFrame: number | undefined;
 
@@ -161,6 +166,8 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				if (this.scrollFlushFrame !== undefined) {
 					window.cancelAnimationFrame(this.scrollFlushFrame);
 				}
+				this.clearAllNativeSyncTimers();
+				this.clearAllVisualBlockScrolls();
 				for (const target of this.observedScrollTargets) {
 					target.removeEventListener('scroll', this.onScroll);
 					target.removeEventListener('wheel', this.onWheel, true);
@@ -186,7 +193,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					this.syncBlockImmediate(blockId, scrollLeft);
 					return;
 				}
-				this.syncBlockImmediate(blockId, source.scrollLeft);
+				this.syncBlockVisual(blockId, source.scrollLeft);
 			};
 
 			private readonly onWheel = (event: WheelEvent): void => {
@@ -248,6 +255,9 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 
 			private readonly onPointerEnd = (event: PointerEvent): void => {
 				if (this.pointerId === event.pointerId) {
+					if (this.pointerBlockId) {
+						this.syncNativeRowsAndClearVisual(this.pointerBlockId);
+					}
 					this.resetPointer();
 				}
 			};
@@ -292,6 +302,9 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			};
 
 			private readonly onTouchEnd = (): void => {
+				if (this.touchBlockId) {
+					this.syncNativeRowsAndClearVisual(this.touchBlockId);
+				}
 				this.resetTouch();
 			};
 
@@ -319,12 +332,28 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				const nextScrollLeft = this.clampBlockScrollLeft(blockId, scrollLeft);
 				this.scrollLeftByBlock.set(stableBlockScrollMemoryKey(blockId), nextScrollLeft);
 				this.pendingScrollLeftByBlock.delete(blockId);
+				this.visualScrollLeftByBlock.delete(blockId);
+				this.clearNativeSyncTimer(blockId);
 				this.syncing = true;
 				try {
-					this.applyBlockScroll(blockId, nextScrollLeft);
+					this.applyNativeBlockScroll(blockId, nextScrollLeft);
 				} finally {
 					this.syncing = false;
 				}
+			}
+
+			private syncBlockVisual(blockId: string, scrollLeft: number): void {
+				const nextScrollLeft = this.clampBlockScrollLeft(blockId, scrollLeft);
+				this.scrollLeftByBlock.set(stableBlockScrollMemoryKey(blockId), nextScrollLeft);
+				this.pendingScrollLeftByBlock.delete(blockId);
+				this.visualScrollLeftByBlock.set(blockId, nextScrollLeft);
+				this.syncing = true;
+				try {
+					this.applyVisualBlockScroll(blockId, nextScrollLeft);
+				} finally {
+					this.syncing = false;
+				}
+				this.scheduleNativeSync(blockId);
 			}
 
 			private applyHorizontalGestureScroll(blockId: string, scrollLeft: number, immediate: boolean): void {
@@ -334,7 +363,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					return;
 				}
 				if (immediate) {
-					this.syncBlockImmediate(blockId, nextScrollLeft);
+					this.syncBlockVisual(blockId, nextScrollLeft);
 					return;
 				}
 				this.syncBlock(blockId, nextScrollLeft);
@@ -373,11 +402,17 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.syncing = true;
 				try {
 					for (const [blockId, scrollLeft] of pending) {
-						this.applyBlockScroll(blockId, scrollLeft);
+						this.applyNativeBlockScroll(blockId, scrollLeft);
 					}
 				} finally {
 					this.syncing = false;
 				}
+			}
+
+			private applyNativeBlockScroll(blockId: string, scrollLeft: number): void {
+				this.applyBlockScroll(blockId, scrollLeft);
+				this.clearVisualBlockScroll(blockId);
+				this.visualScrollLeftByBlock.delete(blockId);
 			}
 
 			private applyBlockScroll(blockId: string, scrollLeft: number): void {
@@ -388,6 +423,29 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				for (const scrollbar of cache.scrollbars) {
 					this.setScrollLeft(scrollbar, scrollLeft);
+				}
+			}
+
+			private applyVisualBlockScroll(blockId: string, scrollLeft: number): void {
+				const cache = this.cacheForBlock(blockId);
+				for (const scrollbar of cache.scrollbars) {
+					this.setScrollLeft(scrollbar, scrollLeft);
+				}
+				for (const content of cache.contents) {
+					const row = content.closest<HTMLElement>(`.${SHIKI_BLOCK_SCROLL_ROW_CLASS}[data-shiki-block-id]`);
+					const nativeScrollLeft = row?.scrollLeft ?? 0;
+					const visualDelta = scrollLeft - nativeScrollLeft;
+					if (Math.abs(visualDelta) <= 0.5) {
+						this.clearVisualContentScroll(content);
+						continue;
+					}
+					const transform = `translateX(${-visualDelta}px)`;
+					if (content.style.transform !== transform) {
+						content.style.transform = transform;
+					}
+					if (content.style.willChange !== 'transform') {
+						content.style.willChange = 'transform';
+					}
 				}
 			}
 
@@ -402,6 +460,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				for (const blockId of blockIds) {
 					const scrollLeft = this.scrollLeftByBlock.get(stableBlockScrollMemoryKey(blockId));
 					if (scrollLeft !== undefined) {
+						this.clearNativeSyncTimer(blockId);
 						this.syncBlock(blockId, scrollLeft);
 					}
 				}
@@ -470,6 +529,9 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				const rows = [...this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_BLOCK_SCROLL_ROW_CLASS}[data-shiki-block-id="${escapedBlockId}"]`)];
 				const scrollbars = [...this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_BLOCK_SCROLLBAR_CLASS}[data-shiki-block-id="${escapedBlockId}"]`)];
 				const headers = [...this.view.dom.querySelectorAll<HTMLElement>(`.shiki-live-preview-header[data-shiki-block-id="${escapedBlockId}"]`)];
+				const contents = [
+					...this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_LIVE_PREVIEW_CODE_CONTENT_CLASS}[data-shiki-block-id="${escapedBlockId}"]`),
+				];
 				const clipWidths = scrollbars.map(element => element.clientWidth).filter(width => width > 0);
 				const clipWidth = clipWidths.length ? Math.min(...clipWidths) : 0;
 				const naturalScrollWidths: number[] = [];
@@ -482,7 +544,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				const maxScrollWidth = Math.max(0, ...naturalScrollWidths);
 				const maxScrollLeft = Math.max(0, ...rows.map(row => Math.max(row.scrollWidth, maxScrollWidth) - row.clientWidth));
 				const disabled = scrollbars.some(scrollbar => scrollbar.dataset.shikiScrollDisabled === 'true');
-				const cache = { rows, scrollbars, headers, maxScrollLeft, maxScrollWidth, clipWidth, disabled };
+				const cache = { rows, scrollbars, headers, contents, maxScrollLeft, maxScrollWidth, clipWidth, disabled };
 				const memoryKey = stableBlockScrollMemoryKey(blockId);
 				const storedScrollLeft = this.scrollLeftByBlock.get(memoryKey);
 				if (storedScrollLeft !== undefined && storedScrollLeft > maxScrollLeft) {
@@ -490,7 +552,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				this.updateRowScrollSpacers(cache);
 				this.blockCacheById.set(blockId, cache);
-				for (const element of [...rows, ...scrollbars, ...headers]) {
+				for (const element of [...rows, ...scrollbars, ...headers, ...contents]) {
 					this.resizeObserver?.observe(element);
 				}
 				return cache;
@@ -519,6 +581,66 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private setStyleProperty(target: HTMLElement, property: string, value: string): void {
 				if (target.style.getPropertyValue(property) !== value) {
 					target.style.setProperty(property, value);
+				}
+			}
+
+			private scheduleNativeSync(blockId: string): void {
+				this.clearNativeSyncTimer(blockId);
+				const timer = window.setTimeout(() => {
+					this.nativeSyncTimersByBlock.delete(blockId);
+					this.syncNativeRowsAndClearVisual(blockId);
+				}, NATIVE_SCROLL_SYNC_IDLE_MS);
+				this.nativeSyncTimersByBlock.set(blockId, timer);
+			}
+
+			private syncNativeRowsAndClearVisual(blockId: string): void {
+				const scrollLeft = this.clampBlockScrollLeft(blockId, this.visualScrollLeftByBlock.get(blockId) ?? this.blockScrollLeft(blockId));
+				this.clearNativeSyncTimer(blockId);
+				this.scrollLeftByBlock.set(stableBlockScrollMemoryKey(blockId), scrollLeft);
+				this.pendingScrollLeftByBlock.delete(blockId);
+				this.syncing = true;
+				try {
+					this.applyNativeBlockScroll(blockId, scrollLeft);
+				} finally {
+					this.syncing = false;
+				}
+			}
+
+			private clearNativeSyncTimer(blockId: string): void {
+				const timer = this.nativeSyncTimersByBlock.get(blockId);
+				if (timer === undefined) {
+					return;
+				}
+				window.clearTimeout(timer);
+				this.nativeSyncTimersByBlock.delete(blockId);
+			}
+
+			private clearAllNativeSyncTimers(): void {
+				for (const timer of this.nativeSyncTimersByBlock.values()) {
+					window.clearTimeout(timer);
+				}
+				this.nativeSyncTimersByBlock.clear();
+			}
+
+			private clearVisualBlockScroll(blockId: string): void {
+				for (const content of this.cacheForBlock(blockId).contents) {
+					this.clearVisualContentScroll(content);
+				}
+			}
+
+			private clearAllVisualBlockScrolls(): void {
+				for (const content of this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_LIVE_PREVIEW_CODE_CONTENT_CLASS}[data-shiki-block-id]`)) {
+					this.clearVisualContentScroll(content);
+				}
+				this.visualScrollLeftByBlock.clear();
+			}
+
+			private clearVisualContentScroll(content: HTMLElement): void {
+				if (content.style.transform) {
+					content.style.transform = '';
+				}
+				if (content.style.willChange) {
+					content.style.willChange = '';
 				}
 			}
 
@@ -563,6 +685,10 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			}
 
 			private blockScrollLeft(blockId: string): number {
+				const visualScrollLeft = this.visualScrollLeftByBlock.get(blockId);
+				if (visualScrollLeft !== undefined) {
+					return visualScrollLeft;
+				}
 				return Math.max(
 					0,
 					...this.cacheForBlock(blockId).rows.map(row => row.scrollLeft),

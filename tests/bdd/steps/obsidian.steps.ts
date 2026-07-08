@@ -23,6 +23,7 @@ let lastHorizontalScrollState: HorizontalScrollState | undefined;
 let lastExactEdit: ExactEditResult | undefined;
 let lastHorizontalScrollPerformance: HorizontalScrollPerformanceResult | undefined;
 let lastHorizontalScrollWheelLatency: HorizontalScrollWheelLatencyResult | undefined;
+let lastHorizontalScrollTouchLatency: HorizontalScrollWheelLatencyResult | undefined;
 let lastHorizontalScrollLineNumberLayout: HorizontalScrollLineNumberLayoutComparison | undefined;
 
 Given('the built Advanced Code Editor plugin is enabled in the fixture vault', async () => {
@@ -291,6 +292,14 @@ When('I send one horizontal wheel event to the first Live Preview code block', a
 	writeJsonArtifact('horizontal-scroll-live-preview-first-wheel-latency', lastHorizontalScrollWheelLatency);
 });
 
+When('I send one horizontal touch drag to the first Live Preview code block', async () => {
+	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected first-touch latency check to run in Live Preview');
+	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
+	lastHorizontalScrollTouchLatency = await horizontalScrollPage.measureFirstTouchLatency(activeHorizontalScrollMode, 0);
+	lastHorizontalScrollState = lastHorizontalScrollTouchLatency.state;
+	writeJsonArtifact('horizontal-scroll-live-preview-first-touch-latency', lastHorizontalScrollTouchLatency);
+});
+
 When('I wheel overscroll the first code block past the right edge', async () => {
 	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected right-edge overscroll to run in Live Preview');
 	lastHorizontalScrollState = await horizontalScrollPage.wheelOverscrollRightEdge(activeHorizontalScrollMode, 0);
@@ -352,22 +361,12 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 
 Then('Live Preview should move horizontally during the same wheel event', async () => {
 	assert.ok(lastHorizontalScrollWheelLatency, 'expected Live Preview first-wheel latency result');
-	const result = lastHorizontalScrollWheelLatency;
-	const first = result.state.blocks[0];
-	assert.ok(first, `expected a first code block after first wheel event: ${JSON.stringify(result)}`);
-	assert.equal(result.state.mode, 'live-preview', `expected Live Preview mode: ${JSON.stringify(result)}`);
-	assert.ok(
-		result.scrollLeftImmediatelyAfterDispatch > 0,
-		`expected first wheel event to move block before the next animation frame: ${JSON.stringify(result)}`,
-	);
-	assert.ok(
-		result.scrollLeftAfterOneAnimationFrame >= result.scrollLeftImmediatelyAfterDispatch,
-		`expected scroll position not to regress after one animation frame: ${JSON.stringify(result)}`,
-	);
-	assert.ok(result.dispatchMs <= 12, `expected first wheel dispatch under 12ms: ${JSON.stringify(result)}`);
-	assert.equal(result.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(result)}`);
-	assert.equal(result.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(result)}`);
-	assertLivePreviewBlockUsesSharedRowScroll(result.state, first);
+	assertLivePreviewGestureLatency(lastHorizontalScrollWheelLatency, 'wheel');
+});
+
+Then('Live Preview should move horizontally during the same touch gesture', async () => {
+	assert.ok(lastHorizontalScrollTouchLatency, 'expected Live Preview first-touch latency result');
+	assertLivePreviewGestureLatency(lastHorizontalScrollTouchLatency, 'touch');
 });
 
 Then('the first Live Preview code block should remain at its horizontal end', async () => {
@@ -633,6 +632,41 @@ function assertLivePreviewBlockUsesSharedRowScroll(state: HorizontalScrollState,
 			`expected short Live Preview row to move with the whole block: ${JSON.stringify(state)}`,
 		);
 	}
+}
+
+function assertLivePreviewGestureLatency(result: HorizontalScrollWheelLatencyResult, gesture: 'wheel' | 'touch'): void {
+	const first = result.state.blocks[0];
+	assert.ok(first, `expected a first code block after first ${gesture} event: ${JSON.stringify(result)}`);
+	assert.equal(result.gesture, gesture, `expected ${gesture} latency result: ${JSON.stringify(result)}`);
+	assert.equal(result.state.mode, 'live-preview', `expected Live Preview mode: ${JSON.stringify(result)}`);
+	assert.ok(
+		result.scrollLeftImmediatelyAfterDispatch > 0,
+		`expected first ${gesture} event to move block before the next animation frame: ${JSON.stringify(result)}`,
+	);
+	assert.ok(
+		result.visualScrollLeftImmediatelyAfterDispatch > 0,
+		`expected first ${gesture} event to move Live Preview code content visually before native row sync: ${JSON.stringify(result)}`,
+	);
+	assert.ok(
+		result.nativeRowScrollLeftImmediatelyAfterDispatch < result.scrollLeftImmediatelyAfterDispatch,
+		`expected first ${gesture} event not to require immediate native row sync: ${JSON.stringify(result)}`,
+	);
+	assert.ok(
+		result.scrollLeftAfterOneAnimationFrame >= result.scrollLeftImmediatelyAfterDispatch,
+		`expected scroll position not to regress after one animation frame: ${JSON.stringify(result)}`,
+	);
+	assert.ok(
+		Math.abs(result.nativeRowScrollLeftAfterNativeSync - result.scrollLeftAfterNativeSync) <= 1,
+		`expected native rows to converge after ${gesture} idle sync: ${JSON.stringify(result)}`,
+	);
+	assert.ok(
+		result.visualScrollLeftAfterNativeSync <= 1,
+		`expected visual transform to clear after ${gesture} native sync: ${JSON.stringify(result)}`,
+	);
+	assert.ok(result.dispatchMs <= 12, `expected first ${gesture} dispatch under 12ms: ${JSON.stringify(result)}`);
+	assert.equal(result.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(result)}`);
+	assert.equal(result.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(result)}`);
+	assertLivePreviewBlockUsesSharedRowScroll(result.state, first);
 }
 
 function assertLivePreviewCodeTextVisible(state: HorizontalScrollState, block: HorizontalScrollState['blocks'][number]): void {

@@ -86,11 +86,14 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('if (target.style.getPropertyValue(property) !== value)');
 	});
 
-	test('does not return to transform-based content scrolling', () => {
+	test('keeps native row scrolling as the resting state', () => {
 		const source = read('packages/obsidian/src/codemirror/BlockHorizontalScroll.ts');
 
 		expect(source).toContain('for (const row of cache.rows)');
 		expect(source).toContain('this.setScrollLeft(row, scrollLeft)');
+		expect(source).toContain('this.applyVisualBlockScroll(blockId, nextScrollLeft);');
+		expect(source).toContain('this.scheduleNativeSync(blockId);');
+		expect(source).toContain('this.clearVisualContentScroll(content);');
 		expect(source).not.toContain('this.styleElement = this.view.dom.ownerDocument.createElement');
 		expect(source).not.toContain('.shiki-live-preview-code-content[data-shiki-block-id=${CSS.escape(blockId)}]');
 		expect(source).not.toContain("content.style.setProperty('--shiki-block-scroll-left', offset)");
@@ -193,10 +196,11 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('private syncBlockImmediate(blockId: string, scrollLeft: number): void {');
 		expect(source).toContain('this.applyHorizontalGestureScroll(this.pointerBlockId, this.pointerStartScrollLeft - deltaX, true);');
 		expect(source).toContain('this.applyHorizontalGestureScroll(this.touchBlockId, this.touchStartScrollLeft - deltaX, true);');
-		expect(source).toContain('this.applyBlockScroll(blockId, nextScrollLeft);');
+		expect(source).toContain('this.applyVisualBlockScroll(blockId, nextScrollLeft);');
+		expect(source).toContain('this.syncNativeRowsAndClearVisual(this.touchBlockId);');
 	});
 
-	test('moves every Live Preview row immediately from a horizontal touch gesture', () => {
+	test('moves Live Preview code visually during touch and syncs native rows at rest', () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({
@@ -208,6 +212,7 @@ describe('block horizontal scroll identity', () => {
 		const longRow = document.createElement('div');
 		const shortRow = document.createElement('div');
 		const content = document.createElement('span');
+		const shortContent = document.createElement('span');
 
 		for (const row of [longRow, shortRow]) {
 			row.className = `${SHIKI_BLOCK_SCROLL_ROW_CLASS} shiki-live-preview-code-line`;
@@ -217,16 +222,29 @@ describe('block horizontal scroll identity', () => {
 		}
 
 		content.className = 'shiki-live-preview-code-content';
+		content.dataset.shikiBlockId = blockId;
 		content.textContent = 'longLineThatReceivesTheFinger';
 		longRow.appendChild(content);
+		shortContent.className = 'shiki-live-preview-code-content';
+		shortContent.dataset.shikiBlockId = blockId;
+		shortContent.textContent = 'short';
+		shortRow.appendChild(shortContent);
 
 		try {
 			dispatchTouch(content, 'touchstart', 260, 20);
 			const move = dispatchTouch(document, 'touchmove', 60, 22, content);
 
 			expect(move.defaultPrevented).toBe(true);
+			expect(content.style.transform).toBe('translateX(-200px)');
+			expect(shortContent.style.transform).toBe('translateX(-200px)');
+			expect(longRow.scrollLeft).toBe(0);
+			expect(shortRow.scrollLeft).toBe(0);
+
+			dispatchTouch(document, 'touchend', 60, 22, content);
 			expect(longRow.scrollLeft).toBe(200);
 			expect(shortRow.scrollLeft).toBe(200);
+			expect(content.style.transform).toBe('');
+			expect(shortContent.style.transform).toBe('');
 		} finally {
 			view.destroy();
 			parent.remove();

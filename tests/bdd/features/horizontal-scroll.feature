@@ -63,16 +63,25 @@ Feature: Block-owned horizontal scroll
     And the active note should keep horizontal scroll inside the first code block
     And the surrounding note should not move horizontally
 
-  @desktop
-  Scenario: Live Preview wheel scrolling moves during the first wheel event
-    Given horizontal scroll settings use nowrap with line numbers
-    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
-    When I send one horizontal wheel event to the first Live Preview code block
-    Then Live Preview should move horizontally during the same wheel event
-    And the surrounding note should not move horizontally
+	@desktop
+	Scenario: Live Preview wheel scrolling moves during the first wheel event
+		Given horizontal scroll settings use nowrap with line numbers
+		And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+		When I send one horizontal wheel event to the first Live Preview code block
+		Then Live Preview should move horizontally during the same wheel event
+		And the surrounding note should not move horizontally
 
-  @desktop
-  Scenario: Live Preview stops wheel scrolling at the right edge
+	@mobile
+	Scenario: Mobile-emulated Live Preview touch scrolling moves during the first touch gesture
+		Given Obsidian is running in mobile emulation
+		And horizontal scroll settings use nowrap with line numbers
+		And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+		When I send one horizontal touch drag to the first Live Preview code block
+		Then Live Preview should move horizontally during the same touch gesture
+		And the surrounding note should not move horizontally
+
+	@desktop
+	Scenario: Live Preview stops wheel scrolling at the right edge
     Given horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
     When I wheel overscroll the first code block past the right edge
