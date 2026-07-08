@@ -186,7 +186,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					this.syncBlockImmediate(blockId, scrollLeft);
 					return;
 				}
-				this.syncBlock(blockId, source.scrollLeft);
+				this.syncBlockImmediate(blockId, source.scrollLeft);
 			};
 
 			private readonly onWheel = (event: WheelEvent): void => {
@@ -200,7 +200,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				const normalizedDelta = this.normalizeWheelDelta(horizontalDelta, event.deltaMode, target.blockId);
 				this.cancelHorizontalGesture(event);
-				this.applyHorizontalGestureScroll(target.blockId, target.scrollLeft + normalizedDelta, false);
+				this.applyHorizontalGestureScroll(target.blockId, target.scrollLeft + normalizedDelta, true);
 			};
 
 			private readonly onPointerDown = (event: PointerEvent): void => {

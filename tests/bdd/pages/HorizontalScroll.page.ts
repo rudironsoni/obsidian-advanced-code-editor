@@ -176,6 +176,15 @@ export type HorizontalScrollPerformanceResult = {
 	state: HorizontalScrollState;
 };
 
+export type HorizontalScrollWheelLatencyResult = {
+	dispatchMs: number;
+	scrollLeftImmediatelyAfterDispatch: number;
+	scrollLeftAfterOneAnimationFrame: number;
+	noteScrollLeft: number;
+	documentScrollLeft: number;
+	state: HorizontalScrollState;
+};
+
 export type HorizontalScrollLineNumberLayoutComparison = {
 	livePreview: HorizontalScrollState;
 	reading: HorizontalScrollState;
@@ -790,6 +799,92 @@ class HorizontalScrollPage {
 		);
 		const state = await this.collectScrollState(mode, 'repeated-wheel-after');
 		return { metrics, state };
+	}
+
+	async measureFirstWheelLatency(mode: HorizontalScrollMode, blockIndex: number): Promise<HorizontalScrollWheelLatencyResult> {
+		const metrics = await executeObsidian(
+			async ({ app }, input: { mode: HorizontalScrollMode; blockIndex: number; deltaX: number }) => {
+				const runtimeApp = app as unknown as RuntimeApp;
+				const root =
+					runtimeApp.workspace.activeLeaf?.view?.containerEl ??
+					runtimeApp.workspace.activeLeaf?.view?.contentEl ??
+					document.querySelector('.workspace-leaf.mod-active') ??
+					document;
+				const noteScroller =
+					input.mode === 'reading' ? root.querySelector<HTMLElement>('.markdown-preview-view') : root.querySelector<HTMLElement>('.cm-scroller');
+				const scope = noteScroller ?? root;
+				const blockIds = new Set<string>();
+				for (const element of scope.querySelectorAll<HTMLElement>('[data-shiki-block-id]')) {
+					const blockId = element.dataset.shikiBlockId;
+					if (blockId) blockIds.add(blockId);
+				}
+				const blocks = [...blockIds]
+					.map(blockId => {
+						const escapedBlockId = CSS.escape(blockId);
+						const rows = [...scope.querySelectorAll<HTMLElement>(`.shiki-block-scroll-row[data-shiki-block-id="${escapedBlockId}"]`)];
+						const scrollbars = [
+							...scope.querySelectorAll<HTMLElement>(`.shiki-block-horizontal-scrollbar[data-shiki-block-id="${escapedBlockId}"]`),
+						];
+						return { blockId, rows, scrollbar: scrollbars[0] ?? null };
+					})
+					.filter(block => block.rows.length > 0 || block.scrollbar !== null);
+				const block = blocks[input.blockIndex];
+				if (!block) throw new Error(`Code block ${input.blockIndex + 1} was not found`);
+
+				const target = input.mode === 'live-preview' ? (block.rows[0] ?? block.scrollbar) : (block.scrollbar ?? block.rows[0]);
+				if (!target) throw new Error(`Code block ${input.blockIndex + 1} has no horizontal scroll target`);
+				for (const row of block.rows) {
+					row.scrollLeft = 0;
+				}
+				if (block.scrollbar) {
+					block.scrollbar.scrollLeft = 0;
+				}
+				if (noteScroller) {
+					noteScroller.scrollLeft = 0;
+				}
+				document.scrollingElement?.scrollTo({ left: 0 });
+
+				const rect = target.getBoundingClientRect();
+				const clientX = rect.left + Math.min(120, Math.max(8, rect.width / 2));
+				const clientY = rect.top + Math.min(10, Math.max(4, rect.height / 2));
+				await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+				const beforeDispatch = performance.now();
+				target.dispatchEvent(
+					new WheelEvent('wheel', {
+						bubbles: true,
+						cancelable: true,
+						clientX,
+						clientY,
+						deltaX: input.deltaX,
+					}),
+				);
+				const dispatchMs = performance.now() - beforeDispatch;
+				const scrollLeftImmediatelyAfterDispatch = Math.max(
+					0,
+					target.scrollLeft,
+					block.scrollbar?.scrollLeft ?? 0,
+					...block.rows.map(row => row.scrollLeft),
+				);
+				await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+				const scrollLeftAfterOneAnimationFrame = Math.max(
+					0,
+					target.scrollLeft,
+					block.scrollbar?.scrollLeft ?? 0,
+					...block.rows.map(row => row.scrollLeft),
+				);
+
+				return {
+					dispatchMs,
+					scrollLeftImmediatelyAfterDispatch,
+					scrollLeftAfterOneAnimationFrame,
+					noteScrollLeft: noteScroller?.scrollLeft ?? 0,
+					documentScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
+				};
+			},
+			{ mode, blockIndex, deltaX: 48 },
+		);
+		const state = await this.collectScrollState(mode, 'first-wheel-latency-after');
+		return { ...metrics, state };
 	}
 
 	async compareLineNumberLayoutWithReading(notePath: string): Promise<HorizontalScrollLineNumberLayoutComparison> {
