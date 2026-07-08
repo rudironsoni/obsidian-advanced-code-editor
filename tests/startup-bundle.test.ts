@@ -18,8 +18,8 @@ describe('startup bundle', () => {
 	test('startup JavaScript stays small enough for fast Obsidian activation', () => {
 		const bytes = statSync(new URL('../dist/main.js', import.meta.url)).size;
 
-		// Keep the mobile-safe single-file build on Shiki's smaller web bundle, not the full grammar bundle.
-		expect(bytes).toBeLessThanOrEqual(6 * 1024 * 1024);
+		// Keep the mobile-safe release as a single file while supporting the advertised Shiki language matrix.
+		expect(bytes).toBeLessThanOrEqual(16 * 1024 * 1024);
 	});
 
 	test('startup JavaScript is the real Obsidian plugin entrypoint', () => {
@@ -93,11 +93,8 @@ describe('startup bundle', () => {
 		expect(workflow).toContain("'chore/**'");
 		expect(workflow).toContain("'deps/**'");
 		expect(workflow).toContain('git fetch --tags --force');
-		expect(workflow).toContain('require("./package.json")');
-		expect(workflow).toContain('baseVersion');
-		expect(workflow).toContain('git tag --list');
-		expect(workflow).toContain('-beta\\.(\\d+)');
-		expect(workflow).toContain('beta.${latest ? latest.beta + 1 : 1}');
+		expect(workflow).toContain('id: beta-version');
+		expect(workflow).toContain('bun scripts/compute-beta-version.ts');
 		expect(workflow).toContain('Apply beta version to plugin manifests');
 		expect(workflow).toContain('BETA_VERSION: ${{ steps.beta-version.outputs.new_tag }}');
 		expect(workflow).not.toContain('git push origin HEAD:${{ github.ref_name }}');

@@ -1,9 +1,11 @@
 import { Decoration, type DecorationSet, type EditorView, type ViewUpdate } from '@codemirror/view';
-import { RangeSetBuilder, type Range } from '@codemirror/state';
+import { type Range } from '@codemirror/state';
+import { buildCm6ShikiTokenDecorations } from 'packages/obsidian/src/codemirror/Cm6_ShikiTokenDecorations';
+import { getCm6SourceViewRoot, resolveCm6SourcePath } from 'packages/obsidian/src/codemirror/Cm6_ViewContext';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
-import { getActiveTheme } from 'packages/obsidian/src/runtime/ThemeBridge';
+import { SHIKI_LIVE_PREVIEW_TOKEN_CLASS } from 'packages/obsidian/src/ShikiHighlighter';
 
 const LIVE_PREVIEW_ADAPTER_OWNER = '__shikiLivePreviewAdapterOwner';
 
@@ -58,7 +60,7 @@ export class LivePreviewAdapter {
 
 		this.livePreviewActive = true;
 
-		if (!update.docChanged && !update.viewportChanged) {
+		if (!update.docChanged && !update.viewportChanged && !update.focusChanged) {
 			return;
 		}
 
@@ -111,9 +113,10 @@ export class LivePreviewAdapter {
 
 	private rebuildBlocks(): void {
 		const parsed = this.parser.parseLivePreviewBlocks(this.collectLines());
+		const sourcePath = resolveCm6SourcePath(this.plugin, this.view);
 		this.blocks = parsed.map(block =>
 			this.plugin.codeBlockRegistry.createModel({
-				sourcePath: this.plugin.app.workspace.getActiveFile()?.path ?? '',
+				sourcePath,
 				hostMode: 'live-preview',
 				language: block.language,
 				meta: block.meta.raw.trim(),
@@ -162,59 +165,21 @@ export class LivePreviewAdapter {
 			return;
 		}
 
-		const theme = getActiveTheme(this.plugin);
-		const settingsSignature = JSON.stringify({ disabledLanguages: this.plugin.loadedSettings.disabledLanguages, theme });
-		const builder = new RangeSetBuilder<Decoration>();
 		const sourceViewRoot = this.getSourceViewRoot();
 		sourceViewRoot.style.removeProperty('--shiki-code-background');
-		for (const block of eligibleBlocks) {
-			const cached = this.plugin.sourceModeTokenizationCache.get({
-				sourcePath: block.sourcePath,
-				language: block.language,
-				theme,
-				contentHash: block.contentHash,
-				settingsSignature,
-			});
-			const highlight = cached ?? (await this.plugin.highlighter.getHighlightTokens(block.code, block.language));
-			if (!cached) {
-				this.plugin.sourceModeTokenizationCache.set(
-					{ sourcePath: block.sourcePath, language: block.language, theme, contentHash: block.contentHash, settingsSignature },
-					highlight,
-				);
-			}
-			if (requestId !== this.tokenizationRequest || !highlight) {
-				return;
-			}
-			const themeBackground = this.plugin.highlighter.getThemeBackground(highlight);
-			if (themeBackground) {
-				sourceViewRoot.style.setProperty('--shiki-code-background', themeBackground);
-			}
-			for (const lineTokens of highlight.tokens) {
-				for (const token of lineTokens) {
-					const from = block.codeFrom + token.offset;
-					const to = Math.min(from + token.content.length, block.codeTo);
-					if (to <= from) {
-						continue;
-					}
-					const tokenStyle = this.plugin.highlighter.getTokenStyle(token);
-					builder.add(
-						from,
-						to,
-						Decoration.mark({
-							attributes: {
-								style: tokenStyle.style,
-								class: tokenStyle.classes.join(' '),
-							},
-						}),
-					);
-				}
-			}
-		}
-
-		if (requestId !== this.tokenizationRequest) {
+		const result = await buildCm6ShikiTokenDecorations({
+			plugin: this.plugin,
+			blocks: eligibleBlocks,
+			tokenClassName: SHIKI_LIVE_PREVIEW_TOKEN_CLASS,
+			shouldContinue: () => requestId === this.tokenizationRequest,
+		});
+		if (!result || requestId !== this.tokenizationRequest) {
 			return;
 		}
-		this.editTokenDecorations = builder.finish();
+		if (result.themeBackground) {
+			sourceViewRoot.style.setProperty('--shiki-code-background', result.themeBackground);
+		}
+		this.editTokenDecorations = result.decorations;
 		this.refreshDecorationSet();
 		this.requestDecorationRefresh();
 	}
@@ -260,6 +225,6 @@ export class LivePreviewAdapter {
 	}
 
 	private getSourceViewRoot(): HTMLElement {
-		return this.view.dom.closest<HTMLElement>('.markdown-source-view.mod-cm6') ?? this.view.dom;
+		return getCm6SourceViewRoot(this.view);
 	}
 }

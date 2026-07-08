@@ -11,6 +11,7 @@ import {
 	type HorizontalScrollMode,
 	type HorizontalScrollPerformanceResult,
 	type HorizontalScrollState,
+	type HorizontalScrollWheelLatencyResult,
 } from '../pages/HorizontalScroll.page.js';
 import { obsidianApp } from '../pages/ObsidianApp.page.js';
 import { artifactDir, writeJsonArtifact } from '../support/artifacts.js';
@@ -21,6 +22,7 @@ let activeHorizontalScrollNotePath = '';
 let lastHorizontalScrollState: HorizontalScrollState | undefined;
 let lastExactEdit: ExactEditResult | undefined;
 let lastHorizontalScrollPerformance: HorizontalScrollPerformanceResult | undefined;
+let lastHorizontalScrollWheelLatency: HorizontalScrollWheelLatencyResult | undefined;
 let lastHorizontalScrollLineNumberLayout: HorizontalScrollLineNumberLayoutComparison | undefined;
 
 Given('the built Advanced Code Editor plugin is enabled in the fixture vault', async () => {
@@ -29,6 +31,14 @@ Given('the built Advanced Code Editor plugin is enabled in the fixture vault', a
 
 Given('the fixture note {string} is open in reading mode', async (notePath: string) => {
 	await obsidianApp.openFixtureInReadingMode(notePath);
+});
+
+Given('the fixture note {string} is open in Live Preview', async (notePath: string) => {
+	await obsidianApp.openFixtureInLivePreview(notePath);
+});
+
+Given('the fixture note {string} is open in raw Source mode', async (notePath: string) => {
+	await obsidianApp.openFixtureInSourceMode(notePath);
 });
 
 Given('Obsidian is running in mobile emulation', async () => {
@@ -46,6 +56,14 @@ When('Obsidian renders the active note', async () => {
 	await obsidianApp.waitForReadingRender(lastExpectedRenderText);
 });
 
+When('I collapse and expand the left sidebar', async () => {
+	await obsidianApp.collapseAndExpandLeftSidebar();
+});
+
+When('I move focus away from the note', async () => {
+	await obsidianApp.moveFocusAwayFromNote();
+});
+
 Then('the Advanced Code Editor plugin should be loaded from the built payload', async () => {
 	const state = await obsidianApp.waitForPluginLoaded();
 
@@ -60,8 +78,116 @@ Then('a visible Shiki code block should render {string}', async (expectedText: s
 	assert.equal(state.blocks, 1);
 	assert.ok(state.tokens > 0, 'expected syntax-highlighted token spans');
 	assert.ok(state.text.includes(expectedText), 'expected fixture code text');
+	assert.ok(!state.text.includes('```'), `expected rendered code text not to include Markdown fences: ${JSON.stringify(state)}`);
 	assert.ok(state.width > 80, 'expected visible block width');
 	assert.ok(state.height > 20, 'expected visible block height');
+});
+
+Then('Reading mode should color repeated C# generic type names consistently', async () => {
+	const state = await obsidianApp.getReadingRenderState();
+	const distinctListColors = new Set(state.csharpListTokenColors);
+
+	assert.ok(!state.text.includes('```'), `expected rendered code text not to include Markdown fences: ${JSON.stringify(state)}`);
+	assert.ok(state.text.includes('List<int[]> intervals'), `expected first C# generic declaration: ${JSON.stringify(state)}`);
+	assert.ok(state.text.includes('List<int[]> expectedResult'), `expected second C# generic declaration: ${JSON.stringify(state)}`);
+	assert.ok(state.text.includes('List<int[]> mergedIntervals'), `expected later C# generic declaration: ${JSON.stringify(state)}`);
+	assert.ok(state.csharpListTokenColors.length >= 3, `expected at least three Shiki-owned List tokens: ${JSON.stringify(state)}`);
+	assert.equal(distinctListColors.size, 1, `expected repeated C# List type tokens to use one color: ${JSON.stringify(state)}`);
+});
+
+Then('the Live Preview code block should style the full source text {string}', async (expectedText: string) => {
+	const state = await obsidianApp.waitForLivePreviewStyledSource(expectedText);
+
+	assert.ok(state.lines >= 1, 'expected at least one Live Preview code line');
+	assert.ok(state.tokens > 0, 'expected syntax-highlighted token spans');
+	assert.ok(state.text.includes(expectedText), 'expected Live Preview code text');
+	assert.ok(
+		compactSyntaxText(state.styledText).includes(compactSyntaxText(expectedText)),
+		`expected styled token text to include ${expectedText}, got ${JSON.stringify(state)}`,
+	);
+	assert.ok(state.distinctTokenColorCount >= 3, `expected several distinct Shiki token colors: ${JSON.stringify(state)}`);
+	assert.ok(state.visibleTokenCount >= 5, `expected visible Shiki token glyphs: ${JSON.stringify(state)}`);
+	assert.equal(state.transparentTokenCount, 0, `expected no transparent Shiki token colors: ${JSON.stringify(state)}`);
+	assert.ok(state.width > 80, 'expected visible Live Preview code line width');
+	assert.ok(state.height > 10, 'expected visible Live Preview code line height');
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `syntax-live-preview-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+});
+
+Then('the Live Preview code block should keep visible Shiki token colors for {string}', async (expectedText: string) => {
+	const state = await obsidianApp.waitForLivePreviewStyledSource(expectedText);
+
+	assert.ok(state.text.includes(expectedText), `expected Live Preview code text after layout change: ${JSON.stringify(state)}`);
+	assert.ok(state.distinctTokenColorCount >= 3, `expected several distinct Shiki token colors after layout change: ${JSON.stringify(state)}`);
+	assert.ok(state.visibleTokenCount >= 5, `expected visible Shiki token glyphs after layout change: ${JSON.stringify(state)}`);
+	assert.equal(state.transparentTokenCount, 0, `expected no transparent Shiki token colors after layout change: ${JSON.stringify(state)}`);
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `syntax-live-preview-layout-change-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+});
+
+Then('Live Preview fence rows should keep a visible editor cursor', async () => {
+	const state = await obsidianApp.getLivePreviewFenceCursorState();
+	const transparent = new Set(['', 'transparent', 'rgba(0, 0, 0, 0)']);
+	writeJsonArtifact(`live-preview-fence-cursor-${state.isMobile ? 'mobile' : 'desktop'}`, state);
+
+	for (const probe of [state.opening, state.closing]) {
+		assert.ok(probe.lineText.trim().startsWith('```'), `expected cursor probe to target a fence row: ${JSON.stringify(state)}`);
+		assert.equal(probe.fenceLineHasFenceClass, true, `expected probed editor line to be the fence row: ${JSON.stringify(state)}`);
+		assert.equal(transparent.has(probe.caretColor), false, `expected visible fence line caret color: ${JSON.stringify(state)}`);
+	}
+});
+
+Then('raw Source mode should keep C# fenced code editable with Shiki token colors for {string}', async (expectedText: string) => {
+	const state = await obsidianApp.waitForSourceModeShiki(expectedText);
+
+	assert.equal(state.rawFenceVisible, true, `expected raw Markdown fences to remain visible: ${JSON.stringify(state)}`);
+	assert.ok(state.text.includes(expectedText), `expected raw Source code text: ${JSON.stringify(state)}`);
+	assert.ok(state.pluginTokenCount > 0, `expected plugin-owned Shiki source tokens: ${JSON.stringify(state)}`);
+	assert.ok(state.distinctTokenColorCount >= 3, `expected several distinct Shiki source token colors: ${JSON.stringify(state)}`);
+	assert.ok(state.visibleTokenCount >= 5, `expected visible Shiki source token glyphs: ${JSON.stringify(state)}`);
+	assert.equal(state.transparentTokenCount, 0, `expected no transparent Shiki source token colors: ${JSON.stringify(state)}`);
+	assert.equal(state.monacoEditorCount, 0, `expected Source mode not to mount Monaco: ${JSON.stringify(state)}`);
+	assert.equal(state.renderedBlockChromeCount, 0, `expected Source mode not to render block chrome: ${JSON.stringify(state)}`);
+	assert.equal(state.internalLineNumberCount, 0, `expected Source mode not to render internal line numbers: ${JSON.stringify(state)}`);
+	assert.equal(state.blockScrollRowCount, 0, `expected Source mode not to use rendered block scroll rows: ${JSON.stringify(state)}`);
+	assert.equal(state.blockScrollbarCount, 0, `expected Source mode not to render block scrollbar: ${JSON.stringify(state)}`);
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `syntax-source-mode-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+});
+
+Then('raw Source mode background should match the selected Shiki theme', async () => {
+	const state = await obsidianApp.getSourceModeSyntaxState();
+
+	assert.ok(state.activeTheme, `expected active Shiki theme id: ${JSON.stringify(state)}`);
+	assert.ok(state.expectedThemeBackground, `expected Shiki theme background for ${state.activeTheme}: ${JSON.stringify(state)}`);
+	assert.equal(state.backgroundMatchesExpected, true, `expected Source Mode background to match ${state.activeTheme}: ${JSON.stringify(state)}`);
+});
+
+Then('the syntax language matrix should have Shiki-owned token colors in {word}', async (mode: 'reading' | 'live-preview' | 'source') => {
+	const state = await obsidianApp.waitForSyntaxLanguageMatrix(mode);
+
+	for (const probe of state.probes) {
+		assert.equal(probe.linePresent, true, `expected ${probe.language} source line in ${mode}: ${JSON.stringify(probe)}`);
+		assert.ok(probe.pluginTokenCount >= probe.needles.length, `expected plugin-owned tokens for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`);
+		assert.ok(probe.distinctTokenColorCount >= 2, `expected multiple Shiki token colors for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`);
+		assert.equal(probe.transparentTokenCount, 0, `expected no transparent Shiki tokens for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`);
+		assert.ok(probe.visibleTokenCount >= probe.needles.length, `expected visible Shiki tokens for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`);
+		for (const needle of probe.needles) {
+			assert.equal(needle.found, true, `expected Shiki-owned token ${needle.needle} for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`);
+			assert.equal(
+				needle.visible,
+				true,
+				`expected visible Shiki-owned token ${needle.needle} for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`,
+			);
+			assert.equal(
+				needle.transparent,
+				false,
+				`expected non-transparent Shiki-owned token ${needle.needle} for ${probe.language} in ${mode}: ${JSON.stringify(probe)}`,
+			);
+		}
+	}
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `syntax-language-matrix-${mode}-${state.isMobile ? 'mobile' : 'desktop'}.png`));
 });
 
 Given('the horizontal scroll fixture notes are reset', async () => {
@@ -151,10 +277,37 @@ When('I edit the raw Source mode horizontal scroll marker', async () => {
 });
 
 When('I repeatedly scroll the first code block horizontally with wheel gestures', async () => {
+	let referenceMetrics: HorizontalScrollPerformanceResult['metrics'] | undefined;
+	if (activeHorizontalScrollMode === 'live-preview' && activeHorizontalScrollNotePath) {
+		await horizontalScrollPage.openFixture(activeHorizontalScrollNotePath, 'reading');
+		await horizontalScrollPage.waitForHorizontalScrollReady('reading', 1, true);
+		await horizontalScrollPage.resetScrollPositions('reading');
+		referenceMetrics = (await horizontalScrollPage.measureRepeatedWheelScroll('reading', 0)).metrics;
+		await horizontalScrollPage.openFixture(activeHorizontalScrollNotePath, 'live-preview');
+		await horizontalScrollPage.waitForHorizontalScrollReady('live-preview', 1, true);
+		activeHorizontalScrollMode = 'live-preview';
+	}
 	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
 	lastHorizontalScrollPerformance = await horizontalScrollPage.measureRepeatedWheelScroll(activeHorizontalScrollMode, 0);
+	lastHorizontalScrollPerformance.referenceMetrics = referenceMetrics;
 	lastHorizontalScrollState = lastHorizontalScrollPerformance.state;
 	writeJsonArtifact(`horizontal-scroll-${activeHorizontalScrollMode}-wheel-performance`, lastHorizontalScrollPerformance);
+});
+
+When('I repeatedly scroll the first code block horizontally with touch gestures', async () => {
+	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected repeated touch performance check to run in Live Preview');
+	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
+	lastHorizontalScrollPerformance = await horizontalScrollPage.measureRepeatedTouchScroll(activeHorizontalScrollMode, 0);
+	lastHorizontalScrollState = lastHorizontalScrollPerformance.state;
+	writeJsonArtifact(`horizontal-scroll-${activeHorizontalScrollMode}-touch-performance`, lastHorizontalScrollPerformance);
+});
+
+When('I send one horizontal wheel event to the first Live Preview code block', async () => {
+	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected first-wheel latency check to run in Live Preview');
+	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
+	lastHorizontalScrollWheelLatency = await horizontalScrollPage.measureFirstWheelLatency(activeHorizontalScrollMode, 0);
+	lastHorizontalScrollState = lastHorizontalScrollWheelLatency.state;
+	writeJsonArtifact('horizontal-scroll-live-preview-first-wheel-latency', lastHorizontalScrollWheelLatency);
 });
 
 When('I wheel overscroll the first code block past the right edge', async () => {
@@ -205,15 +358,50 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	const first = state.blocks[0];
 	assert.ok(first, `expected a first code block after performance scroll: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.mode, 'live-preview', `expected Live Preview mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
-	assert.ok(metrics.eventCount >= 55, `expected at least 55 measured wheel events: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
-	assert.ok(metrics.p95DispatchMs <= 12, `expected p95 wheel dispatch under 12ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
-	assert.ok(metrics.maxDispatchMs <= 50, `expected max wheel dispatch under 50ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(metrics.eventCount >= 55, `expected at least 55 measured scroll events: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(metrics.p95DispatchMs <= 12, `expected p95 scroll dispatch under 12ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(metrics.maxDispatchMs <= 50, `expected max scroll dispatch under 50ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(
+		(lastHorizontalScrollPerformance.responsivenessProbeMs ?? 0) <= 80,
+		`expected post-scroll responsiveness probe under 80ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+	);
+	if (lastHorizontalScrollPerformance.referenceMetrics) {
+		const reference = lastHorizontalScrollPerformance.referenceMetrics;
+		assert.ok(
+			metrics.p95DispatchMs <= Math.max(8, reference.p95DispatchMs * 3 + 2),
+			`expected Live Preview p95 dispatch to stay near Reading mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+		);
+		assert.ok(
+			metrics.maxFrameGapMs <= Math.max(120, reference.maxFrameGapMs * 3 + 20),
+			`expected Live Preview frame gaps not to regress far beyond Reading mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+		);
+	}
 	assert.equal(metrics.backtrackCount, 0, `expected horizontal scroll not to jump backward: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(metrics.maxBacktrackPx, 0, `expected no horizontal scroll backtrack distance: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(first.scrollLeft > 0, `expected first block to scroll horizontally: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assertLivePreviewBlockUsesSharedRowScroll(state, first);
+});
+
+Then('Live Preview should move horizontally during the same wheel event', async () => {
+	assert.ok(lastHorizontalScrollWheelLatency, 'expected Live Preview first-wheel latency result');
+	const result = lastHorizontalScrollWheelLatency;
+	const first = result.state.blocks[0];
+	assert.ok(first, `expected a first code block after first wheel event: ${JSON.stringify(result)}`);
+	assert.equal(result.state.mode, 'live-preview', `expected Live Preview mode: ${JSON.stringify(result)}`);
+	assert.ok(
+		result.scrollLeftImmediatelyAfterDispatch > 0,
+		`expected first wheel event to move block before the next animation frame: ${JSON.stringify(result)}`,
+	);
+	assert.ok(
+		result.scrollLeftAfterOneAnimationFrame >= result.scrollLeftImmediatelyAfterDispatch,
+		`expected scroll position not to regress after one animation frame: ${JSON.stringify(result)}`,
+	);
+	assert.ok(result.dispatchMs <= 12, `expected first wheel dispatch under 12ms: ${JSON.stringify(result)}`);
+	assert.equal(result.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(result)}`);
+	assert.equal(result.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(result)}`);
+	assertLivePreviewBlockUsesSharedRowScroll(result.state, first);
 });
 
 Then('the first Live Preview code block should remain at its horizontal end', async () => {
@@ -255,6 +443,26 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 		`expected Live Preview gutter/code gap to match Reading mode: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`,
 	);
 	const layoutJson = JSON.stringify(lastHorizontalScrollLineNumberLayout);
+	assert.equal(
+		livePreviewBlock.gutterBorderRightWidth,
+		readingBlock.gutterBorderRightWidth,
+		`expected Live Preview gutter separator width to match Reading mode: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.gutterBorderRightColor,
+		readingBlock.gutterBorderRightColor,
+		`expected Live Preview gutter separator color to match Reading mode: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.gutterMaskBorderLeftWidth,
+		readingBlock.gutterBorderRightWidth,
+		`expected Live Preview gutter mask to preserve the separator width: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.gutterMaskBorderLeftColor,
+		readingBlock.gutterBorderRightColor,
+		`expected Live Preview gutter mask to preserve the separator color: ${layoutJson}`,
+	);
 	const liveHeader = {
 		right: livePreviewBlock.headerRight,
 		height: livePreviewBlock.headerHeight,
@@ -273,6 +481,41 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	};
 	assert.equal(livePreviewBlock.headerDisplay, 'flex', `expected Live Preview block header to use flex layout: ${layoutJson}`);
 	assert.equal(livePreviewBlock.headerFlexDirection, 'row', `expected Live Preview block header to use row layout: ${layoutJson}`);
+	assert.equal(
+		livePreviewBlock.headerBorderTopWidth,
+		readingBlock.rootBorderTopWidth,
+		`expected Live Preview header top border width to match Reading mode block: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.headerBorderTopColor,
+		readingBlock.rootBorderTopColor,
+		`expected Live Preview header border color to match Reading mode block: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.headerBorderLeftWidth,
+		readingBlock.rootBorderTopWidth,
+		`expected Live Preview header left border to be visible: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.headerBorderRightWidth,
+		readingBlock.rootBorderTopWidth,
+		`expected Live Preview header right border to be visible: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.rowBorderLeftWidth,
+		readingBlock.rootBorderTopWidth,
+		`expected Live Preview row left border to continue the block shell: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.rowBorderRightWidth,
+		readingBlock.rootBorderTopWidth,
+		`expected Live Preview row right border to continue the block shell: ${layoutJson}`,
+	);
+	assert.equal(
+		livePreviewBlock.rowBorderRightColor,
+		readingBlock.rootBorderTopColor,
+		`expected Live Preview row border color to match Reading mode block: ${layoutJson}`,
+	);
 	if (
 		liveHeader.right === null ||
 		liveHeader.height === null ||
@@ -291,6 +534,14 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	}
 	assert.ok(Math.abs(liveHeader.height - readingHeader.height) <= 2, `expected Live Preview block header height to match Reading mode: ${layoutJson}`);
 	assert.ok(Math.abs(liveHeader.right - readingHeader.right) <= 2, `expected Live Preview block header right edge to match Reading mode: ${layoutJson}`);
+	assert.ok(
+		livePreviewBlock.rowLeft !== null && livePreviewBlock.headerLeft !== null && Math.abs(livePreviewBlock.rowLeft - livePreviewBlock.headerLeft) <= 1,
+		`expected Live Preview row left edge to align with header left edge: ${layoutJson}`,
+	);
+	assert.ok(
+		livePreviewBlock.rowRight !== null && livePreviewBlock.headerRight !== null && Math.abs(livePreviewBlock.rowRight - livePreviewBlock.headerRight) <= 1,
+		`expected Live Preview row right edge to align with header right edge: ${layoutJson}`,
+	);
 	assert.ok(
 		Math.abs(liveHeader.copyRight - liveHeader.right - (readingHeader.copyRight - readingHeader.right)) <= 2,
 		`expected Live Preview Copy button right padding to match Reading mode: ${layoutJson}`,
@@ -334,6 +585,7 @@ Then('raw Source mode should stay native without rendered block chrome', async (
 	assert.equal(state.sourceInternalLineNumberCount, 0, `expected Source mode not to render internal block line numbers: ${JSON.stringify(state)}`);
 	assert.equal(state.sourceBlockScrollRowCount, 0, `expected Source mode rows not to use rendered block scroll classes: ${JSON.stringify(state)}`);
 	assert.equal(state.sourceBlockScrollbarCount, 0, `expected Source mode not to render a block scrollbar widget: ${JSON.stringify(state)}`);
+	assert.ok(state.sourceShikiTokenDecorationCount > 0, `expected Source mode fenced code to receive plugin Shiki token colors: ${JSON.stringify(state)}`);
 	assert.equal(state.blockCount, 0, `expected Source mode not to expose plugin-owned rendered blocks: ${JSON.stringify(state)}`);
 	assert.equal(state.noteScrollLeft, 0, `expected Source editor scrollLeft to remain 0 at rest: ${JSON.stringify(state)}`);
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0 at rest: ${JSON.stringify(state)}`);
@@ -438,4 +690,8 @@ function assertLivePreviewCodeTextVisible(state: HorizontalScrollState, block: H
 			`expected short Live Preview row not to drift from the block rows: ${JSON.stringify(state)}`,
 		);
 	}
+}
+
+function compactSyntaxText(text: string): string {
+	return text.replace(/\s+/g, '');
 }

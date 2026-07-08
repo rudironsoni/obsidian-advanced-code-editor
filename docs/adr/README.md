@@ -9,3 +9,4 @@ Architecture decision records repository.
 - `0005-mobile-coverage-is-emulated-until-device-automation-exists.md`: label mobile coverage as service-booted desktop Obsidian mobile emulation until real device automation exists.
 - `0006-pr-only-gui-bdd-ci.md`: run GUI WDIO BDD on pull requests, `master`, and manual dispatch, not on every branch push.
 - `0007-live-preview-native-gutter-and-row-scroll.md`: keep native Obsidian note gutters visible and synchronize Live Preview code rows so short and long lines scroll together.
+- `0008-native-api-scroll-performance.md`: improve Live Preview horizontal-scroll responsiveness through native row scroll, CodeMirror event and measurement APIs, and hard performance regression gates.

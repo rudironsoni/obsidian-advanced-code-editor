@@ -1,117 +1,90 @@
-import { type Range } from '@codemirror/state';
 import { Decoration, type DecorationSet, type EditorView, type ViewUpdate } from '@codemirror/view';
+import { buildCm6ShikiTokenDecorations } from 'packages/obsidian/src/codemirror/Cm6_ShikiTokenDecorations';
+import { getCm6SourceViewRoot, resolveCm6SourcePath } from 'packages/obsidian/src/codemirror/Cm6_ViewContext';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
-import { getActiveTheme } from 'packages/obsidian/src/runtime/ThemeBridge';
+import { SHIKI_SOURCE_TOKEN_CLASS } from 'packages/obsidian/src/ShikiHighlighter';
 
 export class SourceModeAdapter {
 	decorations: DecorationSet = Decoration.none;
-	private readonly plugin: ShikiPlugin;
-	private readonly requestDecorationRefresh: () => void;
 	private readonly parser = new CodeBlockParser();
-	private readonly view: EditorView;
 	private tokenizationRequest = 0;
 
-	constructor(plugin: ShikiPlugin, view: EditorView, requestDecorationRefresh: () => void) {
-		this.plugin = plugin;
-		this.requestDecorationRefresh = requestDecorationRefresh;
-		this.view = view;
-	}
+	constructor(
+		private readonly plugin: ShikiPlugin,
+		private readonly view: EditorView,
+		private readonly requestDecorationRefresh: () => void,
+	) {}
 
 	update(update: ViewUpdate, isLivePreview: boolean): void {
 		if (!this.plugin.isCurrentInstance()) {
-			this.decorations = Decoration.none;
+			this.clearDecorations();
 			return;
 		}
 		this.decorations = this.decorations.map(update.changes);
 		if (isLivePreview) {
-			this.decorations = Decoration.none;
+			this.clearDecorations();
 			return;
 		}
-		if (update.docChanged || update.viewportChanged) {
+		if (update.docChanged || update.viewportChanged || update.focusChanged) {
 			void this.retokenize();
 		}
 	}
 
 	async retokenize(): Promise<void> {
 		if (!this.plugin.isCurrentInstance()) {
-			this.decorations = Decoration.none;
+			this.clearDecorations();
 			return;
 		}
+
 		const requestId = ++this.tokenizationRequest;
-		const lines = this.collectLines();
-		const parsed = this.parser.parseLivePreviewBlocks(lines);
+		const parsed = this.parser.parseLivePreviewBlocks(this.collectLines());
 		const visibleBlocks = parsed
 			.map(block => this.toSourceBlock(block))
 			.filter((block): block is CodeBlockModel & { codeFrom: number; codeTo: number } => block.codeFrom !== undefined && block.codeTo !== undefined)
 			.filter(block => block.codeTo >= this.view.viewport.from && block.codeFrom <= this.view.viewport.to)
 			.filter(block => block.language && !this.plugin.loadedSettings.disabledLanguages.includes(block.language));
 
-		const ranges: Range<Decoration>[] = [];
-		const theme = getActiveTheme(this.plugin);
-		const settingsSignature = JSON.stringify({ disabledLanguages: this.plugin.loadedSettings.disabledLanguages, theme });
-		const sourceViewRoot = this.view.dom.closest<HTMLElement>('.markdown-source-view.mod-cm6');
-		sourceViewRoot?.style.removeProperty('--shiki-code-background');
-
-		for (const block of visibleBlocks) {
-			const cached = this.plugin.sourceModeTokenizationCache.get({
-				sourcePath: block.sourcePath,
-				language: block.language,
-				theme,
-				contentHash: block.contentHash,
-				settingsSignature,
-			});
-			const highlight = cached ?? (await this.plugin.highlighter.getHighlightTokens(block.code, block.language));
-			if (!cached) {
-				this.plugin.sourceModeTokenizationCache.set(
-					{
-						sourcePath: block.sourcePath,
-						language: block.language,
-						theme,
-						contentHash: block.contentHash,
-						settingsSignature,
-					},
-					highlight,
-				);
-			}
-			if (requestId !== this.tokenizationRequest || !highlight || block.codeFrom === undefined || block.codeTo === undefined) {
-				continue;
-			}
-			const themeBackground = this.plugin.highlighter.getThemeBackground(highlight);
-			if (themeBackground) {
-				sourceViewRoot?.style.setProperty('--shiki-code-background', themeBackground);
-			}
-			for (const lineTokens of highlight.tokens) {
-				for (const token of lineTokens) {
-					const from = block.codeFrom + token.offset;
-					const to = Math.min(from + token.content.length, block.codeTo);
-					if (to <= from) {
-						continue;
-					}
-					const tokenStyle = this.plugin.highlighter.getTokenStyle(token);
-					ranges.push(
-						Decoration.mark({
-							attributes: {
-								style: tokenStyle.style,
-								class: tokenStyle.classes.join(' '),
-							},
-						}).range(from, to),
-					);
-				}
-			}
-		}
-
-		if (requestId !== this.tokenizationRequest) {
+		const result = await buildCm6ShikiTokenDecorations({
+			plugin: this.plugin,
+			blocks: visibleBlocks,
+			tokenClassName: SHIKI_SOURCE_TOKEN_CLASS,
+			shouldContinue: () => requestId === this.tokenizationRequest,
+		});
+		if (!result || requestId !== this.tokenizationRequest) {
 			return;
 		}
-		this.decorations = ranges.length ? Decoration.set(ranges, true) : Decoration.none;
+		this.decorations = result.decorations;
+		this.applySourceModeBackground(result.themeBackground);
 		this.requestDecorationRefresh();
 	}
 
 	destroy(): void {
 		this.tokenizationRequest++;
 		this.decorations = Decoration.none;
+		this.clearSourceModeBackground();
+	}
+
+	private clearDecorations(): void {
+		this.tokenizationRequest++;
+		this.decorations = Decoration.none;
+	}
+
+	private clearSourceModeBackground(): void {
+		this.applySourceModeBackground(undefined);
+	}
+
+	private applySourceModeBackground(themeBackground: string | undefined): void {
+		const sourceViewRoot = getCm6SourceViewRoot(this.view);
+		if (sourceViewRoot.classList.contains('is-live-preview')) {
+			return;
+		}
+		if (themeBackground) {
+			sourceViewRoot.style.setProperty('--shiki-code-background', themeBackground);
+			return;
+		}
+		sourceViewRoot.style.removeProperty('--shiki-code-background');
 	}
 
 	private collectLines(): CodeBlockLineInfo[] {
@@ -125,7 +98,7 @@ export class SourceModeAdapter {
 
 	private toSourceBlock(parsed: ReturnType<CodeBlockParser['parseLivePreviewBlocks']>[number]): CodeBlockModel {
 		return this.plugin.codeBlockRegistry.createModel({
-			sourcePath: this.plugin.app.workspace.getActiveFile()?.path ?? '',
+			sourcePath: resolveCm6SourcePath(this.plugin, this.view),
 			hostMode: 'source',
 			language: parsed.language,
 			meta: parsed.meta.raw.trim(),

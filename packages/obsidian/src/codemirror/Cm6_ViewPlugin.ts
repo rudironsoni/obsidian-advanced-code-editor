@@ -1,7 +1,7 @@
 import { Prec, type Range } from '@codemirror/state';
 import { Decoration, ViewPlugin, type EditorView, type ViewUpdate } from '@codemirror/view';
-import { editorLivePreviewField } from 'obsidian';
 import { Cm6_Util } from 'packages/obsidian/src/codemirror/Cm6_Util';
+import { isCm6LivePreview } from 'packages/obsidian/src/codemirror/Cm6_ViewContext';
 import { createBlockHorizontalScrollPlugin } from 'packages/obsidian/src/codemirror/BlockHorizontalScroll';
 import { SHIKI_INLINE_REGEX } from 'packages/obsidian/src/InlineCodeRegex';
 import type ShikiPlugin from 'packages/obsidian/src/main';
@@ -102,7 +102,7 @@ export function createCm6Plugin(plugin: ShikiPlugin) {
 			}
 
 			private isLivePreview(state: EditorView['state']): boolean {
-				return state.field(editorLivePreviewField) || this.view.dom.closest('.markdown-source-view.mod-cm6.is-live-preview') !== null;
+				return isCm6LivePreview(this.view, state);
 			}
 
 			private refreshDecorations(): void {

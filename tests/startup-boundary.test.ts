@@ -75,6 +75,8 @@ describe('startup module boundary', () => {
 		expect(cm6Plugin).not.toContain('update.docChanged || update.viewportChanged || update.selectionSet');
 		expect(livePreview).not.toContain('!update.docChanged && !update.viewportChanged && !update.selectionSet');
 		expect(sourceMode).not.toContain('update.docChanged || update.viewportChanged || update.selectionSet');
+		expect(livePreview).toContain('!update.docChanged && !update.viewportChanged && !update.focusChanged');
+		expect(sourceMode).toContain('update.docChanged || update.viewportChanged || update.focusChanged');
 	});
 
 	test('live preview adapter owns a single widget overlay per editor view', () => {
@@ -92,14 +94,22 @@ describe('startup module boundary', () => {
 
 	test('source mode applies Shiki token offsets directly from code block start', () => {
 		const sourceMode = read('packages/obsidian/src/modes/SourceModeAdapter.ts');
+		const cm6Tokens = read('packages/obsidian/src/codemirror/Cm6_ShikiTokenDecorations.ts');
 
 		expect(sourceMode).not.toContain('highlight.tokens.flat(1)');
 		expect(sourceMode).not.toContain('let lineOffset = 0');
-		expect(sourceMode).toContain('block.codeFrom + token.offset');
+		expect(sourceMode).toContain('buildCm6ShikiTokenDecorations');
+		expect(sourceMode).toContain('SHIKI_SOURCE_TOKEN_CLASS');
+		expect(cm6Tokens).toContain('plugin.highlighter.getTokenSegments(block.code, highlight.tokens)');
+		expect(cm6Tokens).toContain('block.codeFrom + segment.from');
+		expect(cm6Tokens).toContain('block.codeFrom + segment.to');
+		expect(cm6Tokens).toContain('plugin.highlighter.getTokenStyle(segment.token)');
+		expect(cm6Tokens).toContain('Decoration.mark');
+		expect(cm6Tokens).toContain('builder.finish()');
+		expect(cm6Tokens).toContain('plugin.highlighter.getThemeBackground(highlight)');
+		expect(sourceMode).toContain("sourceViewRoot.style.setProperty('--shiki-code-background', themeBackground)");
+		expect(sourceMode).not.toContain('token.content.length');
 		expect(sourceMode).not.toContain('lineOffset += this.lineLength(block.code, lineOffset) + 1');
-		expect(sourceMode).toContain('this.plugin.highlighter.getTokenStyle(token)');
-		expect(sourceMode).toContain('Decoration.set(ranges, true)');
-		expect(sourceMode).not.toContain('RangeSetBuilder');
 	});
 
 	test('language listing is static and startup-safe', () => {
@@ -108,7 +118,7 @@ describe('startup module boundary', () => {
 		const metadata = read('packages/obsidian/src/runtime/LanguageMetadata.ts');
 
 		expect(highlighter).toContain('getObsidianSafeLanguageNames');
-		expect(highlighter).toContain("await import('shiki/bundle/web')");
+		expect(highlighter).toContain("await import('shiki/bundle/full')");
 		expect(highlighter).not.toContain("await import('shiki')");
 		expect(main).toContain('getObsidianSafeLanguageNames()');
 		expect(main).not.toContain("from 'shiki'");
@@ -144,21 +154,27 @@ describe('startup module boundary', () => {
 	test('live preview preserves native CodeMirror rows', () => {
 		const livePreview = read('packages/obsidian/src/modes/LivePreviewAdapter.ts');
 		const structure = read('packages/obsidian/src/modes/LivePreviewStructureExtension.ts');
+		const cm6Tokens = read('packages/obsidian/src/codemirror/Cm6_ShikiTokenDecorations.ts');
 		expect(livePreview).not.toContain('new ShikiLivePreviewWidget');
 		expect(structure).not.toContain('BlockWrapper');
 		expect(structure).not.toContain('blockWrappers');
 		expect(structure).not.toContain('ShikiLivePreviewBlockWidget');
-		expect(structure).toContain('Decoration.replace');
+		expect(structure).not.toContain('Decoration.replace');
 		expect(structure).toContain('shiki-live-preview-code-line');
 		expect(structure).toContain('shiki-live-preview-fence-line');
-		expect(structure).toContain('ShikiLivePreviewFenceWidget');
+		expect(structure).toContain('SHIKI_LIVE_PREVIEW_FENCE_TEXT_CLASS');
 		expect(structure).toContain('ShikiLivePreviewHeaderWidget');
 		expect(structure).toContain('ShikiLivePreviewLineNumberWidget');
 		expect(structure).not.toContain('isBlockSelected');
 		expect(structure).not.toContain('shiki-note-line-numbers');
-		expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged)');
+		expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged && !update.focusChanged)');
 		expect(livePreview).toContain('retokenizeBlocks');
-		expect(livePreview).toContain('this.plugin.highlighter.getTokenStyle(token)');
+		expect(livePreview).toContain('buildCm6ShikiTokenDecorations');
+		expect(cm6Tokens).toContain('plugin.highlighter.getTokenSegments(block.code, highlight.tokens)');
+		expect(cm6Tokens).toContain('block.codeFrom + segment.from');
+		expect(cm6Tokens).toContain('block.codeFrom + segment.to');
+		expect(cm6Tokens).toContain('plugin.highlighter.getTokenStyle(segment.token)');
+		expect(livePreview).not.toContain('token.content.length');
 		expect(livePreview).not.toContain('shiki-editing-codeblock-active-line');
 		expect(livePreview).not.toContain('syncActiveLineHorizontalScroll');
 		expect(livePreview).not.toContain('otherLine.scrollLeft = line.scrollLeft');
@@ -197,18 +213,23 @@ test('Live Preview refreshes Shiki widgets when editor mode toggles', () => {
 	expect(livePreview).toContain('new MutationObserver(this.handleModeClassChange)');
 	expect(livePreview).toContain('this.modeClassObserver.disconnect();');
 	expect(cm6).toContain('this.livePreviewAdapter.refreshForModeChange();');
-	expect(cm6).toContain("this.view.dom.closest('.markdown-source-view.mod-cm6.is-live-preview') !== null");
+	expect(cm6).toContain('isCm6LivePreview(this.view, state)');
+	expect(read('packages/obsidian/src/codemirror/Cm6_ViewContext.ts')).toContain('state.field(editorLivePreviewField, false)');
 });
 
 test('plugin refreshes editor integration after workspace mode/layout changes', () => {
 	const main = read('packages/obsidian/src/main.ts');
 
 	expect(main).toContain('const refreshEditorIntegration = debounce(');
-	expect(main).toContain('() => {');
+	expect(main).toContain('force = false');
+	expect(main).toContain('this.refreshEditorIntegrationIfChanged(force === true);');
+	expect(main).toContain('refreshEditorIntegrationIfChanged(force = false): void');
+	expect(main).toContain('signature === this.lastEditorIntegrationSignature');
+	expect(main).toContain('this.app.workspace.getActiveFile?.()?.path');
 	expect(main).toContain('void this.updateCm6Plugin?.();');
-	expect(main).toContain("this.registerEvent(this.app.workspace.on('layout-change', refreshEditorIntegration));");
-	expect(main).toContain("this.registerEvent(this.app.workspace.on('active-leaf-change', refreshEditorIntegration));");
-	expect(main).toContain("this.registerEvent(this.app.workspace.on('file-open', refreshEditorIntegration));");
+	expect(main).toContain("this.registerEvent(this.app.workspace.on('layout-change', () => refreshEditorIntegration(false)));");
+	expect(main).toContain("this.registerEvent(this.app.workspace.on('active-leaf-change', () => refreshEditorIntegration(true)));");
+	expect(main).toContain("this.registerEvent(this.app.workspace.on('file-open', () => refreshEditorIntegration(true)));");
 	expect(main).toContain('const livePreviewModeObserver = new MutationObserver(');
 	expect(main).toContain('mutations => {');
 	expect(main).toContain(
@@ -226,7 +247,7 @@ test('ShikiHighlighter does not depend on Monaco runtime', () => {
 	expect(highlighter).not.toContain('Monaco');
 	expect(highlighter).not.toContain('modern-monaco');
 	expect(highlighter).toContain('createHighlighter');
-	expect(highlighter).toContain("await import('shiki/bundle/web')");
+	expect(highlighter).toContain("await import('shiki/bundle/full')");
 	expect(highlighter).toContain('codeToTokens');
 });
 
@@ -237,7 +258,7 @@ test('styles contain Shiki block styles and no Monaco styles', () => {
 	expect(styles).toContain('.shiki-block-header');
 	expect(styles).toContain('.shiki-block-body');
 	expect(styles).not.toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-scroller');
-	expect(styles).not.toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line');
+	expect(styles).toContain('.markdown-source-view.mod-cm6:not(.is-live-preview) .cm-line.HyperMD-codeblock');
 	expect(styles).not.toContain('--shiki-editing-scroll-left');
 	expect(styles).not.toContain('--shiki-live-preview-scroll-left');
 	expect(styles).not.toContain('.shiki-live-preview-horizontal-scroll');
@@ -246,6 +267,7 @@ test('styles contain Shiki block styles and no Monaco styles', () => {
 	expect(styles).toContain('.cm-line.shiki-live-preview-fence-line');
 	expect(styles).toContain('background: var(--shiki-code-background);');
 	expect(styles).toContain('-webkit-text-fill-color: transparent;');
+	expect(styles).toContain('caret-color: var(--text-normal);');
 	expect(styles).toContain('overflow-x: visible');
 	expect(styles).toContain('body.shiki-use-editor-font-size .shiki-live-preview-block .shiki-block-body');
 	expect(styles).toContain('font-size: var(--font-text-size);');

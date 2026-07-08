@@ -1,11 +1,11 @@
 {
-  "version": 1,
-  "hooks": {
-    "sessionStart": [
-      {
-        "type": "command",
-        "bash": "echo 'obsidian-advanced-code-editor harness active | Desktop + Mobile emulation | MCPs: obsidian-cli, wdio-mcp'"
-      }
-    ]
-  }
+	"version": 1,
+	"hooks": {
+		"sessionStart": [
+			{
+				"type": "command",
+				"bash": "echo 'obsidian-advanced-code-editor harness active | Desktop + Mobile emulation | MCPs: obsidian-cli, wdio-mcp'"
+			}
+		]
+	}
 }

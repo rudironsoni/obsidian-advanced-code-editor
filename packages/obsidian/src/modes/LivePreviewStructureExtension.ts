@@ -5,11 +5,13 @@ import {
 	createBlockHorizontalScrollSpacerDecoration,
 	SHIKI_BLOCK_SCROLL_ROW_CLASS,
 } from 'packages/obsidian/src/codemirror/BlockHorizontalScroll';
+import { isActiveLeafLivePreview, isLivePreviewState } from 'packages/obsidian/src/codemirror/Cm6_ViewContext';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
 
 const SHIKI_LIVE_PREVIEW_CODE_CONTENT_CLASS = 'shiki-live-preview-code-content';
+const SHIKI_LIVE_PREVIEW_FENCE_TEXT_CLASS = 'shiki-live-preview-fence-text';
 
 interface LivePreviewStructureState {
 	decorations: DecorationSet;
@@ -85,38 +87,11 @@ class ShikiLivePreviewLineNumberWidget extends WidgetType {
 	}
 }
 
-class ShikiLivePreviewFenceWidget extends WidgetType {
-	constructor(private readonly text: string) {
-		super();
-	}
-
-	eq(other: ShikiLivePreviewFenceWidget): boolean {
-		return other.text === this.text;
-	}
-
-	toDOM(): HTMLElement {
-		const span = document.createElement('span');
-		span.className = 'shiki-live-preview-fence-text';
-		span.textContent = this.text;
-		return span;
-	}
-
-	ignoreEvent(): boolean {
-		return false;
-	}
-}
-
-function openingFenceText(block: CodeBlockModel): string {
-	const fence = block.openingFence ?? '```';
-	const meta = block.meta.trim();
-	return `${fence}${block.language}${meta ? ` ${meta}` : ''}`;
-}
-
 export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extension {
 	const parser = new CodeBlockParser();
 
 	const buildState = (state: EditorState): LivePreviewStructureState => {
-		const inputs = readInputs(plugin);
+		const inputs = readInputs(plugin, state);
 		if (!inputs.isLivePreview) {
 			return { decorations: Decoration.none, inputs };
 		}
@@ -171,8 +146,11 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 
 				if (isOpeningFence || isClosingFence) {
 					ranges.push(
-						Decoration.replace({
-							widget: new ShikiLivePreviewFenceWidget(isOpeningFence ? openingFenceText(block) : (block.openingFence ?? '```')),
+						Decoration.mark({
+							attributes: {
+								class: SHIKI_LIVE_PREVIEW_FENCE_TEXT_CLASS,
+								'data-shiki-block-id': block.id,
+							},
 						}).range(line.from, line.to),
 					);
 				}
@@ -209,7 +187,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 	const structureField = StateField.define<LivePreviewStructureState>({
 		create: buildState,
 		update(value, transaction) {
-			const inputs = readInputs(plugin);
+			const inputs = readInputs(plugin, transaction.state);
 			if (!transaction.docChanged && sameInputs(value.inputs, inputs)) {
 				return value;
 			}
@@ -221,14 +199,9 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 	return [structureField];
 }
 
-function isLivePreviewActive(plugin: ShikiPlugin): boolean {
-	const activeContainer = plugin.app.workspace.activeLeaf?.view?.containerEl;
-	return !!activeContainer && activeContainer.querySelector('.markdown-source-view.mod-cm6.is-live-preview') !== null;
-}
-
-function readInputs(plugin: ShikiPlugin): LivePreviewStructureInputs {
+function readInputs(plugin: ShikiPlugin, state: EditorState): LivePreviewStructureInputs {
 	return {
-		isLivePreview: isLivePreviewActive(plugin),
+		isLivePreview: isLivePreviewState(state) ?? isActiveLeafLivePreview(plugin),
 		showLineNumbers: plugin.loadedSettings.showLineNumbers,
 		sourcePath: plugin.app.workspace.getActiveFile()?.path ?? '',
 		wrapLines: plugin.loadedSettings.wrapLines,

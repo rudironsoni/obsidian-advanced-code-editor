@@ -37,12 +37,38 @@ function dispatchTouch(dispatchTarget: EventTarget, type: string, clientX: numbe
 		item: (index: number) => (index === 0 ? touch : null),
 		0: touch,
 	} as unknown as TouchList;
-	Object.defineProperty(event, 'changedTouches', {
-		configurable: true,
-		value: changedTouches,
-	});
+	for (const property of ['changedTouches', 'targetTouches', 'touches']) {
+		Object.defineProperty(event, property, {
+			configurable: true,
+			value: changedTouches,
+		});
+	}
 	dispatchTarget.dispatchEvent(event);
 	return event;
+}
+
+async function waitForBlockScrollMeasure(view: EditorView): Promise<void> {
+	await Promise.resolve();
+	await new Promise<void>(resolve => {
+		view.requestMeasure({
+			read: () => null,
+			write: () => resolve(),
+		});
+	});
+	await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+}
+
+function prepareCodeRows(view: EditorView, blockId: string, rowCount: number, layout = { clientWidth: 300, scrollWidth: 1000 }): HTMLElement[] {
+	const rows = [...view.dom.querySelectorAll<HTMLElement>('.cm-line')].slice(0, rowCount);
+	if (rows.length !== rowCount) {
+		throw new Error(`Expected ${rowCount} CodeMirror rows, found ${rows.length}`);
+	}
+	for (const row of rows) {
+		row.classList.add(SHIKI_BLOCK_SCROLL_ROW_CLASS, 'shiki-live-preview-code-line');
+		row.dataset.shikiBlockId = blockId;
+		defineLayout(row, layout);
+	}
+	return rows;
 }
 
 describe('block horizontal scroll identity', () => {
@@ -70,10 +96,12 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('new MutationObserver(this.onDomMutations)');
 		expect(source).toContain('this.domObserver.observe(this.view.dom, { childList: true, subtree: true })');
 		expect(source).toContain('this.domObserver.disconnect()');
-		expect(source).toContain('this.applyStoredScrolls();');
+		expect(source).toContain('new ResizeObserver(this.onResize)');
+		expect(source).toContain('this.observeResizeTarget(this.view.scrollDOM)');
+		expect(source).toContain('this.resizeObserver?.disconnect()');
 		expect(source).toContain('this.scheduleMeasure();');
 		expect(source).toContain('if (update.docChanged || update.viewportChanged || update.geometryChanged)');
-		expect(updateBody.trim().endsWith('this.rescheduleMeasure();\n\t\t\t\t}')).toBe(true);
+		expect(updateBody.trim().endsWith('this.scheduleMeasure();\n\t\t\t\t}')).toBe(true);
 	});
 
 	test('skips no-op DOM writes during scroll sync', () => {
@@ -94,6 +122,51 @@ describe('block horizontal scroll identity', () => {
 		expect(source).not.toContain("this.setStyleProperty(row, '--shiki-block-scroll-left'");
 	});
 
+	test('uses CodeMirror gesture handlers and requestMeasure for scroll ownership', () => {
+		const source = read('packages/obsidian/src/codemirror/BlockHorizontalScroll.ts');
+
+		expect(source).toContain('eventHandlers: {');
+		expect(source).toContain('wheel(event)');
+		expect(source).toContain('pointerdown(event)');
+		expect(source).toContain('pointermove(event)');
+		expect(source).toContain('touchstart(event)');
+		expect(source).toContain('touchmove(event)');
+		expect(source).toContain('this.view.requestMeasure({');
+		expect(source).toContain('read: () => this.readBlockScrollMeasures()');
+		expect(source).toContain('write: measures =>');
+		expect(source).not.toContain('gestureRoot.addEventListener');
+		expect(source).not.toContain("view.scrollDOM.addEventListener('wheel'");
+		expect(source).not.toContain("view.scrollDOM.addEventListener('scroll'");
+		expect(source).not.toContain('setTimeout(() =>');
+	});
+
+	test('keeps layout reads and spacer writes out of scroll hot paths', () => {
+		const source = read('packages/obsidian/src/codemirror/BlockHorizontalScroll.ts');
+		const methodBody = (name: string) =>
+			source.match(new RegExp(`${name}[^=]*= \\([^)]*\\)[^=]*=> \\{([\\s\\S]*?)\\n\\t\\t\\t\\};`))?.[1] ??
+			source.match(new RegExp(`private ${name}[^\\{]*\\{([\\s\\S]*?)\\n\\t\\t\\t\\}`))?.[1] ??
+			'';
+		const hotPath = [
+			methodBody('onWheel'),
+			methodBody('onPointerMove'),
+			methodBody('onTouchMove'),
+			methodBody('onScroll'),
+			methodBody('syncGestureBlock'),
+			methodBody('syncBlockImmediate'),
+			methodBody('applyBlockScroll'),
+		].join('\n');
+
+		for (const forbidden of ['scrollWidth', 'clientWidth', 'getBoundingClientRect', 'refreshBlockCache', 'measureScrollbars', 'requestMeasure']) {
+			expect(hotPath).not.toContain(forbidden);
+		}
+		expect(methodBody('applyBlockScroll')).not.toContain('updateRowScrollSpacers');
+		expect(source).not.toContain('insertRule');
+		expect(source).not.toContain('CSSStyleSheet');
+		expect(source).not.toContain('will-change');
+		expect(source).not.toContain('--shiki-block-scroll-left');
+		expect(source).not.toContain('style.transform');
+	});
+
 	test('clamps native row scroll instead of ignoring it', () => {
 		const source = read('packages/obsidian/src/codemirror/BlockHorizontalScroll.ts');
 		const rowScrollBranch = source.match(/if \(source\.classList\.contains\(SHIKI_BLOCK_SCROLL_ROW_CLASS\)\) \{([\s\S]*?)\n\t\t\t\t\}/)?.[1] ?? '';
@@ -112,8 +185,11 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain("this.setStyleProperty(row, '--shiki-block-clip-width',");
 		expect(source).toContain("this.setStyleProperty(header, '--shiki-block-clip-width',");
 		expect(source).toContain('this.updateRowScrollSpacers(cache)');
-		expect(source).toContain('const naturalScrollWidth = row.scrollWidth');
-		expect(source).toContain('const clipWidths = scrollbars.map(element => element.clientWidth).filter(width => width > 0)');
+		expect(source).toContain('const rowScrollWidths = rows.map(row => row.scrollWidth)');
+		expect(source).toContain('const clipWidths = scrollbarClientWidths.filter(width => width > 0)');
+		expect(source).toContain('storedScrollLeft !== undefined && storedScrollLeft > measure.maxScrollLeft');
+		expect(source).toContain('this.scrollLeftByBlock.set(memoryKey, measure.maxScrollLeft)');
+		expect(source).toContain('this.resizeObserver?.observe(target)');
 		expect(source).not.toContain('const clipWidths = [...scrollbars, ...headers]');
 		expect(source).not.toContain("querySelectorAll<HTMLElement>('.shiki-live-preview-code-content')).map(element => element.scrollWidth)");
 		expect(source).toContain('cache.disabled ? 0 : cache.maxScrollWidth');
@@ -141,7 +217,7 @@ describe('block horizontal scroll identity', () => {
 		const livePreviewCodeLineRule =
 			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.cm-line\.shiki-live-preview-code-line \{([\s\S]*?)\n\}/)?.[1] ?? '';
 
-		expect(livePreviewCodeLineRule).toContain('overflow-x: auto');
+		expect(livePreviewCodeLineRule).toContain('overflow-x: hidden');
 		expect(livePreviewCodeLineRule).toContain('clip-path: inset(0)');
 		expect(livePreviewCodeLineRule).not.toContain('contain: paint');
 	});
@@ -162,7 +238,7 @@ describe('block horizontal scroll identity', () => {
 			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.shiki-live-preview-line-number \{([\s\S]*?)\n\}/)?.[1] ?? '';
 
 		expect(livePreviewRootRule).not.toContain('touch-action');
-		expect(livePreviewCodeLineRule).toContain('overflow-x: auto');
+		expect(livePreviewCodeLineRule).toContain('overflow-x: hidden');
 		expect(livePreviewCodeLineRule).toContain('touch-action: pan-y pinch-zoom');
 		expect(livePreviewCodeLineRule).toContain('scrollbar-width: none');
 		expect(livePreviewCodeContentRule).toContain('touch-action: pan-y pinch-zoom');
@@ -171,10 +247,11 @@ describe('block horizontal scroll identity', () => {
 		expect(livePreviewLineNumberRule).toContain('touch-action: pan-y pinch-zoom');
 		expect(livePreviewRootRule).not.toContain('touch-action: pan-x pan-y');
 		expect(livePreviewCodeLineRule).not.toContain('touch-action: pan-x pan-y');
-		expect(source).toContain('private readonly onPointerDown = (event: PointerEvent): void => {');
-		expect(source).toContain('private readonly onTouchStart = (event: TouchEvent): void => {');
-		expect(source).toContain("this.gestureRoot.addEventListener('touchmove', this.onTouchMove as EventListener, { capture: true, passive: false });");
-		expect(source).toContain("this.gestureRoot.addEventListener('pointermove', this.onPointerMove as EventListener, true);");
+		expect(source).toContain('readonly onPointerDown = (event: PointerEvent): boolean | void => {');
+		expect(source).toContain('readonly onTouchStart = (event: TouchEvent): boolean | void => {');
+		expect(source).toContain('eventHandlers: {');
+		expect(source).toContain('touchmove(event)');
+		expect(source).toContain('pointermove(event)');
 		expect(source).not.toContain("target.addEventListener('touchmove', this.onTouchMove");
 		expect(source).not.toContain("target.addEventListener('pointermove', this.onPointerMove");
 		expect(source).toContain('this.touchId = touch.identifier;');
@@ -185,38 +262,33 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('this.pointerCaptureTarget?.setPointerCapture(event.pointerId);');
 		expect(source).toContain('this.pointerCaptureTarget?.releasePointerCapture(this.pointerId);');
 		expect(source).toContain('private syncBlockImmediate(blockId: string, scrollLeft: number): void {');
+		expect(source).toContain('private syncGestureBlock(blockId: string, scrollLeft: number): void {');
+		expect(source).toContain('this.immediateGestureSyncBlockIds.has(blockId)');
 		expect(source).toContain('this.applyHorizontalGestureScroll(this.pointerBlockId, this.pointerStartScrollLeft - deltaX, true);');
 		expect(source).toContain('this.applyHorizontalGestureScroll(this.touchBlockId, this.touchStartScrollLeft - deltaX, true);');
 		expect(source).toContain('this.applyBlockScroll(blockId, nextScrollLeft);');
 	});
 
-	test('moves every Live Preview row immediately from a horizontal touch gesture', () => {
+	test('moves every Live Preview row immediately from a horizontal touch gesture', async () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({
-			doc: '',
+			doc: 'long\nshort',
 			extensions: [createBlockHorizontalScrollPlugin()],
 			parent,
 		});
 		const blockId = 'Note.md::live-preview::5::120::5::ts::abc123';
-		const longRow = document.createElement('div');
-		const shortRow = document.createElement('div');
+		const [longRow, shortRow] = prepareCodeRows(view, blockId, 2);
 		const content = document.createElement('span');
-
-		for (const row of [longRow, shortRow]) {
-			row.className = `${SHIKI_BLOCK_SCROLL_ROW_CLASS} shiki-live-preview-code-line`;
-			row.dataset.shikiBlockId = blockId;
-			view.scrollDOM.appendChild(row);
-			defineLayout(row, { clientWidth: 300, scrollWidth: 1000 });
-		}
 
 		content.className = 'shiki-live-preview-code-content';
 		content.textContent = 'longLineThatReceivesTheFinger';
+		await waitForBlockScrollMeasure(view);
 		longRow.appendChild(content);
 
 		try {
 			dispatchTouch(content, 'touchstart', 260, 20);
-			const move = dispatchTouch(document, 'touchmove', 60, 22, content);
+			const move = dispatchTouch(content, 'touchmove', 60, 22, content);
 
 			expect(move.defaultPrevented).toBe(true);
 			expect(longRow.scrollLeft).toBe(200);
@@ -227,29 +299,61 @@ describe('block horizontal scroll identity', () => {
 		}
 	});
 
-	test('lets vertical touch gestures inside Live Preview blocks remain native', () => {
+	test('coalesces repeated touch moves in the same animation frame', async () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({
-			doc: '',
+			doc: 'long\nshort',
+			extensions: [createBlockHorizontalScrollPlugin()],
+			parent,
+		});
+		const blockId = 'Note.md::live-preview::5::120::5::ts::coalesce';
+		const [longRow, shortRow] = prepareCodeRows(view, blockId, 2);
+		const content = document.createElement('span');
+
+		content.className = 'shiki-live-preview-code-content';
+		content.textContent = 'longLineThatReceivesTheFinger';
+		await waitForBlockScrollMeasure(view);
+		longRow.appendChild(content);
+
+		try {
+			dispatchTouch(content, 'touchstart', 260, 20);
+			dispatchTouch(content, 'touchmove', 60, 22, content);
+			dispatchTouch(content, 'touchmove', 40, 22, content);
+
+			expect(longRow.scrollLeft).toBe(200);
+			expect(shortRow.scrollLeft).toBe(200);
+
+			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+
+			expect(longRow.scrollLeft).toBe(220);
+			expect(shortRow.scrollLeft).toBe(220);
+		} finally {
+			view.destroy();
+			parent.remove();
+		}
+	});
+
+	test('lets vertical touch gestures inside Live Preview blocks remain native', async () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const view = new EditorView({
+			doc: 'line',
 			extensions: [createBlockHorizontalScrollPlugin()],
 			parent,
 		});
 		const blockId = 'Note.md::live-preview::5::120::5::ts::vertical';
-		const row = document.createElement('div');
+		const [row] = prepareCodeRows(view, blockId, 1);
 		const content = document.createElement('span');
 
-		row.className = `${SHIKI_BLOCK_SCROLL_ROW_CLASS} shiki-live-preview-code-line`;
-		row.dataset.shikiBlockId = blockId;
-		view.scrollDOM.appendChild(row);
-		defineLayout(row, { clientWidth: 300, scrollWidth: 1000 });
 		content.className = 'shiki-live-preview-code-content';
 		content.textContent = 'verticalDragMustRemainNative';
+		await waitForBlockScrollMeasure(view);
 		row.appendChild(content);
 
 		try {
 			dispatchTouch(content, 'touchstart', 260, 20);
-			const move = dispatchTouch(document, 'touchmove', 258, 80, content);
+			const move = dispatchTouch(content, 'touchmove', 258, 80, content);
 
 			expect(move.defaultPrevented).toBe(false);
 			expect(row.scrollLeft).toBe(0);
@@ -259,33 +363,31 @@ describe('block horizontal scroll identity', () => {
 		}
 	});
 
-	test('keeps Obsidian mobile edge and gutter gestures outside Live Preview blocks native', () => {
+	test('keeps Obsidian mobile edge and gutter gestures outside Live Preview blocks native', async () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({
-			doc: '',
+			doc: 'native\ncode',
 			extensions: [createBlockHorizontalScrollPlugin()],
 			parent,
 		});
 		const blockId = 'Note.md::live-preview::5::120::5::ts::edge';
-		const nativeGutter = document.createElement('div');
-		const row = document.createElement('div');
+		const [nativeGutter, row] = [...view.dom.querySelectorAll<HTMLElement>('.cm-line')];
 		const content = document.createElement('span');
 
-		nativeGutter.className = 'cm-gutterElement';
-		view.scrollDOM.appendChild(nativeGutter);
-		row.className = `${SHIKI_BLOCK_SCROLL_ROW_CLASS} shiki-live-preview-code-line`;
+		nativeGutter.classList.add('cm-gutterElement');
+		row.classList.add(SHIKI_BLOCK_SCROLL_ROW_CLASS, 'shiki-live-preview-code-line');
 		row.dataset.shikiBlockId = blockId;
-		view.scrollDOM.appendChild(row);
 		defineLayout(row, { clientWidth: 300, scrollWidth: 1000 });
 		defineRect(row, { left: 48, right: 348, top: 12, bottom: 44 });
 		content.className = 'shiki-live-preview-code-content';
 		content.textContent = 'codeBlockContent';
+		await waitForBlockScrollMeasure(view);
 		row.appendChild(content);
 
 		try {
 			dispatchTouch(nativeGutter, 'touchstart', 8, 24);
-			const move = dispatchTouch(document, 'touchmove', 180, 26, nativeGutter);
+			const move = dispatchTouch(nativeGutter, 'touchmove', 180, 26, nativeGutter);
 
 			expect(move.defaultPrevented).toBe(false);
 			expect(row.scrollLeft).toBe(0);
@@ -295,24 +397,17 @@ describe('block horizontal scroll identity', () => {
 		}
 	});
 
-	test('syncs native Live Preview row touch scroll across every row immediately', () => {
+	test('syncs native Live Preview row touch scroll across every row immediately', async () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({
-			doc: '',
+			doc: 'long\nshort',
 			extensions: [createBlockHorizontalScrollPlugin()],
 			parent,
 		});
 		const blockId = 'Note.md::live-preview::5::120::5::ts::native';
-		const longRow = document.createElement('div');
-		const shortRow = document.createElement('div');
-
-		for (const row of [longRow, shortRow]) {
-			row.className = `${SHIKI_BLOCK_SCROLL_ROW_CLASS} shiki-live-preview-code-line`;
-			row.dataset.shikiBlockId = blockId;
-			view.scrollDOM.appendChild(row);
-			defineLayout(row, { clientWidth: 300, scrollWidth: 1000 });
-		}
+		const [longRow, shortRow] = prepareCodeRows(view, blockId, 2);
+		await waitForBlockScrollMeasure(view);
 
 		try {
 			longRow.scrollLeft = 180;
@@ -326,25 +421,22 @@ describe('block horizontal scroll identity', () => {
 		}
 	});
 
-	test('cancels wheel overscroll at Live Preview block boundaries', () => {
+	test('cancels wheel overscroll at Live Preview block boundaries', async () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({
-			doc: '',
+			doc: 'line',
 			extensions: [createBlockHorizontalScrollPlugin()],
 			parent,
 		});
 		const blockId = 'Note.md::live-preview::5::120::5::ts::wheel-boundary';
-		const row = document.createElement('div');
+		const [row] = prepareCodeRows(view, blockId, 1);
 		let bubbledWheelEvents = 0;
 
-		row.className = `${SHIKI_BLOCK_SCROLL_ROW_CLASS} shiki-live-preview-code-line`;
-		row.dataset.shikiBlockId = blockId;
-		view.scrollDOM.appendChild(row);
-		defineLayout(row, { clientWidth: 300, scrollWidth: 1000 });
 		view.scrollDOM.addEventListener('wheel', () => {
 			bubbledWheelEvents++;
 		});
+		await waitForBlockScrollMeasure(view);
 
 		try {
 			row.scrollLeft = 700;

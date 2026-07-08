@@ -63,48 +63,7 @@ jobs:
               id: beta-version
               run: |
                   git fetch --tags --force
-                  node <<'NODE'
-                  const { execSync } = require("node:child_process");
-
-                  const packageJson = require("./package.json");
-                  const baseMatch = String(packageJson.version).match(/^(\d+)\.(\d+)\.(\d+)/);
-                  if (!baseMatch) {
-                    throw new Error(`Package version is not SemVer: ${packageJson.version}`);
-                  }
-                  const [, baseMajor, baseMinor, basePatch] = baseMatch;
-                  const baseVersion = `${baseMajor}.${baseMinor}.${basePatch}`;
-
-                  const tags = execSync("git tag --list", { encoding: "utf8" })
-                    .split(/\r?\n/)
-                    .map((tag) => tag.trim())
-                    .filter(Boolean);
-
-                  const betaTags = tags
-                    .map((tag) => {
-                      const match = tag.match(/^v?(\d+)\.(\d+)\.(\d+)-beta\.(\d+)$/);
-                      if (!match) return null;
-                      const [, major, minor, patch, beta] = match;
-                      return {
-                        tag,
-                        major: Number(major),
-                        minor: Number(minor),
-                        patch: Number(patch),
-                        beta: Number(beta),
-                      };
-                    })
-                    .filter(Boolean)
-                    .filter((tag) => tag.major === Number(baseMajor) && tag.minor === Number(baseMinor) && tag.patch === Number(basePatch))
-                    .sort((a, b) => {
-                      return b.beta - a.beta;
-                    });
-
-                  const latest = betaTags[0] ?? null;
-                  const next = `${baseVersion}-beta.${latest ? latest.beta + 1 : 1}`;
-                  console.log(`Base version: ${baseVersion}`);
-                  console.log(`Latest beta tag: ${latest?.tag ?? "(none)"}`);
-                  console.log(`Next beta tag: ${next}`);
-                  require("node:fs").appendFileSync(process.env.GITHUB_OUTPUT, `new_tag=${next}\n`);
-                  NODE
+                  bun scripts/compute-beta-version.ts
 
             - name: Apply beta version to plugin manifests
               env:

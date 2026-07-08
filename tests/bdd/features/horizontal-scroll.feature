@@ -64,6 +64,14 @@ Feature: Block-owned horizontal scroll
     And the surrounding note should not move horizontally
 
   @desktop
+  Scenario: Live Preview wheel scrolling moves during the first wheel event
+    Given horizontal scroll settings use nowrap with line numbers
+    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+    When I send one horizontal wheel event to the first Live Preview code block
+    Then Live Preview should move horizontally during the same wheel event
+    And the surrounding note should not move horizontally
+
+  @desktop
   Scenario: Live Preview stops wheel scrolling at the right edge
     Given horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
@@ -113,6 +121,16 @@ Feature: Block-owned horizontal scroll
     And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
     When I scroll the first code block horizontally with a touch gesture
     Then the active note should keep horizontal scroll inside the first code block
+    And the surrounding note should not move horizontally
+
+  @mobile
+  Scenario: Mobile-emulated Live Preview repeated touch scrolling remains responsive
+    Given Obsidian is running in mobile emulation
+    And horizontal scroll settings use nowrap with line numbers
+    And the fixture note "Horizontal scroll stress block.md" is open in Live Preview for horizontal scroll
+    When I repeatedly scroll the first code block horizontally with touch gestures
+    Then Live Preview horizontal scrolling should stay responsive
+    And the active note should keep horizontal scroll inside the first code block
     And the surrounding note should not move horizontally
 
   @mobile

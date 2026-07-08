@@ -77,12 +77,21 @@ describe('architecture boundaries', () => {
 		expect(highlighterSource).not.toContain('modern-monaco');
 	});
 
-	test('Source mode adapter owns CodeMirror decorations only', () => {
+	test('Source mode adapter owns token decorations only', () => {
 		const sourceMode = readSource('packages/obsidian/src/modes/SourceModeAdapter.ts');
+		const cm6Tokens = readSource('packages/obsidian/src/codemirror/Cm6_ShikiTokenDecorations.ts');
 
 		expect(sourceMode).toContain('Decoration');
-		expect(sourceMode).toContain('Decoration.set(ranges, true)');
-		expect(sourceMode).not.toContain('RangeSetBuilder');
+		expect(sourceMode).toContain('decorations: DecorationSet = Decoration.none');
+		expect(sourceMode).toContain('buildCm6ShikiTokenDecorations');
+		expect(cm6Tokens).toContain('Decoration.mark');
+		expect(cm6Tokens).toContain('builder.finish()');
+		expect(cm6Tokens).toContain('getHighlightTokens');
+		expect(cm6Tokens).toContain('getTokenSegments');
+		expect(cm6Tokens).toContain('getTokenStyle');
+		expect(cm6Tokens).toContain('getThemeBackground');
+		expect(sourceMode).toContain("style.setProperty('--shiki-code-background'");
+		expect(sourceMode).toContain('SHIKI_SOURCE_TOKEN_CLASS');
 		expect(sourceMode).not.toContain('MonacoCodeBlockSurface');
 		expect(sourceMode).not.toContain('MonacoSurfaceRegistry');
 		expect(sourceMode).not.toContain('monaco.editor.create');
