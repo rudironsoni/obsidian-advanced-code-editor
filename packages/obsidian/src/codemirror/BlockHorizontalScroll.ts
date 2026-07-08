@@ -129,6 +129,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private readonly domObserver: MutationObserver;
 			private readonly blockCacheById = new Map<string, BlockScrollCache>();
 			private readonly rowNativeMaxScrollLeftByElement = new WeakMap<HTMLElement, number>();
+			private readonly expectedScrollLeftByElement = new WeakMap<HTMLElement, number>();
 			private readonly pendingScrollLeftByBlock = new Map<string, number>();
 			private readonly immediateGestureSyncBlockIds = new Set<string>();
 			private scrollFlushFrame: number | undefined;
@@ -183,6 +184,12 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				if (source.classList.contains(SHIKI_BLOCK_SCROLL_ROW_CLASS)) {
 					const cache = this.blockCacheById.get(blockId);
+					const memoryScrollLeft = this.scrollLeftByBlock.get(stableBlockScrollMemoryKey(blockId)) ?? 0;
+					const expectedScrollLeft = this.expectedScrollLeftByElement.get(source) ?? 0;
+					if (source.scrollLeft === 0 && memoryScrollLeft > 0 && expectedScrollLeft > 0) {
+						this.setScrollLeft(source, memoryScrollLeft);
+						return;
+					}
 					const sourceNativeMaxScrollLeft = this.rowNativeMaxScrollLeftByElement.get(source) ?? cache?.maxScrollLeft ?? 0;
 					if (source.scrollLeft === 0 && (cache?.maxScrollLeft ?? 0) > 0 && sourceNativeMaxScrollLeft <= 0) {
 						const currentScrollLeft = this.blockScrollLeft(blockId);
@@ -486,7 +493,9 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				for (const blockId of blockIds) {
 					const escapedBlockId = CSS.escape(blockId);
 					const rows = [...this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_BLOCK_SCROLL_ROW_CLASS}[data-shiki-block-id="${escapedBlockId}"]`)];
-					const scrollbars = [...this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_BLOCK_SCROLLBAR_CLASS}[data-shiki-block-id="${escapedBlockId}"]`)];
+					const scrollbars = [
+						...this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_BLOCK_SCROLLBAR_CLASS}[data-shiki-block-id="${escapedBlockId}"]`),
+					];
 					if (rows.length === 0 && scrollbars.length === 0) {
 						continue;
 					}
@@ -591,6 +600,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			}
 
 			private setScrollLeft(target: HTMLElement, scrollLeft: number): void {
+				this.expectedScrollLeftByElement.set(target, scrollLeft);
 				if (target.scrollLeft !== scrollLeft) {
 					target.scrollLeft = scrollLeft;
 				}

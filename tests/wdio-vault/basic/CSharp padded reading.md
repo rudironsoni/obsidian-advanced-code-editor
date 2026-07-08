@@ -1,10 +1,5 @@
 # 41.12+ Merge Intervals
 
-
-
-
-
-
 ```csharp
 List<int[]> intervals = [[1, 3], [2, 6], [8, 10]];
 

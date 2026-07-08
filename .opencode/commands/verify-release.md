@@ -1,6 +1,7 @@
 ---
 description: Run full release verification pipeline
 ---
+
 Run complete release verification pipeline for `advanced-code-block`.
 
 ## Phase 1: Local Gate
@@ -34,7 +35,7 @@ Verify `dist/` contains:
 - `main.js`
 - `manifest.json`
 - `styles.css`
-No Monaco sidecar is expected.
+  No Monaco sidecar is expected.
 
 Check manifest version matches `package.json` version.
 

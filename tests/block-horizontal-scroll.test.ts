@@ -142,9 +142,10 @@ describe('block horizontal scroll identity', () => {
 
 	test('keeps layout reads and spacer writes out of scroll hot paths', () => {
 		const source = read('packages/obsidian/src/codemirror/BlockHorizontalScroll.ts');
-		const methodBody = (name: string) => source.match(new RegExp(`${name}[^=]*= \\([^)]*\\)[^=]*=> \\{([\\s\\S]*?)\\n\\t\\t\\t\\};`))?.[1]
-			?? source.match(new RegExp(`private ${name}[^\\{]*\\{([\\s\\S]*?)\\n\\t\\t\\t\\}`))?.[1]
-			?? '';
+		const methodBody = (name: string) =>
+			source.match(new RegExp(`${name}[^=]*= \\([^)]*\\)[^=]*=> \\{([\\s\\S]*?)\\n\\t\\t\\t\\};`))?.[1] ??
+			source.match(new RegExp(`private ${name}[^\\{]*\\{([\\s\\S]*?)\\n\\t\\t\\t\\}`))?.[1] ??
+			'';
 		const hotPath = [
 			methodBody('onWheel'),
 			methodBody('onPointerMove'),
