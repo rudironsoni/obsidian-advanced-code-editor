@@ -117,8 +117,10 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private readonly blockCacheById = new Map<string, BlockScrollCache>();
 			private readonly pendingScrollLeftByBlock = new Map<string, number>();
 			private readonly visualScrollLeftByBlock = new Map<string, number>();
+			private readonly visualRuleByBlock = new Map<string, CSSStyleRule>();
 			private readonly nativeSyncTimersByBlock = new Map<string, number>();
 			private readonly gestureRoot: EventTarget;
+			private visualStyleElement: HTMLStyleElement | undefined;
 			private scrollFlushFrame: number | undefined;
 
 			constructor(private readonly view: EditorView) {
@@ -168,6 +170,8 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				this.clearAllNativeSyncTimers();
 				this.clearAllVisualBlockScrolls();
+				this.visualStyleElement?.remove();
+				this.visualStyleElement = undefined;
 				for (const target of this.observedScrollTargets) {
 					target.removeEventListener('scroll', this.onScroll);
 					target.removeEventListener('wheel', this.onWheel, true);
@@ -431,21 +435,22 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				for (const scrollbar of cache.scrollbars) {
 					this.setScrollLeft(scrollbar, scrollLeft);
 				}
-				for (const content of cache.contents) {
-					const row = content.closest<HTMLElement>(`.${SHIKI_BLOCK_SCROLL_ROW_CLASS}[data-shiki-block-id]`);
-					const nativeScrollLeft = row?.scrollLeft ?? 0;
-					const visualDelta = scrollLeft - nativeScrollLeft;
-					if (Math.abs(visualDelta) <= 0.5) {
-						this.clearVisualContentScroll(content);
-						continue;
-					}
-					const transform = `translateX(${-visualDelta}px)`;
-					if (content.style.transform !== transform) {
-						content.style.transform = transform;
-					}
-					if (content.style.willChange !== 'transform') {
-						content.style.willChange = 'transform';
-					}
+				const nativeScrollLeft = Math.max(0, ...cache.rows.map(row => row.scrollLeft));
+				const visualDelta = scrollLeft - nativeScrollLeft;
+				if (Math.abs(visualDelta) <= 0.5) {
+					this.clearVisualBlockScroll(blockId);
+					return;
+				}
+				const rule = this.visualRuleForBlock(blockId);
+				if (!rule) {
+					return;
+				}
+				const transform = `translateX(${-visualDelta}px)`;
+				if (rule.style.transform !== transform) {
+					rule.style.transform = transform;
+				}
+				if (rule.style.willChange !== 'transform') {
+					rule.style.willChange = 'transform';
 				}
 			}
 
@@ -623,25 +628,57 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			}
 
 			private clearVisualBlockScroll(blockId: string): void {
-				for (const content of this.cacheForBlock(blockId).contents) {
-					this.clearVisualContentScroll(content);
+				const rule = this.visualRuleByBlock.get(blockId);
+				if (!rule) {
+					return;
 				}
+				rule.style.transform = '';
+				rule.style.willChange = '';
 			}
 
 			private clearAllVisualBlockScrolls(): void {
-				for (const content of this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_LIVE_PREVIEW_CODE_CONTENT_CLASS}[data-shiki-block-id]`)) {
-					this.clearVisualContentScroll(content);
+				for (const rule of this.visualRuleByBlock.values()) {
+					rule.style.transform = '';
+					rule.style.willChange = '';
 				}
 				this.visualScrollLeftByBlock.clear();
 			}
 
-			private clearVisualContentScroll(content: HTMLElement): void {
-				if (content.style.transform) {
-					content.style.transform = '';
+			private visualRuleForBlock(blockId: string): CSSStyleRule | undefined {
+				const existingRule = this.visualRuleByBlock.get(blockId);
+				if (existingRule) {
+					return existingRule;
 				}
-				if (content.style.willChange) {
-					content.style.willChange = '';
+				const styleElement = this.ensureVisualStyleElement();
+				const sheet = styleElement.sheet;
+				if (!(sheet instanceof CSSStyleSheet)) {
+					return undefined;
 				}
+				const selector = `.${SHIKI_LIVE_PREVIEW_CODE_CONTENT_CLASS}[data-shiki-block-id="${CSS.escape(blockId)}"]`;
+				const index = sheet.cssRules.length;
+				sheet.insertRule(`${selector} {}`, index);
+				const rule = sheet.cssRules[index];
+				if (!(rule instanceof CSSStyleRule)) {
+					return undefined;
+				}
+				this.visualRuleByBlock.set(blockId, rule);
+				return rule;
+			}
+
+			private ensureVisualStyleElement(): HTMLStyleElement {
+				if (this.visualStyleElement) {
+					return this.visualStyleElement;
+				}
+				const styleElement = this.view.dom.ownerDocument.createElement('style');
+				styleElement.dataset.shikiBlockVisualScroll = 'true';
+				const root = this.view.root;
+				if (root instanceof ShadowRoot) {
+					root.appendChild(styleElement);
+				} else {
+					this.view.dom.ownerDocument.head.appendChild(styleElement);
+				}
+				this.visualStyleElement = styleElement;
+				return styleElement;
 			}
 
 			private observeScrollTarget(target: HTMLElement): void {

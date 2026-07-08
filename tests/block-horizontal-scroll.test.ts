@@ -93,7 +93,8 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('this.setScrollLeft(row, scrollLeft)');
 		expect(source).toContain('this.applyVisualBlockScroll(blockId, nextScrollLeft);');
 		expect(source).toContain('this.scheduleNativeSync(blockId);');
-		expect(source).toContain('this.clearVisualContentScroll(content);');
+		expect(source).toContain('this.clearVisualBlockScroll(blockId);');
+		expect(source).toContain('this.visualRuleForBlock(blockId);');
 		expect(source).not.toContain('this.styleElement = this.view.dom.ownerDocument.createElement');
 		expect(source).not.toContain('.shiki-live-preview-code-content[data-shiki-block-id=${CSS.escape(blockId)}]');
 		expect(source).not.toContain("content.style.setProperty('--shiki-block-scroll-left', offset)");
@@ -233,18 +234,22 @@ describe('block horizontal scroll identity', () => {
 		try {
 			dispatchTouch(content, 'touchstart', 260, 20);
 			const move = dispatchTouch(document, 'touchmove', 60, 22, content);
+			const styleElement = document.querySelector<HTMLStyleElement>('style[data-shiki-block-visual-scroll="true"]');
+			const visualRule = styleElement?.sheet?.cssRules[0] as CSSStyleRule | undefined;
 
 			expect(move.defaultPrevented).toBe(true);
-			expect(content.style.transform).toBe('translateX(-200px)');
-			expect(shortContent.style.transform).toBe('translateX(-200px)');
+			expect(visualRule?.style.transform).toBe('translateX(-200px)');
+			expect(visualRule?.style.willChange).toBe('transform');
+			expect(content.style.transform).toBe('');
+			expect(shortContent.style.transform).toBe('');
 			expect(longRow.scrollLeft).toBe(0);
 			expect(shortRow.scrollLeft).toBe(0);
 
 			dispatchTouch(document, 'touchend', 60, 22, content);
 			expect(longRow.scrollLeft).toBe(200);
 			expect(shortRow.scrollLeft).toBe(200);
-			expect(content.style.transform).toBe('');
-			expect(shortContent.style.transform).toBe('');
+			expect(visualRule?.style.transform).toBe('');
+			expect(visualRule?.style.willChange).toBe('');
 		} finally {
 			view.destroy();
 			parent.remove();
