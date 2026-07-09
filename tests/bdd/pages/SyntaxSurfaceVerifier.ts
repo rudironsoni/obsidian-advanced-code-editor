@@ -77,7 +77,11 @@ export type ThemeBackgroundState = {
 	rootBackgroundValue: string;
 	rootBackgroundColor: string;
 	codeBackgroundColor: string;
+	gutterBackgroundColor: string;
+	gutterBeforeBackgroundColor: string;
+	gutterAfterBackgroundColor: string;
 	backgroundMatchesExpected: boolean;
+	gutterBackgroundMatchesExpected: boolean;
 	visibleTargetCount: number;
 	isMobile: boolean;
 };
@@ -533,10 +537,22 @@ class SyntaxSurfaceVerifier {
 							? root?.querySelector<HTMLElement>('.cm-line.shiki-live-preview-code-line')
 							: root?.querySelector<HTMLElement>('.cm-line.HyperMD-codeblock');
 				const targetRect = target?.getBoundingClientRect();
+				const gutter =
+					selectedMode === 'reading'
+						? root?.querySelector<HTMLElement>('.shiki-line-numbers')
+						: selectedMode === 'live-preview'
+							? root?.querySelector<HTMLElement>('.shiki-live-preview-line-number')
+							: null;
+				const gutterStyle = gutter ? getComputedStyle(gutter) : null;
+				const gutterBeforeStyle = gutter ? getComputedStyle(gutter, '::before') : null;
+				const gutterAfterStyle = gutter ? getComputedStyle(gutter, '::after') : null;
 				const expectedBackgroundColor = normalizeColor(expectedThemeBackground);
 				const rootBackgroundValue = root?.style.getPropertyValue('--shiki-code-background').trim() ?? '';
 				const rootBackgroundColor = normalizeColor(rootBackgroundValue);
 				const codeBackgroundColor = target ? getComputedStyle(target).backgroundColor.trim() : '';
+				const gutterBackgroundColor = gutterStyle?.backgroundColor.trim() ?? '';
+				const gutterBeforeBackgroundColor = gutterBeforeStyle?.backgroundColor.trim() ?? '';
+				const gutterAfterBackgroundColor = gutterAfterStyle?.backgroundColor.trim() ?? '';
 
 				return {
 					mode: selectedMode,
@@ -546,8 +562,17 @@ class SyntaxSurfaceVerifier {
 					rootBackgroundValue,
 					rootBackgroundColor,
 					codeBackgroundColor,
+					gutterBackgroundColor,
+					gutterBeforeBackgroundColor,
+					gutterAfterBackgroundColor,
 					backgroundMatchesExpected:
 						expectedBackgroundColor !== '' && rootBackgroundColor === expectedBackgroundColor && codeBackgroundColor === expectedBackgroundColor,
+					gutterBackgroundMatchesExpected:
+						selectedMode === 'source' ||
+						(expectedBackgroundColor !== '' &&
+							gutterBackgroundColor === expectedBackgroundColor &&
+							(selectedMode !== 'live-preview' ||
+								(gutterBeforeBackgroundColor === expectedBackgroundColor && gutterAfterBackgroundColor === expectedBackgroundColor))),
 					visibleTargetCount:
 						target && targetRect && targetRect.width > 0 && targetRect.height > 0 && codeBackgroundColor !== 'rgba(0, 0, 0, 0)' ? 1 : 0,
 					isMobile: runtimeApp.isMobile,

@@ -167,6 +167,7 @@ export class LivePreviewAdapter {
 
 		const sourceViewRoot = this.getSourceViewRoot();
 		sourceViewRoot.style.removeProperty('--shiki-code-background');
+		sourceViewRoot.style.removeProperty('--shiki-gutter-background');
 		const result = await buildCm6ShikiTokenDecorations({
 			plugin: this.plugin,
 			blocks: eligibleBlocks,
@@ -178,6 +179,7 @@ export class LivePreviewAdapter {
 		}
 		if (result.themeBackground) {
 			sourceViewRoot.style.setProperty('--shiki-code-background', result.themeBackground);
+			sourceViewRoot.style.setProperty('--shiki-gutter-background', result.themeBackground);
 		}
 		this.editTokenDecorations = result.decorations;
 		this.refreshDecorationSet();
