@@ -639,7 +639,9 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 }
 
 .shiki-theme-confidence,
-.shiki-custom-theme-validation {
+.shiki-custom-theme-validation,
+.shiki-custom-language-validation,
+.shiki-disabled-language-validation {
 	display: flex;
 	gap: 8px;
 	align-items: baseline;
@@ -649,7 +651,9 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 }
 
 .shiki-theme-confidence-label,
-.shiki-custom-theme-validation-state {
+.shiki-custom-theme-validation-state,
+.shiki-custom-language-validation-state,
+.shiki-disabled-language-validation-state {
 	flex: 0 0 auto;
 	color: var(--text-faint);
 	text-transform: uppercase;
@@ -657,13 +661,21 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 	font-size: var(--font-ui-smallest);
 }
 
-.shiki-custom-theme-validation[data-shiki-validation-state='valid'] .shiki-custom-theme-validation-state {
+.shiki-custom-theme-validation[data-shiki-validation-state='valid'] .shiki-custom-theme-validation-state,
+.shiki-custom-language-validation[data-shiki-validation-state='valid'] .shiki-custom-language-validation-state,
+.shiki-disabled-language-validation[data-shiki-validation-state='valid'] .shiki-disabled-language-validation-state {
 	color: var(--text-success);
 }
 
 .shiki-custom-theme-validation[data-shiki-validation-state='missing'] .shiki-custom-theme-validation-state,
-.shiki-custom-theme-validation[data-shiki-validation-state='invalid'] .shiki-custom-theme-validation-state {
+.shiki-custom-theme-validation[data-shiki-validation-state='invalid'] .shiki-custom-theme-validation-state,
+.shiki-custom-language-validation[data-shiki-validation-state='missing'] .shiki-custom-language-validation-state,
+.shiki-custom-language-validation[data-shiki-validation-state='invalid'] .shiki-custom-language-validation-state {
 	color: var(--text-error);
+}
+
+.shiki-disabled-language-validation[data-shiki-validation-state='warning'] .shiki-disabled-language-validation-state {
+	color: var(--text-warning);
 }
 
 /* Hide the frontmatter code block in reading view again */

@@ -80,6 +80,12 @@ Feature: Reading mode syntax highlighting
     And theme confidence settings use a valid custom theme folder
     Then the theme settings should show active theme confidence and custom theme validation
 
+  @language-support @visual-parity
+  Scenario: Settings show language support validation backed by the syntax matrix
+    Given the built Advanced Code Editor plugin is enabled in the fixture vault
+    And language support settings use validation fixtures
+    Then the language settings should show disabled-language and custom-language validation
+
   @theme-confidence @visual-parity
   Scenario: Theme backgrounds match the selected Shiki theme in every desktop render mode
     Given the built Advanced Code Editor plugin is enabled in the fixture vault
