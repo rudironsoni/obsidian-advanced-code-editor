@@ -6,6 +6,7 @@ import {
 	SHIKI_BLOCK_SCROLL_ROW_CLASS,
 } from 'packages/obsidian/src/codemirror/BlockHorizontalScroll';
 import { isActiveLeafLivePreview, isLivePreviewState } from 'packages/obsidian/src/codemirror/Cm6_ViewContext';
+import { createCodeBlockCopyButton } from 'packages/obsidian/src/codeblocks/CodeBlockCopyControl';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
 import type { CodeBlockLineInfo, CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
@@ -46,12 +47,7 @@ class ShikiLivePreviewHeaderWidget extends WidgetType {
 		const left = header.createDiv({ cls: 'shiki-header-left' });
 		left.createSpan({ cls: 'shiki-lang-name', text: this.block.language });
 		const right = header.createDiv({ cls: 'shiki-header-right' });
-		const copyBtn = right.createEl('button', { cls: 'shiki-copy-button', text: 'Copy' });
-		copyBtn.onclick = (event): void => {
-			event.preventDefault();
-			event.stopPropagation();
-			navigator.clipboard.writeText(this.block.code).catch(() => {});
-		};
+		right.appendChild(createCodeBlockCopyButton(document, () => this.block.code));
 
 		return header;
 	}

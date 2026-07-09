@@ -190,6 +190,28 @@ Then('the syntax language matrix should have Shiki-owned token colors in {word}'
 	await browser.saveScreenshot(path.join(artifactDir, `syntax-language-matrix-${mode}-${state.isMobile ? 'mobile' : 'desktop'}.png`));
 });
 
+Then('the rendered copy control should copy {string} and keep stable states in {word}', async (expectedText: string, mode: 'reading' | 'live-preview') => {
+	const state = await obsidianApp.verifyCopyControl(mode);
+
+	assert.ok(state.successWrite.includes(expectedText), `expected copy control to write current code text: ${JSON.stringify(state)}`);
+	assert.ok(state.errorWrite.includes(expectedText), `expected failed copy attempt to use current code text: ${JSON.stringify(state)}`);
+	assert.equal(state.initialText, 'Copy', `expected idle copy label: ${JSON.stringify(state)}`);
+	assert.equal(state.copiedText, 'Copied', `expected copied label: ${JSON.stringify(state)}`);
+	assert.equal(state.errorText, 'Error', `expected error label: ${JSON.stringify(state)}`);
+	assert.equal(state.initialState, 'idle', `expected idle copy state: ${JSON.stringify(state)}`);
+	assert.equal(state.copiedState, 'copied', `expected copied state: ${JSON.stringify(state)}`);
+	assert.equal(state.errorState, 'error', `expected error state: ${JSON.stringify(state)}`);
+	assert.equal(state.initialAriaLabel, 'Copy code block', `expected idle aria label: ${JSON.stringify(state)}`);
+	assert.equal(state.copiedAriaLabel, 'Code copied', `expected copied aria label: ${JSON.stringify(state)}`);
+	assert.equal(state.errorAriaLabel, 'Copy failed', `expected error aria label: ${JSON.stringify(state)}`);
+	assert.ok(Math.abs(state.initialWidth - state.copiedWidth) <= 1, `expected copied state not to change button width: ${JSON.stringify(state)}`);
+	assert.ok(Math.abs(state.initialWidth - state.errorWidth) <= 1, `expected error state not to change button width: ${JSON.stringify(state)}`);
+	assert.ok(Math.abs(state.initialHeight - state.copiedHeight) <= 1, `expected copied state not to change button height: ${JSON.stringify(state)}`);
+	assert.ok(Math.abs(state.initialHeight - state.errorHeight) <= 1, `expected error state not to change button height: ${JSON.stringify(state)}`);
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `copy-control-${mode}-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+});
+
 Given('the horizontal scroll fixture notes are reset', async () => {
 	await horizontalScrollPage.resetFixtureNotes();
 });
