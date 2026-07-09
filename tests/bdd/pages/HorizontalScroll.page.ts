@@ -142,6 +142,10 @@ export type HorizontalScrollBlockState = {
 	gutterTextAlign: string | null;
 	gutterJustifyContent: string | null;
 	gutterBoxSizing: string | null;
+	gutterMaxVerticalGap: number | null;
+	gutterVerticalOverpaint: number | null;
+	rowMaxVerticalGap: number | null;
+	rowVerticalOverpaint: number | null;
 	firstLineNumberTextRight: number | null;
 	firstLineNumberTextCenterY: number | null;
 	codeContentLeft: number | null;
@@ -1394,6 +1398,26 @@ class HorizontalScrollPage {
 					const gutterStyle = gutterEdge ? getComputedStyle(gutterEdge) : null;
 					const gutterBeforeStyle = gutterEdge ? getComputedStyle(gutterEdge, '::before') : null;
 					const gutterAfterStyle = gutterEdge ? getComputedStyle(gutterEdge, '::after') : null;
+					const parseCssPixels = (value: string | null | undefined): number => {
+						const parsed = Number.parseFloat(value ?? '');
+						return Number.isFinite(parsed) ? parsed : 0;
+					};
+					const lineNumberRects = lineNumbers
+						.map(element => element.getBoundingClientRect())
+						.filter(rect => rect.width > 0 && rect.height > 0)
+						.sort((first, second) => first.top - second.top);
+					const gutterMaxVerticalGap =
+						lineNumberRects.length > 1
+							? lineNumberRects.slice(1).reduce((maxGap, rect, index) => Math.max(maxGap, rect.top - lineNumberRects[index].bottom), 0)
+							: 0;
+					const gutterRowOverpaint = parseCssPixels(gutterStyle?.getPropertyValue('--shiki-live-preview-gutter-row-overpaint'));
+					const rowRects = block.rows
+						.map(element => element.getBoundingClientRect())
+						.filter(rect => rect.width > 0 && rect.height > 0)
+						.sort((first, second) => first.top - second.top);
+					const rowMaxVerticalGap =
+						rowRects.length > 1 ? rowRects.slice(1).reduce((maxGap, rect, index) => Math.max(maxGap, rect.top - rowRects[index].bottom), 0) : 0;
+					const rowOverpaint = parseCssPixels(rowStyle?.getPropertyValue('--shiki-live-preview-row-overpaint'));
 					const firstLineNumberTextRect = (() => {
 						const firstLineNumber = lineNumbers[0] ?? null;
 						const textNode = [...(firstLineNumber?.childNodes ?? [])].find(
@@ -1660,6 +1684,10 @@ class HorizontalScrollPage {
 						gutterTextAlign: gutterStyle?.textAlign ?? null,
 						gutterJustifyContent: gutterStyle?.justifyContent ?? null,
 						gutterBoxSizing: gutterStyle?.boxSizing ?? null,
+						gutterMaxVerticalGap,
+						gutterVerticalOverpaint: input.mode === 'live-preview' ? gutterRowOverpaint * 2 : null,
+						rowMaxVerticalGap,
+						rowVerticalOverpaint: input.mode === 'live-preview' ? rowOverpaint * 2 : null,
 						firstLineNumberTextRight: firstLineNumberTextRect?.right ?? null,
 						firstLineNumberTextCenterY: firstLineNumberTextRect ? firstLineNumberTextRect.top + firstLineNumberTextRect.height / 2 : null,
 						codeContentLeft,

@@ -26,7 +26,7 @@ Feature: Block-owned horizontal scroll
   @desktop @visual-parity
   Scenario: Live Preview line-number gutter matches Reading mode
     Given horizontal scroll settings use nowrap with line numbers
-    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+    And the fixture note "Horizontal scroll gutter blank lines.md" is open in Live Preview for horizontal scroll
     When I compare the first code block line-number layout with Reading mode
     Then the Live Preview code block line-number gutter should match Reading mode
 
@@ -101,7 +101,7 @@ Feature: Block-owned horizontal scroll
   Scenario: Mobile-emulated Live Preview line-number gutter matches Reading mode
     Given Obsidian is running in mobile emulation
     And horizontal scroll settings use nowrap with line numbers
-    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+    And the fixture note "Horizontal scroll gutter blank lines.md" is open in Live Preview for horizontal scroll
     When I compare the first code block line-number layout with Reading mode
     Then the Live Preview code block line-number gutter should match Reading mode
 
@@ -110,7 +110,7 @@ Feature: Block-owned horizontal scroll
     Given Obsidian is running in mobile emulation
     And Obsidian is sized like a phone portrait
     And horizontal scroll settings use nowrap with line numbers
-    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+    And the fixture note "Horizontal scroll gutter blank lines.md" is open in Live Preview for horizontal scroll
     When I compare the first code block line-number layout with Reading mode
     Then the Live Preview code block line-number gutter should match Reading mode
 
