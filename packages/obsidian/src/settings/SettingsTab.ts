@@ -3,6 +3,12 @@ import type ShikiPlugin from 'packages/obsidian/src/main';
 import { StringSelectModal } from 'packages/obsidian/src/settings/StringSelectModal';
 import { OBSIDIAN_THEME_IDENTIFIER } from 'packages/obsidian/src/Constants';
 import { BUNDLED_THEMES_INFO } from 'packages/obsidian/src/settings/BundledThemeInfo';
+import {
+	resolveThemeConfirmation,
+	validateCustomThemeFolder,
+	type CustomThemeFolderValidation,
+	type ThemeConfirmation,
+} from 'packages/obsidian/src/settings/ThemeConfidence';
 
 export class ShikiSettingsTab extends PluginSettingTab {
 	plugin: ShikiPlugin;
@@ -68,7 +74,7 @@ export class ShikiSettingsTab extends PluginSettingTab {
 
 		new Setting(this.containerEl).setName('Theme').setHeading();
 
-		new Setting(this.containerEl)
+		const darkThemeSetting = new Setting(this.containerEl)
 			.setName('Dark theme')
 			.setDesc("The theme for code blocks when Obsidian's base color scheme is dark.")
 			.addDropdown(dropdown => {
@@ -76,10 +82,12 @@ export class ShikiSettingsTab extends PluginSettingTab {
 				dropdown.setValue(this.plugin.settings.darkTheme).onChange(async value => {
 					this.plugin.settings.darkTheme = value;
 					await this.plugin.saveSettingsAndReloadHighlighter();
+					this.display();
 				});
 			});
+		this.addThemeConfirmation(darkThemeSetting.settingEl, resolveThemeConfirmation(this.plugin.settings.darkTheme, 'dark'));
 
-		new Setting(this.containerEl)
+		const lightThemeSetting = new Setting(this.containerEl)
 			.setName('Light theme')
 			.setDesc("The theme for code blocks when Obsidian's base color scheme is light.")
 			.addDropdown(dropdown => {
@@ -87,8 +95,10 @@ export class ShikiSettingsTab extends PluginSettingTab {
 				dropdown.setValue(this.plugin.settings.lightTheme).onChange(async value => {
 					this.plugin.settings.lightTheme = value;
 					await this.plugin.saveSettingsAndReloadHighlighter();
+					this.display();
 				});
 			});
+		this.addThemeConfirmation(lightThemeSetting.settingEl, resolveThemeConfirmation(this.plugin.settings.lightTheme, 'light'));
 
 		const customThemeFolderSetting = new Setting(this.containerEl)
 			.setName('Custom themes folder location')
@@ -99,11 +109,28 @@ export class ShikiSettingsTab extends PluginSettingTab {
 					.onChange(async value => {
 						this.plugin.settings.customThemeFolder = value;
 						await this.plugin.saveSettingsAndReloadHighlighter();
+						void updateCustomThemeValidation();
 					})
 					.then(textbox => {
 						textbox.inputEl.addClass('shiki-custom-theme-folder');
 					});
 			});
+		const customThemeValidationEl = customThemeFolderSetting.settingEl.createDiv({
+			cls: 'shiki-custom-theme-validation',
+			attr: { 'data-shiki-validation-state': 'empty' },
+		});
+		let customThemeValidationRun = 0;
+		const updateCustomThemeValidation = async (): Promise<void> => {
+			const run = ++customThemeValidationRun;
+			customThemeValidationEl.setText('Checking custom theme folder...');
+			customThemeValidationEl.dataset.shikiValidationState = 'checking';
+			const validation = await validateCustomThemeFolder(this.app.vault.adapter, normalizePath(this.plugin.settings.customThemeFolder));
+			if (run !== customThemeValidationRun) {
+				return;
+			}
+			this.updateCustomThemeValidation(customThemeValidationEl, validation);
+		};
+		void updateCustomThemeValidation();
 
 		new Setting(this.containerEl)
 			.setName('Prefer theme colors')
@@ -192,5 +219,27 @@ export class ShikiSettingsTab extends PluginSettingTab {
 					});
 			});
 		}
+	}
+
+	private addThemeConfirmation(settingEl: HTMLElement, confirmation: ThemeConfirmation): void {
+		const confirmationEl = settingEl.createDiv({
+			cls: 'shiki-theme-confidence',
+			attr: {
+				'data-shiki-theme-mode': confirmation.mode,
+				'data-shiki-configured-theme': confirmation.configuredThemeId,
+				'data-shiki-effective-theme': confirmation.effectiveThemeId,
+			},
+		});
+		confirmationEl.createSpan({ cls: 'shiki-theme-confidence-label', text: `${confirmation.mode} mode` });
+		confirmationEl.createSpan({ cls: 'shiki-theme-confidence-message', text: confirmation.message });
+	}
+
+	private updateCustomThemeValidation(element: HTMLElement, validation: CustomThemeFolderValidation): void {
+		element.dataset.shikiValidationState = validation.state;
+		element.dataset.shikiLoadableThemeCount = String(validation.loadableThemes.length);
+		element.dataset.shikiJsonFileCount = String(validation.jsonFileCount);
+		element.empty();
+		element.createSpan({ cls: 'shiki-custom-theme-validation-state', text: validation.state });
+		element.createSpan({ cls: 'shiki-custom-theme-validation-message', text: validation.message });
 	}
 }

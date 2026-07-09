@@ -49,6 +49,10 @@ Given('Obsidian is sized like a phone portrait', async () => {
 	await obsidianApp.resizeToPhonePortrait();
 });
 
+Given('theme confidence settings use a valid custom theme folder', async () => {
+	await obsidianApp.prepareThemeConfidenceFixture();
+});
+
 When('Obsidian renders the active note', async () => {
 	if (!lastExpectedRenderText) {
 		lastExpectedRenderText = 'const wdioValue';
@@ -161,6 +165,29 @@ Then('raw Source mode background should match the selected Shiki theme', async (
 	assert.ok(state.activeTheme, `expected active Shiki theme id: ${JSON.stringify(state)}`);
 	assert.ok(state.expectedThemeBackground, `expected Shiki theme background for ${state.activeTheme}: ${JSON.stringify(state)}`);
 	assert.equal(state.backgroundMatchesExpected, true, `expected Source Mode background to match ${state.activeTheme}: ${JSON.stringify(state)}`);
+});
+
+Then('the theme settings should show active theme confidence and custom theme validation', async () => {
+	const state = await obsidianApp.waitForThemeSettingsConfidence();
+
+	assert.equal(state.dark.configuredTheme, 'obsidian-theme', `expected dark theme to keep Obsidian-theme default: ${JSON.stringify(state)}`);
+	assert.equal(state.dark.effectiveTheme, 'github-dark', `expected dark theme confidence to show effective GitHub Dark: ${JSON.stringify(state)}`);
+	assert.ok(state.dark.text.includes('GitHub Dark'), `expected dark theme text to name GitHub Dark: ${JSON.stringify(state)}`);
+	assert.equal(state.light.configuredTheme, 'obsidian-theme', `expected light theme to keep Obsidian-theme default: ${JSON.stringify(state)}`);
+	assert.equal(state.light.effectiveTheme, 'github-light', `expected light theme confidence to show effective GitHub Light: ${JSON.stringify(state)}`);
+	assert.ok(state.light.text.includes('GitHub Light'), `expected light theme text to name GitHub Light: ${JSON.stringify(state)}`);
+	assert.equal(state.validation.state, 'valid', `expected custom theme folder validation to be valid: ${JSON.stringify(state)}`);
+	assert.ok(state.validation.loadableThemeCount >= 1, `expected at least one loadable custom theme: ${JSON.stringify(state)}`);
+	assert.ok(state.validation.text.includes('WDIO Theme'), `expected validation text to name fixture theme: ${JSON.stringify(state)}`);
+});
+
+Then('the Shiki theme background should match in {word}', async (mode: 'reading' | 'live-preview' | 'source') => {
+	const state = await obsidianApp.waitForThemeBackground(mode);
+
+	assert.ok(state.activeTheme, `expected active Shiki theme id: ${JSON.stringify(state)}`);
+	assert.ok(state.expectedThemeBackground, `expected Shiki theme background for ${state.activeTheme}: ${JSON.stringify(state)}`);
+	assert.equal(state.visibleTargetCount, 1, `expected visible background target in ${mode}: ${JSON.stringify(state)}`);
+	assert.equal(state.backgroundMatchesExpected, true, `expected ${mode} background to match ${state.activeTheme}: ${JSON.stringify(state)}`);
 });
 
 Then('the syntax language matrix should have Shiki-owned token colors in {word}', async (mode: 'reading' | 'live-preview' | 'source') => {

@@ -85,6 +85,27 @@ Feature: Mobile-emulated syntax highlighting
     Then the syntax language matrix should have Shiki-owned token colors in source
     And raw Source mode background should match the selected Shiki theme
 
+  @theme-confidence @visual-parity
+  Scenario: Mobile settings show theme confidence and valid custom theme folders
+    Given Obsidian is running in mobile emulation
+    And the built Advanced Code Editor plugin is enabled in the fixture vault
+    And theme confidence settings use a valid custom theme folder
+    Then the theme settings should show active theme confidence and custom theme validation
+
+  @theme-confidence @visual-parity
+  Scenario: Mobile theme backgrounds match the selected Shiki theme in every render mode
+    Given Obsidian is running in mobile emulation
+    And the built Advanced Code Editor plugin is enabled in the fixture vault
+    And the fixture note "Syntax language matrix.md" is open in reading mode
+    Then the syntax language matrix should have Shiki-owned token colors in reading
+    And the Shiki theme background should match in reading
+    When the fixture note "Syntax language matrix.md" is open in Live Preview
+    Then the syntax language matrix should have Shiki-owned token colors in live-preview
+    And the Shiki theme background should match in live-preview
+    When the fixture note "Syntax language matrix.md" is open in raw Source mode
+    Then the syntax language matrix should have Shiki-owned token colors in source
+    And the Shiki theme background should match in source
+
   @visual-parity
   Scenario: Mobile Live Preview keeps language-matrix Shiki tokens after sidebar layout changes
     Given Obsidian is running in mobile emulation

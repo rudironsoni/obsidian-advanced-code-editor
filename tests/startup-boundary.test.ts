@@ -8,11 +8,16 @@ function read(path: string): string {
 describe('startup module boundary', () => {
 	test('settings tab is startup-safe', () => {
 		const source = read('packages/obsidian/src/settings/SettingsTab.ts');
+		const themeConfidence = read('packages/obsidian/src/settings/ThemeConfidence.ts');
 
 		expect(source).not.toContain("from 'shiki'");
 		expect(source).not.toContain('from "shiki"');
 		expect(source).not.toContain('@expressive-code/');
 		expect(source).not.toContain('@codemirror/');
+		expect(themeConfidence).not.toContain("from 'shiki'");
+		expect(themeConfidence).not.toContain('from "shiki"');
+		expect(themeConfidence).not.toContain('@expressive-code/');
+		expect(themeConfidence).not.toContain('@codemirror/');
 	});
 
 	test('settings tab applies changes dynamically without a manual reload row', () => {

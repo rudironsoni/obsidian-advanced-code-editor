@@ -67,6 +67,21 @@ export type SourceModeSyntaxState = {
 	isMobile: boolean;
 };
 
+export type ThemeBackgroundMode = 'reading' | 'live-preview' | 'source';
+
+export type ThemeBackgroundState = {
+	mode: ThemeBackgroundMode;
+	activeTheme: string;
+	expectedThemeBackground: string;
+	expectedBackgroundColor: string;
+	rootBackgroundValue: string;
+	rootBackgroundColor: string;
+	codeBackgroundColor: string;
+	backgroundMatchesExpected: boolean;
+	visibleTargetCount: number;
+	isMobile: boolean;
+};
+
 export type CopyControlMode = 'reading' | 'live-preview';
 
 export type CopyControlState = {
@@ -437,6 +452,91 @@ class SyntaxSurfaceVerifier {
 				isMobile: runtimeApp.isMobile,
 			};
 		}, pluginId);
+	}
+
+	async waitForThemeBackground(mode: ThemeBackgroundMode): Promise<ThemeBackgroundState> {
+		let lastState: ThemeBackgroundState | undefined;
+		try {
+			await browser.waitUntil(
+				async () => {
+					const state = await this.getThemeBackgroundState(mode);
+					lastState = state;
+					return state.visibleTargetCount > 0 && state.backgroundMatchesExpected;
+				},
+				{ timeout: 30000, timeoutMsg: `${mode} background did not match the selected Shiki theme` },
+			);
+		} catch (error) {
+			throw new Error(`${mode} background did not match the selected Shiki theme: ${JSON.stringify(lastState)}`, { cause: error });
+		}
+
+		return this.getThemeBackgroundState(mode);
+	}
+
+	async getThemeBackgroundState(mode: ThemeBackgroundMode): Promise<ThemeBackgroundState> {
+		return executeObsidian(
+			async ({ app }, id, selectedMode): Promise<ThemeBackgroundState> => {
+				const runtimeApp = app as unknown as RuntimeApp;
+				const active = (runtimeApp.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
+				const plugin = runtimeApp.plugins.plugins[id] as
+					| {
+							getActiveTheme?(): string;
+							highlighter?: {
+								getHighlightTokens?(code: string, language: string): Promise<unknown>;
+								getThemeBackground?(highlight: unknown): string | undefined;
+							};
+					  }
+					| undefined;
+				const activeTheme = plugin?.getActiveTheme?.() ?? '';
+				const highlight = await plugin?.highlighter?.getHighlightTokens?.('public sealed class Solution {}', 'cs');
+				const expectedThemeBackground = plugin?.highlighter?.getThemeBackground?.(highlight) ?? '';
+				const normalizeColor = (value: string | undefined): string => {
+					if (!value) return '';
+					const probe = document.createElement('span');
+					probe.style.color = value;
+					document.body.appendChild(probe);
+					const normalized = getComputedStyle(probe).color;
+					probe.remove();
+					return normalized;
+				};
+				const root =
+					selectedMode === 'reading'
+						? (active?.querySelector<HTMLElement>('.shiki-reading-block') ??
+							document.querySelector<HTMLElement>('.markdown-preview-view .shiki-reading-block'))
+						: selectedMode === 'live-preview'
+							? (active?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview') ??
+								document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview'))
+							: (active?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6:not(.is-live-preview)') ??
+								document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6:not(.is-live-preview)'));
+				const target =
+					selectedMode === 'reading'
+						? root
+						: selectedMode === 'live-preview'
+							? root?.querySelector<HTMLElement>('.cm-line.shiki-live-preview-code-line')
+							: root?.querySelector<HTMLElement>('.cm-line.HyperMD-codeblock');
+				const targetRect = target?.getBoundingClientRect();
+				const expectedBackgroundColor = normalizeColor(expectedThemeBackground);
+				const rootBackgroundValue = root?.style.getPropertyValue('--shiki-code-background').trim() ?? '';
+				const rootBackgroundColor = normalizeColor(rootBackgroundValue);
+				const codeBackgroundColor = target ? getComputedStyle(target).backgroundColor.trim() : '';
+
+				return {
+					mode: selectedMode,
+					activeTheme,
+					expectedThemeBackground,
+					expectedBackgroundColor,
+					rootBackgroundValue,
+					rootBackgroundColor,
+					codeBackgroundColor,
+					backgroundMatchesExpected:
+						expectedBackgroundColor !== '' && rootBackgroundColor === expectedBackgroundColor && codeBackgroundColor === expectedBackgroundColor,
+					visibleTargetCount:
+						target && targetRect && targetRect.width > 0 && targetRect.height > 0 && codeBackgroundColor !== 'rgba(0, 0, 0, 0)' ? 1 : 0,
+					isMobile: runtimeApp.isMobile,
+				};
+			},
+			pluginId,
+			mode,
+		);
 	}
 
 	private async getCopyControlState(mode: CopyControlMode): Promise<CopyControlState> {
