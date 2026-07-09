@@ -92,6 +92,13 @@ Feature: Mobile-emulated syntax highlighting
     And theme confidence settings use a valid custom theme folder
     Then the theme settings should show active theme confidence and custom theme validation
 
+  @language-support @visual-parity
+  Scenario: Mobile settings show language support validation backed by the syntax matrix
+    Given Obsidian is running in mobile emulation
+    And the built Advanced Code Editor plugin is enabled in the fixture vault
+    And language support settings use validation fixtures
+    Then the language settings should show disabled-language and custom-language validation
+
   @theme-confidence @visual-parity
   Scenario: Mobile theme backgrounds match the selected Shiki theme in every render mode
     Given Obsidian is running in mobile emulation

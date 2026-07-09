@@ -9,6 +9,12 @@ import {
 	type CustomThemeFolderValidation,
 	type ThemeConfirmation,
 } from 'packages/obsidian/src/settings/ThemeConfidence';
+import {
+	validateCustomLanguageFolder,
+	validateDisabledLanguages,
+	type CustomLanguageFolderValidation,
+	type DisabledLanguageValidation,
+} from 'packages/obsidian/src/settings/LanguageValidation';
 
 export class ShikiSettingsTab extends PluginSettingTab {
 	plugin: ShikiPlugin;
@@ -153,11 +159,20 @@ export class ShikiSettingsTab extends PluginSettingTab {
 					.onChange(async value => {
 						this.plugin.settings.customLanguageFolder = value;
 						await this.plugin.saveSettingsAndReloadHighlighter();
+						this.display();
 					})
 					.then(textbox => {
 						textbox.inputEl.addClass('shiki-custom-language-folder');
 					});
 			});
+		const customLanguageValidationEl = customLanguageFolderSetting.settingEl.createDiv({
+			cls: 'shiki-custom-language-validation',
+			attr: { 'data-shiki-validation-state': 'checking' },
+		});
+		customLanguageValidationEl.setText('Checking custom language folder...');
+		void validateCustomLanguageFolder(this.app.vault.adapter, normalizePath(this.plugin.settings.customLanguageFolder)).then(validation =>
+			this.updateCustomLanguageValidation(customLanguageValidationEl, validation),
+		);
 
 		new Setting(this.containerEl)
 			.setName('Excluded Languages')
@@ -165,17 +180,24 @@ export class ShikiSettingsTab extends PluginSettingTab {
 			.addButton(button => {
 				button.setButtonText('Add Language Rule').onClick(async () => {
 					button.setDisabled(true);
-					const languages = this.plugin.highlighter.obsidianSafeLanguageNames();
+					const disabledLanguages = new Set(this.plugin.settings.disabledLanguages.map(language => language.trim().toLowerCase()));
+					const languages = this.plugin.highlighter
+						.obsidianSafeLanguageNames()
+						.filter(language => !disabledLanguages.has(language.trim().toLowerCase()))
+						.sort((left, right) => left.localeCompare(right));
 					button.setDisabled(false);
 
 					const modal = new StringSelectModal(this.plugin, languages, language => {
-						this.plugin.settings.disabledLanguages.push(language);
+						if (!disabledLanguages.has(language.trim().toLowerCase())) {
+							this.plugin.settings.disabledLanguages.push(language);
+						}
 						void this.plugin.saveSettingsAndReloadHighlighter();
 						this.display();
 					});
 					modal.open();
 				});
 			});
+		this.addDisabledLanguageValidation(this.containerEl, validateDisabledLanguages(this.plugin.settings.disabledLanguages));
 
 		for (const language of this.plugin.settings.disabledLanguages) {
 			new Setting(this.containerEl).setName(language).addButton(button => {
@@ -234,6 +256,21 @@ export class ShikiSettingsTab extends PluginSettingTab {
 		confirmationEl.createSpan({ cls: 'shiki-theme-confidence-message', text: confirmation.message });
 	}
 
+	private addDisabledLanguageValidation(containerEl: HTMLElement, validation: DisabledLanguageValidation): void {
+		const validationEl = containerEl.createDiv({
+			cls: 'shiki-disabled-language-validation',
+			attr: {
+				'data-shiki-validation-state': validation.state,
+				'data-shiki-disabled-language-count': String(validation.normalizedLanguages.length),
+				'data-shiki-duplicate-language-count': String(validation.duplicateLanguages.length),
+				'data-shiki-unknown-language-count': String(validation.unknownLanguages.length),
+				'data-shiki-matrix-language-count': String(validation.matrixLanguages.length),
+			},
+		});
+		validationEl.createSpan({ cls: 'shiki-disabled-language-validation-state', text: validation.state });
+		validationEl.createSpan({ cls: 'shiki-disabled-language-validation-message', text: validation.message });
+	}
+
 	private updateCustomThemeValidation(element: HTMLElement, validation: CustomThemeFolderValidation): void {
 		element.dataset.shikiValidationState = validation.state;
 		element.dataset.shikiLoadableThemeCount = String(validation.loadableThemes.length);
@@ -241,5 +278,14 @@ export class ShikiSettingsTab extends PluginSettingTab {
 		element.empty();
 		element.createSpan({ cls: 'shiki-custom-theme-validation-state', text: validation.state });
 		element.createSpan({ cls: 'shiki-custom-theme-validation-message', text: validation.message });
+	}
+
+	private updateCustomLanguageValidation(element: HTMLElement, validation: CustomLanguageFolderValidation): void {
+		element.dataset.shikiValidationState = validation.state;
+		element.dataset.shikiLoadableLanguageCount = String(validation.loadableLanguages.length);
+		element.dataset.shikiJsonFileCount = String(validation.jsonFileCount);
+		element.empty();
+		element.createSpan({ cls: 'shiki-custom-language-validation-state', text: validation.state });
+		element.createSpan({ cls: 'shiki-custom-language-validation-message', text: validation.message });
 	}
 }

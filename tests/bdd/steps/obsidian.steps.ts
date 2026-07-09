@@ -53,6 +53,10 @@ Given('theme confidence settings use a valid custom theme folder', async () => {
 	await obsidianApp.prepareThemeConfidenceFixture();
 });
 
+Given('language support settings use validation fixtures', async () => {
+	await obsidianApp.prepareLanguageSupportFixture();
+});
+
 Given('code block defaults hide line numbers and do not wrap', async () => {
 	await obsidianApp.applyCodeBlockSettings({ showLineNumbers: false, wrapLines: false });
 });
@@ -187,6 +191,20 @@ Then('the theme settings should show active theme confidence and custom theme va
 	assert.equal(state.validation.state, 'valid', `expected custom theme folder validation to be valid: ${JSON.stringify(state)}`);
 	assert.ok(state.validation.loadableThemeCount >= 1, `expected at least one loadable custom theme: ${JSON.stringify(state)}`);
 	assert.ok(state.validation.text.includes('WDIO Theme'), `expected validation text to name fixture theme: ${JSON.stringify(state)}`);
+});
+
+Then('the language settings should show disabled-language and custom-language validation', async () => {
+	const state = await obsidianApp.waitForLanguageSettingsValidation();
+
+	assert.equal(state.customLanguage.state, 'valid', `expected custom language folder validation to be valid: ${JSON.stringify(state)}`);
+	assert.ok(state.customLanguage.loadableLanguageCount >= 1, `expected at least one loadable custom language: ${JSON.stringify(state)}`);
+	assert.ok(state.customLanguage.text.includes('WDIO Language'), `expected validation text to name fixture language: ${JSON.stringify(state)}`);
+	assert.equal(state.disabledLanguages.state, 'warning', `expected disabled language validation warning: ${JSON.stringify(state)}`);
+	assert.equal(state.disabledLanguages.disabledLanguageCount, 2, `expected normalized disabled languages: ${JSON.stringify(state)}`);
+	assert.ok(state.disabledLanguages.duplicateLanguageCount >= 1, `expected duplicate disabled language warning: ${JSON.stringify(state)}`);
+	assert.ok(state.disabledLanguages.unknownLanguageCount >= 1, `expected unknown disabled language warning: ${JSON.stringify(state)}`);
+	assert.ok(state.disabledLanguages.matrixLanguageCount >= 1, `expected matrix-backed disabled language warning: ${JSON.stringify(state)}`);
+	assert.ok(state.disabledLanguages.text.includes('matrix-covered'), `expected matrix-backed warning text: ${JSON.stringify(state)}`);
 });
 
 Then('the Shiki theme background should match in {word}', async (mode: 'reading' | 'live-preview' | 'source') => {

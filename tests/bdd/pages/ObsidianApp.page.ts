@@ -47,6 +47,26 @@ type ThemeSettingsConfidenceState = {
 	isMobile: boolean;
 };
 
+type LanguageSettingsValidationState = {
+	settingsText: string;
+	settingsItemCount: number;
+	customLanguage: {
+		state: string;
+		loadableLanguageCount: number;
+		jsonFileCount: number;
+		text: string;
+	};
+	disabledLanguages: {
+		state: string;
+		disabledLanguageCount: number;
+		duplicateLanguageCount: number;
+		unknownLanguageCount: number;
+		matrixLanguageCount: number;
+		text: string;
+	};
+	isMobile: boolean;
+};
+
 type RuntimeApp = {
 	isMobile: boolean;
 	plugins: {
@@ -68,6 +88,7 @@ class ObsidianAppPage {
 		await browser.waitUntil(async () => (await this.getPluginLoadState()).loaded, {
 			timeoutMsg: `${pluginId} did not load`,
 		});
+		await this.resetLanguageSupportSettings();
 		return this.getPluginLoadState();
 	}
 
@@ -284,6 +305,134 @@ class ObsidianAppPage {
 					loadableThemeCount: Number(validation?.dataset.shikiLoadableThemeCount ?? 0),
 					jsonFileCount: Number(validation?.dataset.shikiJsonFileCount ?? 0),
 					text: validation?.textContent ?? '',
+				},
+				isMobile: runtimeApp.isMobile,
+			};
+		}, pluginId);
+	}
+
+	async prepareLanguageSupportFixture(): Promise<void> {
+		await executeObsidian(async ({ app, obsidian }, id) => {
+			const folder = 'customLanguages';
+			const languagePath = `${folder}/wdio-language.json`;
+			if (!(await app.vault.adapter.exists(folder))) {
+				await app.vault.createFolder(folder);
+			}
+			const languageJson = JSON.stringify(
+				{
+					name: 'WDIO Language',
+					scopeName: 'source.wdio',
+					patterns: [{ match: '.*', name: 'source.wdio' }],
+				},
+				null,
+				2,
+			);
+			const existing = app.vault.getAbstractFileByPath(languagePath);
+			if (existing instanceof obsidian.TFile) {
+				await app.vault.modify(existing, languageJson);
+			} else {
+				await app.vault.create(languagePath, languageJson);
+			}
+
+			const runtimeApp = app as unknown as RuntimeApp;
+			const plugin = runtimeApp.plugins.plugins[id] as
+				| {
+						settings?: { customLanguageFolder: string; disabledLanguages: string[] };
+						saveSettingsAndReloadHighlighter?: () => Promise<void>;
+				  }
+				| undefined;
+			if (!plugin?.settings || !plugin.saveSettingsAndReloadHighlighter) {
+				throw new Error('Advanced Code Editor plugin settings were not available');
+			}
+			plugin.settings.customLanguageFolder = folder;
+			plugin.settings.disabledLanguages = ['cs', 'not-a-language', 'cs'];
+			await plugin.saveSettingsAndReloadHighlighter();
+		}, pluginId);
+	}
+
+	async waitForLanguageSettingsValidation(): Promise<LanguageSettingsValidationState> {
+		let lastState: LanguageSettingsValidationState | undefined;
+		try {
+			await browser.waitUntil(
+				async () => {
+					const state = await this.getLanguageSettingsValidation();
+					lastState = state;
+					return (
+						state.customLanguage.state === 'valid' &&
+						state.customLanguage.loadableLanguageCount >= 1 &&
+						state.disabledLanguages.state === 'warning' &&
+						state.disabledLanguages.duplicateLanguageCount >= 1 &&
+						state.disabledLanguages.unknownLanguageCount >= 1 &&
+						state.disabledLanguages.matrixLanguageCount >= 1
+					);
+				},
+				{ timeout: 30000, timeoutMsg: 'Language settings validation did not show expected confirmations' },
+			);
+		} catch (error) {
+			throw new Error(`Language settings validation did not show expected confirmations: ${JSON.stringify(lastState)}`, { cause: error });
+		}
+		const state = await this.getLanguageSettingsValidation();
+		await this.resetLanguageSupportSettings();
+		await executeObsidian(({ app }) => {
+			const runtimeApp = app as { setting?: { close?: () => void } };
+			runtimeApp.setting?.close?.();
+			document.querySelector<HTMLElement>('.modal-container .modal-close-button, .modal-close-button')?.click();
+		});
+		return state;
+	}
+
+	private async resetLanguageSupportSettings(): Promise<void> {
+		await executeObsidian(async ({ app }, id) => {
+			const runtimeApp = app as unknown as RuntimeApp;
+			const plugin = runtimeApp.plugins.plugins[id] as
+				| {
+						settings?: { customLanguageFolder: string; disabledLanguages: string[] };
+						saveSettingsAndReloadHighlighter?: () => Promise<void>;
+				  }
+				| undefined;
+			if (!plugin?.settings || !plugin.saveSettingsAndReloadHighlighter) {
+				throw new Error('Advanced Code Editor plugin settings were not available');
+			}
+			if (plugin.settings.customLanguageFolder === '' && plugin.settings.disabledLanguages.length === 0) {
+				return;
+			}
+			plugin.settings.customLanguageFolder = '';
+			plugin.settings.disabledLanguages = [];
+			await plugin.saveSettingsAndReloadHighlighter();
+		}, pluginId);
+	}
+
+	private async getLanguageSettingsValidation(): Promise<LanguageSettingsValidationState> {
+		return executeObsidian(async ({ app }, id): Promise<LanguageSettingsValidationState> => {
+			const runtimeApp = app as unknown as RuntimeApp & {
+				setting?: {
+					open(): void;
+					openTabById(id: string): void;
+				};
+			};
+			runtimeApp.setting?.open();
+			runtimeApp.setting?.openTabById(id);
+			await new Promise(resolve => window.setTimeout(resolve, 150));
+
+			const customLanguage = document.querySelector<HTMLElement>('.shiki-custom-language-validation');
+			const disabledLanguages = document.querySelector<HTMLElement>('.shiki-disabled-language-validation');
+			const settingsRoot = document.querySelector<HTMLElement>('.modal-container, .vertical-tab-content-container');
+			return {
+				settingsText: settingsRoot?.textContent?.slice(0, 1000) ?? '',
+				settingsItemCount: document.querySelectorAll('.setting-item').length,
+				customLanguage: {
+					state: customLanguage?.dataset.shikiValidationState ?? '',
+					loadableLanguageCount: Number(customLanguage?.dataset.shikiLoadableLanguageCount ?? 0),
+					jsonFileCount: Number(customLanguage?.dataset.shikiJsonFileCount ?? 0),
+					text: customLanguage?.textContent ?? '',
+				},
+				disabledLanguages: {
+					state: disabledLanguages?.dataset.shikiValidationState ?? '',
+					disabledLanguageCount: Number(disabledLanguages?.dataset.shikiDisabledLanguageCount ?? 0),
+					duplicateLanguageCount: Number(disabledLanguages?.dataset.shikiDuplicateLanguageCount ?? 0),
+					unknownLanguageCount: Number(disabledLanguages?.dataset.shikiUnknownLanguageCount ?? 0),
+					matrixLanguageCount: Number(disabledLanguages?.dataset.shikiMatrixLanguageCount ?? 0),
+					text: disabledLanguages?.textContent ?? '',
 				},
 				isMobile: runtimeApp.isMobile,
 			};
