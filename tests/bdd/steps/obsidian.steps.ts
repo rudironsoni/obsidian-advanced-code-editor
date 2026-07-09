@@ -618,6 +618,18 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	assertStyleEqual(livePreviewBlock.gutterTextAlign, readingBlock.gutterTextAlign, 'line-number gutter text alignment');
 	assertStyleEqual(livePreviewBlock.gutterBoxSizing, readingBlock.gutterBoxSizing, 'line-number gutter box sizing');
 	assert.ok(
+		livePreviewBlock.gutterMaxVerticalGap !== null &&
+			livePreviewBlock.gutterVerticalOverpaint !== null &&
+			livePreviewBlock.gutterMaxVerticalGap <= livePreviewBlock.gutterVerticalOverpaint + 0.5,
+		`expected Live Preview gutter rows to paint continuously across blank lines: ${layoutJson}`,
+	);
+	assert.ok(
+		livePreviewBlock.rowMaxVerticalGap !== null &&
+			livePreviewBlock.rowVerticalOverpaint !== null &&
+			livePreviewBlock.rowMaxVerticalGap <= livePreviewBlock.rowVerticalOverpaint + 0.5,
+		`expected Live Preview code rows to paint continuously across blank lines: ${layoutJson}`,
+	);
+	assert.ok(
 		livePreviewBlock.gutterMarginRight !== null && Number.parseFloat(livePreviewBlock.gutterMarginRight) === readingBlock.gutterToCodeGap,
 		`expected Live Preview gutter margin to equal Reading mode code gap: ${layoutJson}`,
 	);
