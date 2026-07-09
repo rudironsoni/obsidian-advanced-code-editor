@@ -8,6 +8,8 @@ import {
 	type LivePreviewSyntaxState,
 	type RenderState,
 	type SourceModeSyntaxState,
+	type ThemeBackgroundMode,
+	type ThemeBackgroundState,
 } from './SyntaxSurfaceVerifier.js';
 import { executeObsidian, waitForObsidianServiceHelper } from '../support/executeObsidian.js';
 import { isWebDriverSessionGoneError } from '../support/wdioSession.js';
@@ -21,6 +23,26 @@ type PluginLoadState = {
 	loaded: boolean;
 	isMobile: boolean;
 	version: string | null;
+};
+
+type ThemeSettingsConfidenceState = {
+	dark: {
+		configuredTheme: string;
+		effectiveTheme: string;
+		text: string;
+	};
+	light: {
+		configuredTheme: string;
+		effectiveTheme: string;
+		text: string;
+	};
+	validation: {
+		state: string;
+		loadableThemeCount: number;
+		jsonFileCount: number;
+		text: string;
+	};
+	isMobile: boolean;
 };
 
 type RuntimeApp = {
@@ -61,6 +83,9 @@ class ObsidianAppPage {
 
 	async openFixtureInReadingMode(path: string): Promise<void> {
 		await executeObsidian(async ({ app, obsidian }, notePath) => {
+			const runtimeApp = app as { setting?: { close?: () => void } };
+			runtimeApp.setting?.close?.();
+			document.querySelector<HTMLElement>('.modal-container .modal-close-button, .modal-close-button')?.click();
 			const file = app.vault.getAbstractFileByPath(notePath);
 			if (!(file instanceof obsidian.TFile)) throw new Error(`Fixture not found: ${notePath}`);
 
@@ -72,6 +97,9 @@ class ObsidianAppPage {
 
 	async openFixtureInLivePreview(path: string): Promise<void> {
 		await executeObsidian(async ({ app, obsidian }, notePath) => {
+			const runtimeApp = app as { setting?: { close?: () => void } };
+			runtimeApp.setting?.close?.();
+			document.querySelector<HTMLElement>('.modal-container .modal-close-button, .modal-close-button')?.click();
 			const file = app.vault.getAbstractFileByPath(notePath);
 			if (!(file instanceof obsidian.TFile)) throw new Error(`Fixture not found: ${notePath}`);
 
@@ -83,6 +111,9 @@ class ObsidianAppPage {
 
 	async openFixtureInSourceMode(path: string): Promise<void> {
 		await executeObsidian(async ({ app, obsidian }, notePath) => {
+			const runtimeApp = app as { setting?: { close?: () => void } };
+			runtimeApp.setting?.close?.();
+			document.querySelector<HTMLElement>('.modal-container .modal-close-button, .modal-close-button')?.click();
 			const file = app.vault.getAbstractFileByPath(notePath);
 			if (!(file instanceof obsidian.TFile)) throw new Error(`Fixture not found: ${notePath}`);
 
@@ -124,8 +155,111 @@ class ObsidianAppPage {
 		return syntaxSurfaceVerifier.getSourceModeSyntaxState();
 	}
 
+	async waitForThemeBackground(mode: ThemeBackgroundMode): Promise<ThemeBackgroundState> {
+		return syntaxSurfaceVerifier.waitForThemeBackground(mode);
+	}
+
 	async verifyCopyControl(mode: CopyControlMode): Promise<CopyControlState> {
 		return syntaxSurfaceVerifier.verifyCopyControl(mode);
+	}
+
+	async prepareThemeConfidenceFixture(): Promise<void> {
+		await executeObsidian(async ({ app, obsidian }, id) => {
+			const folder = 'customThemes';
+			const themePath = `${folder}/Wdio Theme-color-theme.json`;
+			if (!(await app.vault.adapter.exists(folder))) {
+				await app.vault.createFolder(folder);
+			}
+			const themeJson = JSON.stringify(
+				{
+					name: 'WDIO Theme',
+					type: 'dark',
+					colors: {},
+					tokenColors: [{ scope: 'keyword', settings: { foreground: '#ff0000' } }],
+				},
+				null,
+				2,
+			);
+			const existing = app.vault.getAbstractFileByPath(themePath);
+			if (existing instanceof obsidian.TFile) {
+				await app.vault.modify(existing, themeJson);
+			} else {
+				await app.vault.create(themePath, themeJson);
+			}
+
+			const runtimeApp = app as unknown as RuntimeApp;
+			const plugin = runtimeApp.plugins.plugins[id] as
+				| {
+						settings?: { darkTheme: string; lightTheme: string; customThemeFolder: string };
+						saveSettingsAndReloadHighlighter?: () => Promise<void>;
+				  }
+				| undefined;
+			if (!plugin?.settings || !plugin.saveSettingsAndReloadHighlighter) {
+				throw new Error('Advanced Code Editor plugin settings were not available');
+			}
+			plugin.settings.darkTheme = 'obsidian-theme';
+			plugin.settings.lightTheme = 'obsidian-theme';
+			plugin.settings.customThemeFolder = folder;
+			await plugin.saveSettingsAndReloadHighlighter();
+		}, pluginId);
+	}
+
+	async waitForThemeSettingsConfidence(): Promise<ThemeSettingsConfidenceState> {
+		await browser.waitUntil(
+			async () => {
+				const state = await this.getThemeSettingsConfidence();
+				return (
+					state.dark.effectiveTheme === 'github-dark' &&
+					state.light.effectiveTheme === 'github-light' &&
+					state.validation.state === 'valid' &&
+					state.validation.loadableThemeCount >= 1
+				);
+			},
+			{ timeout: 30000, timeoutMsg: 'Theme confidence settings did not show expected confirmations' },
+		);
+		const state = await this.getThemeSettingsConfidence();
+		await executeObsidian(({ app }) => {
+			const runtimeApp = app as { setting?: { close?: () => void } };
+			runtimeApp.setting?.close?.();
+			document.querySelector<HTMLElement>('.modal-container .modal-close-button, .modal-close-button')?.click();
+		});
+		return state;
+	}
+
+	private async getThemeSettingsConfidence(): Promise<ThemeSettingsConfidenceState> {
+		return executeObsidian(async ({ app }, id): Promise<ThemeSettingsConfidenceState> => {
+			const runtimeApp = app as unknown as RuntimeApp & {
+				setting?: {
+					open(): void;
+					openTabById(id: string): void;
+				};
+			};
+			runtimeApp.setting?.open();
+			runtimeApp.setting?.openTabById(id);
+			await new Promise(resolve => window.setTimeout(resolve, 150));
+
+			const readTheme = (mode: 'dark' | 'light') => {
+				const el = document.querySelector<HTMLElement>(`.shiki-theme-confidence[data-shiki-theme-mode="${mode}"]`);
+				return {
+					configuredTheme: el?.dataset.shikiConfiguredTheme ?? '',
+					effectiveTheme: el?.dataset.shikiEffectiveTheme ?? '',
+					text: el?.textContent ?? '',
+				};
+			};
+			const validation = document.querySelector<HTMLElement>('.shiki-custom-theme-validation');
+
+			return {
+				dark: readTheme('dark'),
+				light: readTheme('light'),
+				validation: {
+					state: validation?.dataset.shikiValidationState ?? '',
+					loadableThemeCount: Number(validation?.dataset.shikiLoadableThemeCount ?? 0),
+					jsonFileCount: Number(validation?.dataset.shikiJsonFileCount ?? 0),
+					text: validation?.textContent ?? '',
+				},
+				isMobile: runtimeApp.isMobile,
+			};
+		}, pluginId);
 	}
 
 	async moveFocusAwayFromNote(): Promise<void> {
