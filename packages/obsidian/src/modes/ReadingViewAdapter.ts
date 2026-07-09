@@ -1,5 +1,6 @@
 import type { MarkdownPostProcessorContext } from 'obsidian';
 import { createCodeBlockCopyButton } from 'packages/obsidian/src/codeblocks/CodeBlockCopyControl';
+import { getLineMetadataClasses, parseCodeBlockDisplayMetadata, shouldShowLineNumbers } from 'packages/obsidian/src/codeblocks/CodeBlockDisplayMetadata';
 import { parseCodeBlockMeta } from 'packages/obsidian/src/codeblocks/CodeBlockMeta';
 import type { CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
@@ -170,8 +171,16 @@ export class ReadingViewAdapter {
 	}
 
 	private syncHeader(header: HTMLElement, state: ReadingBlockState, doc: Document): void {
+		const metadata = parseCodeBlockDisplayMetadata(state.block.meta, state.block.code, state.block.language);
 		let left = header.querySelector<HTMLElement>(':scope > .shiki-header-left');
 		left ??= header.createDiv({ cls: 'shiki-header-left' });
+		let title = left.querySelector<HTMLElement>(':scope > .shiki-block-title');
+		if (metadata.title) {
+			title ??= left.createSpan({ cls: 'shiki-block-title' });
+			title.textContent = metadata.title;
+		} else {
+			title?.remove();
+		}
 		let languageName = left.querySelector<HTMLElement>(':scope > .shiki-lang-name');
 		languageName ??= left.createSpan({ cls: 'shiki-lang-name' });
 		languageName.textContent = state.language;
@@ -216,19 +225,22 @@ export class ReadingViewAdapter {
 		}
 
 		const lines = state.block.code.split('\n');
+		const metadata = parseCodeBlockDisplayMetadata(state.block.meta, state.block.code, state.block.language);
 
 		// Preserve the original code text but replace with Shiki-colored spans
 		codeElement.empty();
 		const tokenLines = this.plugin.highlighter.getTokenSegments(state.block.code, highlight.tokens);
 		let renderedTokenCount = 0;
 		for (let i = 0; i < lines.length; i++) {
+			const lineElement = codeElement.ownerDocument.createElement('span');
+			lineElement.classList.add('shiki-code-line', ...getLineMetadataClasses(metadata, i + 1));
 			const lineSegments = tokenLines[i];
 			if (!lineSegments?.length) {
-				codeElement.appendChild(codeElement.ownerDocument.createTextNode(lines[i] ?? ''));
+				lineElement.appendChild(codeElement.ownerDocument.createTextNode(lines[i] ?? ''));
 			} else {
 				for (const segment of lineSegments) {
 					if (!segment.token) {
-						codeElement.appendChild(codeElement.ownerDocument.createTextNode(segment.text));
+						lineElement.appendChild(codeElement.ownerDocument.createTextNode(segment.text));
 						continue;
 					}
 					const tokenStyle = this.plugin.highlighter.getTokenStyle(segment.token);
@@ -241,10 +253,11 @@ export class ReadingViewAdapter {
 						}
 					}
 					span.style.cssText = tokenStyle.style;
-					codeElement.appendChild(span);
+					lineElement.appendChild(span);
 					renderedTokenCount++;
 				}
 			}
+			codeElement.appendChild(lineElement);
 			if (i < lines.length - 1) {
 				codeElement.appendChild(codeElement.ownerDocument.createTextNode('\n'));
 			}
@@ -298,6 +311,8 @@ export class ReadingViewAdapter {
 	}
 
 	private syncLineNumbers(state: ReadingBlockState, codeElement: HTMLElement): void {
+		const metadata = parseCodeBlockDisplayMetadata(state.block.meta, state.block.code, state.block.language);
+		const showLineNumbers = shouldShowLineNumbers(metadata, this.plugin.loadedSettings.showLineNumbers);
 		const blockRoot = codeElement.closest<HTMLElement>('.shiki-reading-block');
 		if (blockRoot) {
 			for (const lineNumbers of [...blockRoot.querySelectorAll('.shiki-line-numbers')]) {
@@ -306,11 +321,11 @@ export class ReadingViewAdapter {
 		}
 		const bodyEl = codeElement.closest<HTMLElement>('.shiki-block-body');
 		if (bodyEl) {
-			if (!this.plugin.loadedSettings.showLineNumbers) {
+			if (!showLineNumbers) {
 				bodyEl.style.display = '';
 			}
 		}
-		if (this.plugin.loadedSettings.showLineNumbers) {
+		if (showLineNumbers) {
 			if (bodyEl && !bodyEl.querySelector('.shiki-line-numbers')) {
 				bodyEl.style.display = 'flex';
 				const lineNumbers = codeElement.ownerDocument.createElement('div');

@@ -6,6 +6,8 @@ import {
 	type CopyControlState,
 	type LivePreviewFenceCursorState,
 	type LivePreviewSyntaxState,
+	type MetadataParityMode,
+	type MetadataParityState,
 	type RenderState,
 	type SourceModeSyntaxState,
 	type ThemeBackgroundMode,
@@ -157,6 +159,32 @@ class ObsidianAppPage {
 
 	async waitForThemeBackground(mode: ThemeBackgroundMode): Promise<ThemeBackgroundState> {
 		return syntaxSurfaceVerifier.waitForThemeBackground(mode);
+	}
+
+	async waitForMetadataParity(mode: MetadataParityMode): Promise<MetadataParityState> {
+		return syntaxSurfaceVerifier.waitForMetadataParity(mode);
+	}
+
+	async applyCodeBlockSettings(input: { wrapLines: boolean; showLineNumbers: boolean }): Promise<void> {
+		await executeObsidian(
+			async ({ app }, id, settings) => {
+				const runtimeApp = app as unknown as RuntimeApp;
+				const plugin = runtimeApp.plugins.plugins[id] as
+					| {
+							settings?: { wrapLines: boolean; showLineNumbers: boolean };
+							saveSettingsAndReloadHighlighter?: () => Promise<void>;
+					  }
+					| undefined;
+				if (!plugin?.settings || !plugin.saveSettingsAndReloadHighlighter) {
+					throw new Error('Advanced Code Editor plugin settings were not available');
+				}
+				plugin.settings.wrapLines = settings.wrapLines;
+				plugin.settings.showLineNumbers = settings.showLineNumbers;
+				await plugin.saveSettingsAndReloadHighlighter();
+			},
+			pluginId,
+			input,
+		);
 	}
 
 	async verifyCopyControl(mode: CopyControlMode): Promise<CopyControlState> {

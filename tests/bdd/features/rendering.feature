@@ -93,6 +93,24 @@ Feature: Reading mode syntax highlighting
     Then the syntax language matrix should have Shiki-owned token colors in source
     And the Shiki theme background should match in source
 
+  @metadata-parity @visual-parity
+  Scenario: Reading mode and Live Preview render metadata consistently with nowrap defaults
+    Given the built Advanced Code Editor plugin is enabled in the fixture vault
+    And code block defaults hide line numbers and do not wrap
+    And the fixture note "Metadata parity.md" is open in reading mode
+    Then code block metadata should render consistently in reading
+    When the fixture note "Metadata parity.md" is open in Live Preview
+    Then code block metadata should render consistently in live-preview
+
+  @metadata-parity @visual-parity
+  Scenario: Reading mode and Live Preview render metadata consistently with wrapped defaults
+    Given the built Advanced Code Editor plugin is enabled in the fixture vault
+    And code block defaults show line numbers and wrap
+    And the fixture note "Metadata parity.md" is open in reading mode
+    Then wrapped code block metadata should render consistently in reading
+    When the fixture note "Metadata parity.md" is open in Live Preview
+    Then wrapped code block metadata should render consistently in live-preview
+
   @visual-parity
   Scenario: Live Preview keeps language-matrix Shiki tokens after sidebar layout changes
     Given the built Advanced Code Editor plugin is enabled in the fixture vault
