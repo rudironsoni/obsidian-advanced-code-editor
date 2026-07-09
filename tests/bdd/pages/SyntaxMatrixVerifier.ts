@@ -64,18 +64,23 @@ export class SyntaxMatrixVerifier {
 			probe.needles.every(needle => needle.found && needle.visible && !needle.transparent);
 
 		const probes: SyntaxMatrixProbeState[] = [];
-		for (const expected of syntaxLanguageMatrix) {
-			await this.revealSyntaxLanguageLine(expected.lineText);
+		for (const [matrixIndex, expected] of syntaxLanguageMatrix.entries()) {
 			let matched: SyntaxMatrixProbeState | undefined;
+			let revealAttempt = 0;
 			try {
 				await browser.waitUntil(
 					async () => {
+						await this.revealSyntaxLanguageLine(mode, expected.lineText, matrixIndex, revealAttempt++);
 						const state = await this.getSyntaxLanguageMatrixState(mode);
 						lastState = state;
 						matched = state.probes.find(probe => probe.language === expected.language);
 						return matched !== undefined && passes(matched);
 					},
-					{ timeout: 45000, timeoutMsg: `Syntax language matrix did not render ${expected.language} Shiki-owned tokens in ${mode}` },
+					{
+						timeout: 45000,
+						interval: 200,
+						timeoutMsg: `Syntax language matrix did not render ${expected.language} Shiki-owned tokens in ${mode}`,
+					},
 				);
 			} catch (error) {
 				throw new Error(`Syntax language matrix did not render ${expected.language} Shiki-owned tokens in ${mode}: ${JSON.stringify(lastState)}`, {
@@ -88,43 +93,80 @@ export class SyntaxMatrixVerifier {
 		return { ...finalState, probes };
 	}
 
-	private async revealSyntaxLanguageLine(lineText: string): Promise<void> {
-		await executeObsidian(({ app }, expectedLine) => {
-			const normalizeText = (value: string): string => value.replace(/\s+/g, ' ').trim();
-			const expected = normalizeText(expectedLine);
-			const active = (app.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
-			const root = active?.querySelector<HTMLElement>('.markdown-preview-view') ?? document.querySelector<HTMLElement>('.markdown-preview-view');
-			const blocks = [...(root?.querySelectorAll<HTMLElement>('.shiki-reading-block') ?? [])];
-			const block = blocks.find(candidate => normalizeText(candidate.textContent ?? '').includes(expected));
-			if (block) {
-				block.scrollIntoView({ block: 'center', inline: 'nearest' });
-				root?.dispatchEvent(new Event('scroll', { bubbles: true }));
-				return;
-			}
+	private async revealSyntaxLanguageLine(mode: SyntaxMatrixMode, lineText: string, matrixIndex: number, attempt: number): Promise<void> {
+		await executeObsidian(
+			async ({ app }, input) => {
+				const normalizeText = (value: string): string => value.replace(/\s+/g, ' ').trim();
+				const expected = normalizeText(input.lineText);
+				type RuntimeEditor = {
+					getValue(): string;
+					getLine(line: number): string;
+					setCursor(cursor: { line: number; ch: number }): void;
+					scrollIntoView?(range: { from: { line: number; ch: number }; to: { line: number; ch: number } }, center?: boolean): void;
+					focus?(): void;
+				};
+				type RuntimeAppWithVault = {
+					workspace: {
+						activeLeaf?: { view?: unknown };
+						getActiveFile?(): unknown;
+					};
+					vault?: {
+						cachedRead?(file: unknown): Promise<string>;
+					};
+				};
+				const runtimeApp = app as unknown as RuntimeAppWithVault;
+				const activeView = runtimeApp.workspace.activeLeaf?.view as { contentEl?: HTMLElement; editor?: RuntimeEditor } | undefined;
+				const active = activeView?.contentEl;
+				const settle = async (): Promise<void> => {
+					await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+					await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+				};
 
-			type RuntimeEditor = {
-				getValue(): string;
-				getLine(line: number): string;
-				setCursor(cursor: { line: number; ch: number }): void;
-				scrollIntoView?(range: { from: { line: number; ch: number }; to: { line: number; ch: number } }, center?: boolean): void;
-				focus?(): void;
-			};
-			const editor = (app.workspace.activeLeaf?.view as unknown as { editor?: RuntimeEditor })?.editor;
-			if (!editor) {
-				return;
-			}
-			const lines = editor.getValue().split('\n');
-			const lineIndex = lines.findIndex(line => normalizeText(line).includes(expected));
-			if (lineIndex < 0) {
-				return;
-			}
-			const line = editor.getLine(lineIndex);
-			const cursor = { line: lineIndex, ch: 0 };
-			editor.setCursor(cursor);
-			editor.scrollIntoView?.({ from: cursor, to: { line: lineIndex, ch: line.length } }, true);
-			editor.focus?.();
-		}, lineText);
-		await browser.pause(250);
+				if (input.mode !== 'reading') {
+					const editor = activeView?.editor;
+					if (editor) {
+						const lines = editor.getValue().split('\n');
+						const lineIndex = lines.findIndex(line => normalizeText(line).includes(expected));
+						if (lineIndex >= 0) {
+							const line = editor.getLine(lineIndex);
+							const cursor = { line: lineIndex, ch: 0 };
+							editor.setCursor(cursor);
+							editor.scrollIntoView?.({ from: cursor, to: { line: lineIndex, ch: line.length } }, true);
+							editor.focus?.();
+							await settle();
+							return;
+						}
+					}
+				}
+
+				const root = active?.querySelector<HTMLElement>('.markdown-preview-view') ?? document.querySelector<HTMLElement>('.markdown-preview-view');
+				const blocks = [...(root?.querySelectorAll<HTMLElement>('.shiki-reading-block') ?? [])];
+				const block = blocks.find(candidate => normalizeText(candidate.textContent ?? '').includes(expected));
+				if (block) {
+					block.scrollIntoView({ block: 'center', inline: 'nearest' });
+					root?.dispatchEvent(new Event('scroll', { bubbles: true }));
+					await settle();
+					return;
+				}
+				if (root) {
+					const activeFile = runtimeApp.workspace.getActiveFile?.();
+					const sourceText = activeFile && runtimeApp.vault?.cachedRead ? await runtimeApp.vault.cachedRead(activeFile) : '';
+					const sourceLines = sourceText.split('\n');
+					const sourceLineIndex = sourceLines.findIndex(line => normalizeText(line).includes(expected));
+					const sourceRatio =
+						sourceLineIndex >= 0
+							? sourceLineIndex / Math.max(1, sourceLines.length - 1)
+							: (input.matrixIndex + 0.5) / Math.max(1, input.matrixLength);
+					const offsetPattern = [0, -0.22, 0.22, -0.4, 0.4, -0.58, 0.58];
+					const scrollableHeight = Math.max(0, root.scrollHeight - root.clientHeight);
+					const targetTop = sourceRatio * scrollableHeight + offsetPattern[input.attempt % offsetPattern.length] * root.clientHeight;
+					root.scrollTo({ top: Math.max(0, Math.min(scrollableHeight, targetTop)), left: 0 });
+					root.dispatchEvent(new Event('scroll', { bubbles: true }));
+					await settle();
+				}
+			},
+			{ mode, lineText, matrixIndex, matrixLength: syntaxLanguageMatrix.length, attempt },
+		);
 	}
 
 	private async getSyntaxLanguageMatrixState(mode: SyntaxMatrixMode): Promise<SyntaxMatrixState> {
@@ -181,6 +223,10 @@ export class SyntaxMatrixVerifier {
 					};
 				};
 				const normalizeText = (value: string): string => value.replace(/\s+/g, ' ').trim();
+				const matchesProbeText = (text: string, probe: (typeof syntaxLanguageMatrix)[number]): boolean => {
+					const normalized = normalizeText(text);
+					return normalized.includes(normalizeText(probe.lineText)) || probe.needles.every(needle => normalized.includes(needle));
+				};
 				const root =
 					active?.querySelector<HTMLElement>(
 						input.mode === 'reading'
@@ -200,7 +246,7 @@ export class SyntaxMatrixVerifier {
 				const probes = input.matrix.map((probe): SyntaxMatrixProbeState => {
 					if (input.mode === 'reading') {
 						const blocks = [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block')];
-						const block = blocks.find(candidate => (candidate.textContent ?? '').includes(probe.lineText));
+						const block = blocks.find(candidate => matchesProbeText(candidate.textContent ?? '', probe));
 						const tokens = [...(block?.querySelectorAll<HTMLElement>('.shiki-reading-token') ?? [])].filter(token =>
 							Boolean(token.textContent?.trim()),
 						);

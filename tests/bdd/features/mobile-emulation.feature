@@ -29,24 +29,28 @@ Feature: Mobile-emulated syntax highlighting
     When I collapse and expand the left sidebar
     Then the Live Preview code block should keep visible Shiki token colors for "public sealed class Solution"
 
+  @visual-parity
   Scenario: Mobile Reading mode proves Shiki-owned token colors across languages
     Given Obsidian is running in mobile emulation
     And the built Advanced Code Editor plugin is enabled in the fixture vault
     And the fixture note "Syntax language matrix.md" is open in reading mode
     Then the syntax language matrix should have Shiki-owned token colors in reading
 
+  @visual-parity
   Scenario: Mobile Live Preview proves Shiki-owned token colors across languages
     Given Obsidian is running in mobile emulation
     And the built Advanced Code Editor plugin is enabled in the fixture vault
     And the fixture note "Syntax language matrix.md" is open in Live Preview
     Then the syntax language matrix should have Shiki-owned token colors in live-preview
 
+  @visual-parity
   Scenario: Mobile Source Mode proves Shiki-owned token colors across languages
     Given Obsidian is running in mobile emulation
     And the built Advanced Code Editor plugin is enabled in the fixture vault
     And the fixture note "Syntax language matrix.md" is open in raw Source mode
     Then the syntax language matrix should have Shiki-owned token colors in source
 
+  @visual-parity
   Scenario: Mobile Live Preview keeps language-matrix Shiki tokens when note focus is lost
     Given Obsidian is running in mobile emulation
     And the built Advanced Code Editor plugin is enabled in the fixture vault
@@ -55,6 +59,7 @@ Feature: Mobile-emulated syntax highlighting
     When I move focus away from the note
     Then the syntax language matrix should have Shiki-owned token colors in live-preview
 
+  @visual-parity
   Scenario: Mobile Source Mode keeps language-matrix Shiki tokens and theme background when note focus is lost
     Given Obsidian is running in mobile emulation
     And the built Advanced Code Editor plugin is enabled in the fixture vault
@@ -64,6 +69,7 @@ Feature: Mobile-emulated syntax highlighting
     Then the syntax language matrix should have Shiki-owned token colors in source
     And raw Source mode background should match the selected Shiki theme
 
+  @visual-parity
   Scenario: Mobile Live Preview keeps language-matrix Shiki tokens after sidebar layout changes
     Given Obsidian is running in mobile emulation
     And the built Advanced Code Editor plugin is enabled in the fixture vault

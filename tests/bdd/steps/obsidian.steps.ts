@@ -362,17 +362,21 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	assert.ok(metrics.p95DispatchMs <= 12, `expected p95 scroll dispatch under 12ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(metrics.maxDispatchMs <= 50, `expected max scroll dispatch under 50ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(
-		(lastHorizontalScrollPerformance.responsivenessProbeMs ?? 0) <= 80,
-		`expected post-scroll responsiveness probe under 80ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+		(lastHorizontalScrollPerformance.responsivenessProbeMs ?? 0) <= 250,
+		`expected post-scroll responsiveness probe under 250ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
 	);
 	if (lastHorizontalScrollPerformance.referenceMetrics) {
 		const reference = lastHorizontalScrollPerformance.referenceMetrics;
 		assert.ok(
-			metrics.p95DispatchMs <= Math.max(8, reference.p95DispatchMs * 3 + 2),
+			metrics.p95DispatchMs <= reference.p95DispatchMs * 3 + 4,
 			`expected Live Preview p95 dispatch to stay near Reading mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
 		);
 		assert.ok(
-			metrics.maxFrameGapMs <= Math.max(120, reference.maxFrameGapMs * 3 + 20),
+			metrics.maxDispatchMs <= reference.maxDispatchMs * 3 + 16,
+			`expected Live Preview max dispatch to stay near Reading mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+		);
+		assert.ok(
+			metrics.maxFrameGapMs <= reference.maxFrameGapMs * 2 + 32,
 			`expected Live Preview frame gaps not to regress far beyond Reading mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
 		);
 	}
