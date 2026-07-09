@@ -82,6 +82,25 @@ export type ThemeBackgroundState = {
 	isMobile: boolean;
 };
 
+export type MetadataParityMode = 'reading' | 'live-preview';
+
+export type MetadataParityBlockState = {
+	title: string;
+	language: string;
+	lineNumberTexts: string[];
+	highlightedLineTexts: string[];
+	insertedLineTexts: string[];
+	deletedLineTexts: string[];
+	wrapClassPresent: boolean;
+	nowrapClassPresent: boolean;
+};
+
+export type MetadataParityState = {
+	mode: MetadataParityMode;
+	isMobile: boolean;
+	blocks: MetadataParityBlockState[];
+};
+
 export type CopyControlMode = 'reading' | 'live-preview';
 
 export type CopyControlState = {
@@ -537,6 +556,92 @@ class SyntaxSurfaceVerifier {
 			pluginId,
 			mode,
 		);
+	}
+
+	async waitForMetadataParity(mode: MetadataParityMode): Promise<MetadataParityState> {
+		let lastState: MetadataParityState | undefined;
+		try {
+			await browser.waitUntil(
+				async () => {
+					const state = await this.getMetadataParityState(mode);
+					lastState = state;
+					const parityBlock = state.blocks.find(block => block.title === 'Parity metadata block');
+					const diffBlock = state.blocks.find(block => block.title === 'Diff metadata block');
+					return (
+						parityBlock !== undefined &&
+						diffBlock !== undefined &&
+						parityBlock.lineNumberTexts.join(',') === '1,2,3,4' &&
+						parityBlock.highlightedLineTexts.some(text => text.includes('highlighted')) &&
+						parityBlock.insertedLineTexts.some(text => text.includes('inserted')) &&
+						parityBlock.deletedLineTexts.some(text => text.includes('deleted')) &&
+						diffBlock.lineNumberTexts.join(',') === '1,2,3' &&
+						diffBlock.insertedLineTexts.some(text => text.includes('added line')) &&
+						diffBlock.deletedLineTexts.some(text => text.includes('removed line'))
+					);
+				},
+				{ timeout: 30000, timeoutMsg: `${mode} metadata parity did not render` },
+			);
+		} catch (error) {
+			throw new Error(`${mode} metadata parity did not render: ${JSON.stringify(lastState)}`, { cause: error });
+		}
+		return this.getMetadataParityState(mode);
+	}
+
+	async getMetadataParityState(mode: MetadataParityMode): Promise<MetadataParityState> {
+		return executeObsidian(({ app }, selectedMode): MetadataParityState => {
+			const runtimeApp = app as unknown as RuntimeApp;
+			const active = (runtimeApp.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
+			const root =
+				selectedMode === 'reading'
+					? (active?.querySelector<HTMLElement>('.markdown-preview-view') ?? document.querySelector<HTMLElement>('.markdown-preview-view'))
+					: (active?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview') ??
+						document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview'));
+			const blockIds =
+				selectedMode === 'reading'
+					? [...(root?.querySelectorAll<HTMLElement>('.shiki-reading-block[data-shiki-block-id]') ?? [])].map(
+							block => block.dataset.shikiBlockId ?? '',
+						)
+					: [...(root?.querySelectorAll<HTMLElement>('.shiki-live-preview-header[data-shiki-block-id]') ?? [])].map(
+							header => header.dataset.shikiBlockId ?? '',
+						);
+
+			const blocks = blockIds.filter(Boolean).map((blockId): MetadataParityBlockState => {
+				const blockRoot =
+					selectedMode === 'reading'
+						? root?.querySelector<HTMLElement>(`.shiki-reading-block[data-shiki-block-id="${blockId}"]`)
+						: root?.querySelector<HTMLElement>(`.shiki-live-preview-header[data-shiki-block-id="${blockId}"]`);
+				const lineRoot = selectedMode === 'reading' ? blockRoot : root;
+				const lineSelector =
+					selectedMode === 'reading' ? '.shiki-code-line' : `.cm-line.shiki-live-preview-code-line[data-shiki-block-id="${blockId}"]`;
+				const lineNumberSelector =
+					selectedMode === 'reading' ? '.shiki-line-numbers span' : `.shiki-live-preview-line-number[data-shiki-block-id="${blockId}"]`;
+				const lines = [...(lineRoot?.querySelectorAll<HTMLElement>(lineSelector) ?? [])];
+				const lineTexts = (className: string): string[] => lines.filter(line => line.classList.contains(className)).map(line => line.textContent ?? '');
+
+				return {
+					title: blockRoot?.querySelector<HTMLElement>('.shiki-block-title')?.textContent ?? '',
+					language: blockRoot?.querySelector<HTMLElement>('.shiki-lang-name')?.textContent ?? '',
+					lineNumberTexts: [...(lineRoot?.querySelectorAll<HTMLElement>(lineNumberSelector) ?? [])].map(line => line.textContent ?? ''),
+					highlightedLineTexts: lineTexts('shiki-line-highlight'),
+					insertedLineTexts: lineTexts('shiki-line-inserted'),
+					deletedLineTexts: lineTexts('shiki-line-deleted'),
+					wrapClassPresent:
+						selectedMode === 'reading'
+							? (blockRoot?.classList.contains('wrap-lines') ?? false)
+							: lines.some(line => line.classList.contains('shiki-live-preview-code-line-wrap')),
+					nowrapClassPresent:
+						selectedMode === 'reading'
+							? !(blockRoot?.classList.contains('wrap-lines') ?? false)
+							: lines.some(line => line.classList.contains('shiki-live-preview-code-line-nowrap')),
+				};
+			});
+
+			return {
+				mode: selectedMode,
+				isMobile: runtimeApp.isMobile,
+				blocks,
+			};
+		}, mode);
 	}
 
 	private async getCopyControlState(mode: CopyControlMode): Promise<CopyControlState> {

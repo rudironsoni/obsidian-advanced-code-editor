@@ -53,6 +53,14 @@ Given('theme confidence settings use a valid custom theme folder', async () => {
 	await obsidianApp.prepareThemeConfidenceFixture();
 });
 
+Given('code block defaults hide line numbers and do not wrap', async () => {
+	await obsidianApp.applyCodeBlockSettings({ showLineNumbers: false, wrapLines: false });
+});
+
+Given('code block defaults show line numbers and wrap', async () => {
+	await obsidianApp.applyCodeBlockSettings({ showLineNumbers: true, wrapLines: true });
+});
+
 When('Obsidian renders the active note', async () => {
 	if (!lastExpectedRenderText) {
 		lastExpectedRenderText = 'const wdioValue';
@@ -188,6 +196,54 @@ Then('the Shiki theme background should match in {word}', async (mode: 'reading'
 	assert.ok(state.expectedThemeBackground, `expected Shiki theme background for ${state.activeTheme}: ${JSON.stringify(state)}`);
 	assert.equal(state.visibleTargetCount, 1, `expected visible background target in ${mode}: ${JSON.stringify(state)}`);
 	assert.equal(state.backgroundMatchesExpected, true, `expected ${mode} background to match ${state.activeTheme}: ${JSON.stringify(state)}`);
+});
+
+Then('code block metadata should render consistently in {word}', async (mode: 'reading' | 'live-preview') => {
+	const state = await obsidianApp.waitForMetadataParity(mode);
+	const parityBlock = state.blocks.find(block => block.title === 'Parity metadata block');
+	const diffBlock = state.blocks.find(block => block.title === 'Diff metadata block');
+
+	assert.ok(parityBlock, `expected metadata block in ${mode}: ${JSON.stringify(state)}`);
+	assert.equal(parityBlock.language, 'ts', `expected title and language in ${mode}: ${JSON.stringify(parityBlock)}`);
+	assert.deepEqual(parityBlock.lineNumberTexts, ['1', '2', '3', '4'], `expected showLineNumbers metadata in ${mode}: ${JSON.stringify(parityBlock)}`);
+	assert.ok(parityBlock.nowrapClassPresent, `expected nowrap default class in ${mode}: ${JSON.stringify(parityBlock)}`);
+	assert.ok(
+		parityBlock.highlightedLineTexts.some(text => text.includes('highlighted')),
+		`expected highlighted line in ${mode}: ${JSON.stringify(parityBlock)}`,
+	);
+	assert.ok(
+		parityBlock.insertedLineTexts.some(text => text.includes('inserted')),
+		`expected inserted line in ${mode}: ${JSON.stringify(parityBlock)}`,
+	);
+	assert.ok(
+		parityBlock.deletedLineTexts.some(text => text.includes('deleted')),
+		`expected deleted line in ${mode}: ${JSON.stringify(parityBlock)}`,
+	);
+
+	assert.ok(diffBlock, `expected diff metadata block in ${mode}: ${JSON.stringify(state)}`);
+	assert.equal(diffBlock.language, 'diff', `expected diff language in ${mode}: ${JSON.stringify(diffBlock)}`);
+	assert.deepEqual(diffBlock.lineNumberTexts, ['1', '2', '3'], `expected diff line numbers in ${mode}: ${JSON.stringify(diffBlock)}`);
+	assert.ok(
+		diffBlock.insertedLineTexts.some(text => text.includes('added line')),
+		`expected diff inserted prefix in ${mode}: ${JSON.stringify(diffBlock)}`,
+	);
+	assert.ok(
+		diffBlock.deletedLineTexts.some(text => text.includes('removed line')),
+		`expected diff deleted prefix in ${mode}: ${JSON.stringify(diffBlock)}`,
+	);
+});
+
+Then('wrapped code block metadata should render consistently in {word}', async (mode: 'reading' | 'live-preview') => {
+	const state = await obsidianApp.waitForMetadataParity(mode);
+	const parityBlock = state.blocks.find(block => block.title === 'Parity metadata block');
+
+	assert.ok(parityBlock, `expected metadata block in ${mode}: ${JSON.stringify(state)}`);
+	assert.ok(parityBlock.wrapClassPresent, `expected wrap default class in ${mode}: ${JSON.stringify(parityBlock)}`);
+	assert.deepEqual(
+		parityBlock.lineNumberTexts,
+		['1', '2', '3', '4'],
+		`expected line numbers under wrapped defaults in ${mode}: ${JSON.stringify(parityBlock)}`,
+	);
 });
 
 Then('the syntax language matrix should have Shiki-owned token colors in {word}', async (mode: 'reading' | 'live-preview' | 'source') => {
@@ -551,6 +607,7 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	const liveHeader = {
 		right: livePreviewBlock.headerRight,
 		height: livePreviewBlock.headerHeight,
+		leftGroupLeft: livePreviewBlock.headerLeftGroupLeft,
 		langLeft: livePreviewBlock.headerLangLeft,
 		langCenterY: livePreviewBlock.headerLangCenterY,
 		copyRight: livePreviewBlock.headerCopyRight,
@@ -559,6 +616,7 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	const readingHeader = {
 		right: readingBlock.headerRight,
 		height: readingBlock.headerHeight,
+		leftGroupLeft: readingBlock.headerLeftGroupLeft,
 		langLeft: readingBlock.headerLangLeft,
 		langCenterY: readingBlock.headerLangCenterY,
 		copyRight: readingBlock.headerCopyRight,
@@ -604,12 +662,14 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	if (
 		liveHeader.right === null ||
 		liveHeader.height === null ||
+		liveHeader.leftGroupLeft === null ||
 		liveHeader.langLeft === null ||
 		liveHeader.langCenterY === null ||
 		liveHeader.copyRight === null ||
 		liveHeader.copyCenterY === null ||
 		readingHeader.right === null ||
 		readingHeader.height === null ||
+		readingHeader.leftGroupLeft === null ||
 		readingHeader.langLeft === null ||
 		readingHeader.langCenterY === null ||
 		readingHeader.copyRight === null ||
@@ -633,11 +693,11 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	);
 	assert.ok(
 		Math.abs(
-			liveHeader.langLeft -
-				(livePreviewBlock.headerLeft ?? liveHeader.langLeft) -
-				(readingHeader.langLeft - (readingBlock.headerLeft ?? readingHeader.langLeft)),
+			liveHeader.leftGroupLeft -
+				(livePreviewBlock.headerLeft ?? liveHeader.leftGroupLeft) -
+				(readingHeader.leftGroupLeft - (readingBlock.headerLeft ?? readingHeader.leftGroupLeft)),
 		) <= 2,
-		`expected Live Preview language label left padding to match Reading mode: ${layoutJson}`,
+		`expected Live Preview header left padding to match Reading mode: ${layoutJson}`,
 	);
 	assert.ok(
 		Math.abs(liveHeader.langCenterY - liveHeader.copyCenterY) <= 2,

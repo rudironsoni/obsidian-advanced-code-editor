@@ -5,6 +5,7 @@ import {
 	createBlockHorizontalScrollSpacerDecoration,
 	SHIKI_BLOCK_SCROLL_ROW_CLASS,
 } from 'packages/obsidian/src/codemirror/BlockHorizontalScroll';
+import { getLineMetadataClasses, parseCodeBlockDisplayMetadata, shouldShowLineNumbers } from 'packages/obsidian/src/codeblocks/CodeBlockDisplayMetadata';
 import { isActiveLeafLivePreview, isLivePreviewState } from 'packages/obsidian/src/codemirror/Cm6_ViewContext';
 import { createCodeBlockCopyButton } from 'packages/obsidian/src/codeblocks/CodeBlockCopyControl';
 import { CodeBlockParser } from 'packages/obsidian/src/codeblocks/CodeBlockParser';
@@ -39,12 +40,16 @@ class ShikiLivePreviewHeaderWidget extends WidgetType {
 	}
 
 	toDOM(): HTMLElement {
+		const metadata = parseCodeBlockDisplayMetadata(this.block.meta, this.block.code, this.block.language);
 		const header = document.createElement('div');
 		header.className = 'shiki-live-preview-header shiki-block-header';
 		header.dataset.shikiBlockId = this.block.id;
 		header.dataset.lang = this.block.language;
 
 		const left = header.createDiv({ cls: 'shiki-header-left' });
+		if (metadata.title) {
+			left.createSpan({ cls: 'shiki-block-title', text: metadata.title });
+		}
 		left.createSpan({ cls: 'shiki-lang-name', text: this.block.language });
 		const right = header.createDiv({ cls: 'shiki-header-right' });
 		right.appendChild(createCodeBlockCopyButton(document, () => this.block.code));
@@ -113,6 +118,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 				closingFenceLine: parsedBlock.closingFenceLine,
 			});
 			plugin.codeBlockRegistry.upsert(block);
+			const metadata = parseCodeBlockDisplayMetadata(block.meta, block.code, block.language);
 
 			if (block.fenceFrom === undefined || block.codeFrom === undefined || block.codeTo === undefined) {
 				continue;
@@ -128,7 +134,12 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 					? 'shiki-live-preview-fence-line shiki-live-preview-opening-fence-line'
 					: isClosingFence
 						? 'shiki-live-preview-fence-line shiki-live-preview-closing-fence-line'
-						: `shiki-live-preview-code-line ${SHIKI_BLOCK_SCROLL_ROW_CLASS}${plugin.loadedSettings.wrapLines ? ' shiki-live-preview-code-line-wrap' : ' shiki-live-preview-code-line-nowrap'}`;
+						: [
+								'shiki-live-preview-code-line',
+								SHIKI_BLOCK_SCROLL_ROW_CLASS,
+								plugin.loadedSettings.wrapLines ? 'shiki-live-preview-code-line-wrap' : 'shiki-live-preview-code-line-nowrap',
+								...getLineMetadataClasses(metadata, lineNumber - parsedBlock.openingFenceLine),
+							].join(' ');
 				ranges.push(
 					Decoration.line({
 						attributes: {
@@ -163,7 +174,7 @@ export function createLivePreviewStructureExtension(plugin: ShikiPlugin): Extens
 					ranges.push(createBlockHorizontalScrollSpacerDecoration(block.id).range(line.to));
 				}
 
-				if (!isOpeningFence && !isClosingFence && plugin.loadedSettings.showLineNumbers) {
+				if (!isOpeningFence && !isClosingFence && shouldShowLineNumbers(metadata, plugin.loadedSettings.showLineNumbers)) {
 					ranges.push(
 						Decoration.widget({
 							widget: new ShikiLivePreviewLineNumberWidget(block.id, lineNumber - parsedBlock.openingFenceLine),

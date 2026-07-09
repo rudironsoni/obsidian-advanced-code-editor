@@ -191,6 +191,14 @@ span.shiki-ul {
 	flex: 0 1 auto;
 }
 
+.shiki-block-title {
+	font-weight: 600;
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .shiki-header-right {
 	display: flex;
 	align-items: center;
@@ -334,6 +342,21 @@ span.shiki-ul {
 .shiki-code-line {
 	display: block;
 	min-height: var(--line-height-normal);
+}
+
+.shiki-code-line.shiki-line-highlight,
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-line-highlight {
+	background: var(--shiki-highlight-neutral-background);
+}
+
+.shiki-code-line.shiki-line-inserted,
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-line-inserted {
+	background: var(--shiki-highlight-green-background);
+}
+
+.shiki-code-line.shiki-line-deleted,
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-line-deleted {
+	background: var(--shiki-highlight-red-background);
 }
 
 .shiki-block-horizontal-scrollbar {

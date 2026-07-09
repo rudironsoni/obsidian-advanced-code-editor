@@ -112,6 +112,7 @@ export type HorizontalScrollBlockState = {
 	headerBorderRightWidth: string | null;
 	headerBorderLeftWidth: string | null;
 	headerBorderTopColor: string | null;
+	headerLeftGroupLeft: number | null;
 	headerLangLeft: number | null;
 	headerLangCenterY: number | null;
 	headerCopyRight: number | null;
@@ -1118,15 +1119,102 @@ class HorizontalScrollPage {
 	async compareLineNumberLayoutWithReading(notePath: string): Promise<HorizontalScrollLineNumberLayoutComparison> {
 		await this.resetScrollPositions('live-preview');
 		await this.waitForHorizontalScrollReady('live-preview', 1, true);
-		const livePreview = await this.collectScrollState('live-preview', 'line-number-layout-live-preview');
+		const livePreview = await this.collectStableLayoutState('live-preview', 'line-number-layout-live-preview');
 		await this.openFixture(notePath, 'reading');
 		await this.waitForHorizontalScrollReady('reading', 1, true);
 		await this.resetScrollPositions('reading');
 		await this.waitForHorizontalScrollReady('reading', 1, true);
-		const reading = await this.collectScrollState('reading', 'line-number-layout-reading');
+		const reading = await this.collectStableLayoutState('reading', 'line-number-layout-reading');
 		await this.openFixture(notePath, 'live-preview');
 		await this.waitForHorizontalScrollReady('live-preview', 1, true);
 		return { livePreview, reading };
+	}
+
+	private async collectStableLayoutState(mode: HorizontalScrollMode, label: string): Promise<HorizontalScrollState> {
+		let previous: HorizontalScrollState | undefined;
+		let stable: HorizontalScrollState | undefined;
+		await browser.waitUntil(
+			async () => {
+				const current = await this.collectScrollState(mode, label);
+				const block = current.blocks[0];
+				if (!block || !this.hasComparableLayoutGeometry(current, block)) {
+					previous = current;
+					return false;
+				}
+				if (previous && this.layoutStatesMatch(previous, current)) {
+					stable = current;
+					return true;
+				}
+				previous = current;
+				return false;
+			},
+			{ timeout: 5000, timeoutMsg: `${mode} line-number layout did not settle` },
+		);
+		return stable ?? this.collectScrollState(mode, label);
+	}
+
+	private hasComparableLayoutGeometry(state: HorizontalScrollState, block: HorizontalScrollBlockState): boolean {
+		return (
+			block.lineNumberValues.length > 0 &&
+			block.headerLeft !== null &&
+			block.headerRight !== null &&
+			block.headerHeight !== null &&
+			block.headerLeftGroupLeft !== null &&
+			block.headerLangLeft !== null &&
+			block.headerLangCenterY !== null &&
+			block.headerCopyRight !== null &&
+			block.headerCopyCenterY !== null &&
+			block.gutterWidth !== null &&
+			block.gutterRight !== null &&
+			block.firstLineNumberTextRight !== null &&
+			block.gutterToCodeGap !== null &&
+			block.codeContentLeft !== null &&
+			(state.mode !== 'live-preview' ||
+				(block.nativeBlockGutterCount > 0 && block.rowLeft !== null && block.rowRight !== null && block.gutterMasksScrolledContent))
+		);
+	}
+
+	private layoutStatesMatch(first: HorizontalScrollState, second: HorizontalScrollState): boolean {
+		const firstBlock = first.blocks[0];
+		const secondBlock = second.blocks[0];
+		if (!firstBlock || !secondBlock || first.mode !== second.mode || first.blockCount !== second.blockCount) {
+			return false;
+		}
+		if (firstBlock.lineNumberValues.join('\n') !== secondBlock.lineNumberValues.join('\n')) {
+			return false;
+		}
+
+		const numericFields: Array<keyof HorizontalScrollBlockState> = [
+			'clientWidth',
+			'scrollWidth',
+			'headerLeft',
+			'headerRight',
+			'headerWidth',
+			'headerHeight',
+			'headerLeftGroupLeft',
+			'headerLangLeft',
+			'headerLangCenterY',
+			'headerCopyRight',
+			'headerCopyCenterY',
+			'rowLeft',
+			'rowRight',
+			'gutterLeft',
+			'gutterRight',
+			'gutterWidth',
+			'firstLineNumberTextRight',
+			'firstLineNumberTextCenterY',
+			'codeContentLeft',
+			'gutterToCodeGap',
+		];
+
+		return numericFields.every(field => {
+			const firstValue = firstBlock[field];
+			const secondValue = secondBlock[field];
+			if (firstValue === null || secondValue === null) {
+				return firstValue === secondValue;
+			}
+			return typeof firstValue === 'number' && typeof secondValue === 'number' && Math.abs(firstValue - secondValue) <= 0.5;
+		});
 	}
 
 	async editMarkerAfterScroll(): Promise<ExactEditResult> {
@@ -1292,6 +1380,7 @@ class HorizontalScrollPage {
 					const rowStyle = block.row ? getComputedStyle(block.row) : null;
 					const headerRect = block.header?.getBoundingClientRect() ?? null;
 					const headerStyle = block.header ? getComputedStyle(block.header) : null;
+					const headerLeftGroupRect = block.header?.querySelector<HTMLElement>('.shiki-header-left')?.getBoundingClientRect() ?? null;
 					const headerLangRect = block.header?.querySelector<HTMLElement>('.shiki-lang-name')?.getBoundingClientRect() ?? null;
 					const headerCopyRect = block.header?.querySelector<HTMLElement>('.shiki-copy-button')?.getBoundingClientRect() ?? null;
 					const beforeCodeLeft = block.code?.getBoundingClientRect().left ?? null;
@@ -1541,6 +1630,7 @@ class HorizontalScrollPage {
 						headerBorderRightWidth: headerStyle?.borderRightWidth ?? null,
 						headerBorderLeftWidth: headerStyle?.borderLeftWidth ?? null,
 						headerBorderTopColor: headerStyle?.borderTopColor ?? null,
+						headerLeftGroupLeft: headerLeftGroupRect?.left ?? null,
 						headerLangLeft: headerLangRect?.left ?? null,
 						headerLangCenterY: headerLangRect ? headerLangRect.top + headerLangRect.height / 2 : null,
 						headerCopyRight: headerCopyRect?.right ?? null,
