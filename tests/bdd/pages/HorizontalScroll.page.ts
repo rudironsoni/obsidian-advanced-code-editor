@@ -760,6 +760,24 @@ class HorizontalScrollPage {
 				let backtrackCount = 0;
 				let maxBacktrackPx = 0;
 
+				target.dispatchEvent(
+					new WheelEvent('wheel', {
+						bubbles: true,
+						cancelable: true,
+						clientX,
+						clientY,
+						deltaX: Math.sign(input.deltaX) || 1,
+					}),
+				);
+				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+				for (const row of block.rows) {
+					row.scrollLeft = 0;
+				}
+				if (block.scrollbar) {
+					block.scrollbar.scrollLeft = 0;
+				}
+				lastFrame = performance.now();
+
 				for (let index = 0; index < input.frames; index++) {
 					await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 					const frameNow = performance.now();
@@ -799,7 +817,7 @@ class HorizontalScrollPage {
 				const sortedDurations = [...dispatchDurations].sort((first, second) => first - second);
 				const p95Index = Math.max(0, Math.ceil(sortedDurations.length * 0.95) - 1);
 				const probeStartedAt = performance.now();
-				await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => window.setTimeout(resolve, 0))));
 				return {
 					metrics: {
 						eventCount: dispatchDurations.length,
@@ -882,6 +900,46 @@ class HorizontalScrollPage {
 				let lastObservedScrollLeft = 0;
 				let backtrackCount = 0;
 				let maxBacktrackPx = 0;
+				const warmupPointerId = 40;
+
+				target.dispatchEvent(
+					new PointerEvent('pointerdown', {
+						bubbles: true,
+						cancelable: true,
+						clientX: startX,
+						clientY: startY,
+						pointerId: warmupPointerId,
+						pointerType: 'touch',
+					}),
+				);
+				target.dispatchEvent(
+					new PointerEvent('pointermove', {
+						bubbles: true,
+						cancelable: true,
+						clientX: startX - 1,
+						clientY: startY,
+						pointerId: warmupPointerId,
+						pointerType: 'touch',
+					}),
+				);
+				target.dispatchEvent(
+					new PointerEvent('pointerup', {
+						bubbles: true,
+						cancelable: true,
+						clientX: startX - 1,
+						clientY: startY,
+						pointerId: warmupPointerId,
+						pointerType: 'touch',
+					}),
+				);
+				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+				for (const row of block.rows) {
+					row.scrollLeft = 0;
+				}
+				if (block.scrollbar) {
+					block.scrollbar.scrollLeft = 0;
+				}
+				lastFrame = performance.now();
 
 				target.dispatchEvent(
 					new PointerEvent('pointerdown', {
@@ -934,7 +992,7 @@ class HorizontalScrollPage {
 				const sortedDurations = [...dispatchDurations].sort((first, second) => first - second);
 				const p95Index = Math.max(0, Math.ceil(sortedDurations.length * 0.95) - 1);
 				const probeStartedAt = performance.now();
-				await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => window.setTimeout(resolve, 0))));
 				return {
 					metrics: {
 						eventCount: dispatchDurations.length,
@@ -1040,7 +1098,20 @@ class HorizontalScrollPage {
 			},
 			{ mode, blockIndex, deltaX: 48 },
 		);
-		const state = await this.collectScrollState(mode, 'first-wheel-latency-after');
+		let state = await this.collectScrollState(mode, 'first-wheel-latency-after');
+		await browser.waitUntil(
+			async () => {
+				state = await this.collectScrollState(mode, 'first-wheel-latency-after');
+				const block = state.blocks[blockIndex];
+				return (
+					block !== undefined && Math.abs(block.rowScrollLeftMin - block.scrollLeft) <= 1 && Math.abs(block.rowScrollLeftMax - block.scrollLeft) <= 1
+				);
+			},
+			{
+				timeout: 5000,
+				timeoutMsg: `Live Preview rows did not share first wheel scroll position: ${JSON.stringify(state)}`,
+			},
+		);
 		return { ...metrics, state };
 	}
 

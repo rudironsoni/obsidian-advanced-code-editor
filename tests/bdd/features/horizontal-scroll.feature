@@ -23,14 +23,14 @@ Feature: Block-owned horizontal scroll
     And the exact edit should be written at the horizontal scroll marker
     And the surrounding note should not move horizontally
 
-  @desktop
+  @desktop @visual-parity
   Scenario: Live Preview line-number gutter matches Reading mode
     Given horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
     When I compare the first code block line-number layout with Reading mode
     Then the Live Preview code block line-number gutter should match Reading mode
 
-  @desktop @source
+  @desktop @source @visual-parity
   Scenario: Raw Source mode keeps Markdown editable without rendered block chrome
     Given horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll single block.md" is open in raw Source mode for horizontal scroll
@@ -87,7 +87,7 @@ Feature: Block-owned horizontal scroll
     Then the Live Preview code text should remain visible inside the code block
     And the surrounding note should not move horizontally
 
-  @mobile @source
+  @mobile @source @visual-parity
   Scenario: Mobile-emulated raw Source mode keeps Markdown editable without rendered block chrome
     Given Obsidian is running in mobile emulation
     And horizontal scroll settings use nowrap with line numbers
@@ -97,7 +97,7 @@ Feature: Block-owned horizontal scroll
     And raw Source mode should stay native without rendered block chrome
     And the exact edit should be written at the horizontal scroll marker
 
-  @mobile
+  @mobile @visual-parity
   Scenario: Mobile-emulated Live Preview line-number gutter matches Reading mode
     Given Obsidian is running in mobile emulation
     And horizontal scroll settings use nowrap with line numbers
@@ -105,7 +105,7 @@ Feature: Block-owned horizontal scroll
     When I compare the first code block line-number layout with Reading mode
     Then the Live Preview code block line-number gutter should match Reading mode
 
-  @mobile
+  @mobile @visual-parity
   Scenario: Mobile portrait Live Preview header matches Reading mode
     Given Obsidian is running in mobile emulation
     And Obsidian is sized like a phone portrait

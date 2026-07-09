@@ -21,6 +21,7 @@
 		"test:bdd:desktop": "bun run build && WDIO_CUCUMBER_TAGS='not @mobile' wdio run ./wdio.conf.mts",
 		"test:bdd:mobile": "bun run build && WDIO_CUCUMBER_TAGS='@mobile' wdio run ./wdio.mobile.conf.mts",
 		"test:bdd:scroll": "bun run build && WDIO_CUCUMBER_TAGS='@horizontal-scroll and not @mobile' wdio run ./wdio.conf.mts && WDIO_CUCUMBER_TAGS='@horizontal-scroll and @mobile' wdio run ./wdio.mobile.conf.mts",
+		"test:bdd:visual-parity": "bun run build && WDIO_CUCUMBER_TAGS='@visual-parity and not @mobile' wdio run ./wdio.conf.mts && WDIO_CUCUMBER_TAGS='@visual-parity and @mobile' wdio run ./wdio.mobile.conf.mts",
 		"test:bdd:scroll:debug": "bun run build && WDIO_CUCUMBER_TAGS='@horizontal-scroll and not @mobile' WDIO_OBSIDIAN_DEBUG_PAUSE_MS=30000 wdio run ./wdio.conf.mts",
 		"test:e2e": "bun run test:bdd:desktop",
 		"test:e2e:mobile": "bun run test:bdd:mobile",

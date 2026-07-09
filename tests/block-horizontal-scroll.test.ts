@@ -124,7 +124,12 @@ describe('block horizontal scroll identity', () => {
 
 	test('uses CodeMirror gesture handlers and requestMeasure for scroll ownership', () => {
 		const source = read('packages/obsidian/src/codemirror/BlockHorizontalScroll.ts');
+		const main = read('packages/obsidian/src/main.ts');
+		const cm6 = read('packages/obsidian/src/codemirror/Cm6_ViewPlugin.ts');
 
+		expect(main).toContain('this.registerEditorExtension([createCm6Plugin(this)])');
+		expect(cm6).toContain('createBlockHorizontalScrollPlugin()');
+		expect(cm6).toContain('return Prec.highest([createLivePreviewStructureExtension(plugin), createBlockHorizontalScrollPlugin(), cm6Plugin])');
 		expect(source).toContain('eventHandlers: {');
 		expect(source).toContain('wheel(event)');
 		expect(source).toContain('pointerdown(event)');
@@ -134,10 +139,37 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('this.view.requestMeasure({');
 		expect(source).toContain('read: () => this.readBlockScrollMeasures()');
 		expect(source).toContain('write: measures =>');
+		expect(source).toContain("target.addEventListener('scroll', this.onScroll)");
+		expect(source).toContain("target.removeEventListener('scroll', this.onScroll)");
+		expect(source).toContain('this.syncObservedScrollTargets(nextScrollTargets)');
+		expect(source).not.toContain('document.addEventListener');
+		expect(source).not.toContain('window.addEventListener');
 		expect(source).not.toContain('gestureRoot.addEventListener');
 		expect(source).not.toContain("view.scrollDOM.addEventListener('wheel'");
 		expect(source).not.toContain("view.scrollDOM.addEventListener('scroll'");
 		expect(source).not.toContain('setTimeout(() =>');
+	});
+
+	test('keeps observer callbacks to measurement scheduling only', () => {
+		const source = read('packages/obsidian/src/codemirror/BlockHorizontalScroll.ts');
+		const mutationBody = source.match(/private readonly onDomMutations = \(records: MutationRecord\[\]\): void => \{([\s\S]*?)\n\t\t\t\};/)?.[1] ?? '';
+		const resizeBody = source.match(/private readonly onResize = \(\): void => \{([\s\S]*?)\n\t\t\t\};/)?.[1] ?? '';
+		const observerBody = `${mutationBody}\n${resizeBody}`;
+
+		expect(mutationBody).toContain('this.scheduleMeasure();');
+		expect(resizeBody.trim()).toBe('this.scheduleMeasure();');
+		for (const forbidden of [
+			'scrollWidth',
+			'clientWidth',
+			'getBoundingClientRect',
+			'applyBlockScroll',
+			'syncBlock',
+			'updateRowScrollSpacers',
+			'setStyleProperty',
+			'setScrollLeft',
+		]) {
+			expect(observerBody).not.toContain(forbidden);
+		}
 	});
 
 	test('keeps layout reads and spacer writes out of scroll hot paths', () => {
@@ -352,6 +384,79 @@ describe('block horizontal scroll identity', () => {
 			expect(shortRow.scrollLeft).toBe(200);
 
 			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+
+			expect(longRow.scrollLeft).toBe(220);
+			expect(shortRow.scrollLeft).toBe(220);
+		} finally {
+			view.destroy();
+			parent.remove();
+		}
+	});
+
+	test('coalesces repeated wheel gestures in the same animation frame', async () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const view = new EditorView({
+			doc: 'long\nshort',
+			extensions: [createBlockHorizontalScrollPlugin()],
+			parent,
+		});
+		const blockId = 'Note.md::live-preview::5::120::5::ts::wheel-coalesce';
+		const [longRow, shortRow] = prepareCodeRows(view, blockId, 2);
+		await waitForBlockScrollMeasure(view);
+
+		try {
+			longRow.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: 200 }));
+			longRow.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: 20 }));
+
+			expect(longRow.scrollLeft).toBe(200);
+			expect(shortRow.scrollLeft).toBe(200);
+
+			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+
+			expect(longRow.scrollLeft).toBe(220);
+			expect(shortRow.scrollLeft).toBe(220);
+		} finally {
+			view.destroy();
+			parent.remove();
+		}
+	});
+
+	test('flushes pending pointer scroll when the gesture ends', async () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const view = new EditorView({
+			doc: 'long\nshort',
+			extensions: [createBlockHorizontalScrollPlugin()],
+			parent,
+		});
+		const blockId = 'Note.md::live-preview::5::120::5::ts::pointer-flush';
+		const [longRow, shortRow] = prepareCodeRows(view, blockId, 2);
+		const content = document.createElement('span');
+		const pointerId = 42;
+
+		content.className = 'shiki-live-preview-code-content';
+		content.textContent = 'longLineThatReceivesThePointer';
+		await waitForBlockScrollMeasure(view);
+		longRow.appendChild(content);
+
+		try {
+			content.dispatchEvent(
+				new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 260, clientY: 20, pointerId, pointerType: 'touch' }),
+			);
+			content.dispatchEvent(
+				new PointerEvent('pointermove', { bubbles: true, cancelable: true, clientX: 60, clientY: 22, pointerId, pointerType: 'touch' }),
+			);
+			content.dispatchEvent(
+				new PointerEvent('pointermove', { bubbles: true, cancelable: true, clientX: 40, clientY: 22, pointerId, pointerType: 'touch' }),
+			);
+
+			expect(longRow.scrollLeft).toBe(200);
+			expect(shortRow.scrollLeft).toBe(200);
+
+			content.dispatchEvent(
+				new PointerEvent('pointerup', { bubbles: true, cancelable: true, clientX: 40, clientY: 22, pointerId, pointerType: 'touch' }),
+			);
 
 			expect(longRow.scrollLeft).toBe(220);
 			expect(shortRow.scrollLeft).toBe(220);
