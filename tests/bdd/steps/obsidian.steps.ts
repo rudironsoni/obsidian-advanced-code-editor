@@ -214,6 +214,13 @@ Then('the Shiki theme background should match in {word}', async (mode: 'reading'
 	assert.ok(state.expectedThemeBackground, `expected Shiki theme background for ${state.activeTheme}: ${JSON.stringify(state)}`);
 	assert.equal(state.visibleTargetCount, 1, `expected visible background target in ${mode}: ${JSON.stringify(state)}`);
 	assert.equal(state.backgroundMatchesExpected, true, `expected ${mode} background to match ${state.activeTheme}: ${JSON.stringify(state)}`);
+	if (mode !== 'source') {
+		assert.equal(
+			state.gutterBackgroundMatchesExpected,
+			true,
+			`expected ${mode} line-number gutter background to match ${state.activeTheme}: ${JSON.stringify(state)}`,
+		);
+	}
 });
 
 Then('code block metadata should render consistently in {word}', async (mode: 'reading' | 'live-preview') => {

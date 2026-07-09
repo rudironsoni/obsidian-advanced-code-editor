@@ -271,6 +271,18 @@ describe('block horizontal scroll identity', () => {
 		expect(livePreviewEditorFontLineNumberRule).toContain('font-size: calc(var(--font-text-size) * 0.875)');
 	});
 
+	test('uses the selected Shiki background for code block gutters', () => {
+		const readingView = read('packages/obsidian/src/modes/ReadingViewAdapter.ts');
+		const livePreview = read('packages/obsidian/src/modes/LivePreviewAdapter.ts');
+
+		expect(readingView).toContain("blockRoot?.style.setProperty('--shiki-code-background', themeBackground)");
+		expect(readingView).toContain("blockRoot?.style.setProperty('--shiki-gutter-background', themeBackground)");
+		expect(livePreview).toContain("sourceViewRoot.style.setProperty('--shiki-code-background', result.themeBackground)");
+		expect(livePreview).toContain("sourceViewRoot.style.setProperty('--shiki-gutter-background', result.themeBackground)");
+		expect(livePreview).toContain("sourceViewRoot.style.removeProperty('--shiki-code-background')");
+		expect(livePreview).toContain("sourceViewRoot.style.removeProperty('--shiki-gutter-background')");
+	});
+
 	test('does not paint-contain Live Preview code rows', () => {
 		const styles = read('packages/obsidian/src/styles.css');
 		const livePreviewCodeLineRule =
