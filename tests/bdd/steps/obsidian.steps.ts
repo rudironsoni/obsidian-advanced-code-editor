@@ -607,6 +607,7 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	const liveHeader = {
 		right: livePreviewBlock.headerRight,
 		height: livePreviewBlock.headerHeight,
+		leftGroupLeft: livePreviewBlock.headerLeftGroupLeft,
 		langLeft: livePreviewBlock.headerLangLeft,
 		langCenterY: livePreviewBlock.headerLangCenterY,
 		copyRight: livePreviewBlock.headerCopyRight,
@@ -615,6 +616,7 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	const readingHeader = {
 		right: readingBlock.headerRight,
 		height: readingBlock.headerHeight,
+		leftGroupLeft: readingBlock.headerLeftGroupLeft,
 		langLeft: readingBlock.headerLangLeft,
 		langCenterY: readingBlock.headerLangCenterY,
 		copyRight: readingBlock.headerCopyRight,
@@ -660,12 +662,14 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	if (
 		liveHeader.right === null ||
 		liveHeader.height === null ||
+		liveHeader.leftGroupLeft === null ||
 		liveHeader.langLeft === null ||
 		liveHeader.langCenterY === null ||
 		liveHeader.copyRight === null ||
 		liveHeader.copyCenterY === null ||
 		readingHeader.right === null ||
 		readingHeader.height === null ||
+		readingHeader.leftGroupLeft === null ||
 		readingHeader.langLeft === null ||
 		readingHeader.langCenterY === null ||
 		readingHeader.copyRight === null ||
@@ -689,11 +693,11 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	);
 	assert.ok(
 		Math.abs(
-			liveHeader.langLeft -
-				(livePreviewBlock.headerLeft ?? liveHeader.langLeft) -
-				(readingHeader.langLeft - (readingBlock.headerLeft ?? readingHeader.langLeft)),
+			liveHeader.leftGroupLeft -
+				(livePreviewBlock.headerLeft ?? liveHeader.leftGroupLeft) -
+				(readingHeader.leftGroupLeft - (readingBlock.headerLeft ?? readingHeader.leftGroupLeft)),
 		) <= 2,
-		`expected Live Preview language label left padding to match Reading mode: ${layoutJson}`,
+		`expected Live Preview header left padding to match Reading mode: ${layoutJson}`,
 	);
 	assert.ok(
 		Math.abs(liveHeader.langCenterY - liveHeader.copyCenterY) <= 2,

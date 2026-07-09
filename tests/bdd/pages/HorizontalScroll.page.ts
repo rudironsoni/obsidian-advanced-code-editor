@@ -112,6 +112,7 @@ export type HorizontalScrollBlockState = {
 	headerBorderRightWidth: string | null;
 	headerBorderLeftWidth: string | null;
 	headerBorderTopColor: string | null;
+	headerLeftGroupLeft: number | null;
 	headerLangLeft: number | null;
 	headerLangCenterY: number | null;
 	headerCopyRight: number | null;
@@ -1158,6 +1159,7 @@ class HorizontalScrollPage {
 			block.headerLeft !== null &&
 			block.headerRight !== null &&
 			block.headerHeight !== null &&
+			block.headerLeftGroupLeft !== null &&
 			block.headerLangLeft !== null &&
 			block.headerLangCenterY !== null &&
 			block.headerCopyRight !== null &&
@@ -1189,6 +1191,7 @@ class HorizontalScrollPage {
 			'headerRight',
 			'headerWidth',
 			'headerHeight',
+			'headerLeftGroupLeft',
 			'headerLangLeft',
 			'headerLangCenterY',
 			'headerCopyRight',
@@ -1377,6 +1380,7 @@ class HorizontalScrollPage {
 					const rowStyle = block.row ? getComputedStyle(block.row) : null;
 					const headerRect = block.header?.getBoundingClientRect() ?? null;
 					const headerStyle = block.header ? getComputedStyle(block.header) : null;
+					const headerLeftGroupRect = block.header?.querySelector<HTMLElement>('.shiki-header-left')?.getBoundingClientRect() ?? null;
 					const headerLangRect = block.header?.querySelector<HTMLElement>('.shiki-lang-name')?.getBoundingClientRect() ?? null;
 					const headerCopyRect = block.header?.querySelector<HTMLElement>('.shiki-copy-button')?.getBoundingClientRect() ?? null;
 					const beforeCodeLeft = block.code?.getBoundingClientRect().left ?? null;
@@ -1626,6 +1630,7 @@ class HorizontalScrollPage {
 						headerBorderRightWidth: headerStyle?.borderRightWidth ?? null,
 						headerBorderLeftWidth: headerStyle?.borderLeftWidth ?? null,
 						headerBorderTopColor: headerStyle?.borderTopColor ?? null,
+						headerLeftGroupLeft: headerLeftGroupRect?.left ?? null,
 						headerLangLeft: headerLangRect?.left ?? null,
 						headerLangCenterY: headerLangRect ? headerLangRect.top + headerLangRect.height / 2 : null,
 						headerCopyRight: headerCopyRect?.right ?? null,
