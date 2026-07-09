@@ -1,4 +1,5 @@
 import type { MarkdownPostProcessorContext } from 'obsidian';
+import { createCodeBlockCopyButton } from 'packages/obsidian/src/codeblocks/CodeBlockCopyControl';
 import { parseCodeBlockMeta } from 'packages/obsidian/src/codeblocks/CodeBlockMeta';
 import type { CodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 import type ShikiPlugin from 'packages/obsidian/src/main';
@@ -104,6 +105,7 @@ export class ReadingViewAdapter {
 		if (existingHeader) {
 			existingHeader.dataset.shikiBlockId = state.block.id;
 			existingHeader.dataset.shikiScrollOwner = 'false';
+			this.syncHeader(existingHeader, state, doc);
 		}
 		if (existingBody) {
 			existingBody.dataset.shikiBlockId = state.block.id;
@@ -136,13 +138,7 @@ export class ReadingViewAdapter {
 		header.className = 'shiki-block-header';
 		header.dataset.shikiBlockId = state.block.id;
 		header.dataset.shikiScrollOwner = 'false';
-		const left = header.createDiv({ cls: 'shiki-header-left' });
-		left.createSpan({ cls: 'shiki-lang-name', text: state.language });
-		const right = header.createDiv({ cls: 'shiki-header-right' });
-		const copyBtn = right.createEl('button', { cls: 'shiki-copy-button', text: 'Copy' });
-		copyBtn.onclick = (): void => {
-			navigator.clipboard.writeText(state.block.code).catch(() => {});
-		};
+		this.syncHeader(header, state, doc);
 
 		const body = doc.createElement('div');
 		body.className = 'shiki-block-body';
@@ -171,6 +167,21 @@ export class ReadingViewAdapter {
 		}
 
 		void this.applyShikiHighlight(state, codeElement);
+	}
+
+	private syncHeader(header: HTMLElement, state: ReadingBlockState, doc: Document): void {
+		let left = header.querySelector<HTMLElement>(':scope > .shiki-header-left');
+		left ??= header.createDiv({ cls: 'shiki-header-left' });
+		let languageName = left.querySelector<HTMLElement>(':scope > .shiki-lang-name');
+		languageName ??= left.createSpan({ cls: 'shiki-lang-name' });
+		languageName.textContent = state.language;
+
+		let right = header.querySelector<HTMLElement>(':scope > .shiki-header-right');
+		right ??= header.createDiv({ cls: 'shiki-header-right' });
+		for (const staleButton of [...right.querySelectorAll<HTMLElement>(':scope > .shiki-copy-button')]) {
+			staleButton.remove();
+		}
+		right.appendChild(createCodeBlockCopyButton(doc, () => state.block.code));
 	}
 
 	private async applyShikiHighlight(state: ReadingBlockState, codeElement: HTMLElement, attempt = 0): Promise<void> {

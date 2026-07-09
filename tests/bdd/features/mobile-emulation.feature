@@ -29,6 +29,22 @@ Feature: Mobile-emulated syntax highlighting
     When I collapse and expand the left sidebar
     Then the Live Preview code block should keep visible Shiki token colors for "public sealed class Solution"
 
+  @copy-controls @visual-parity
+  Scenario: Mobile Reading mode copy control writes code and keeps stable states
+    Given Obsidian is running in mobile emulation
+    And the built Advanced Code Editor plugin is enabled in the fixture vault
+    And the fixture note "CSharp padded reading.md" is open in reading mode
+    Then a visible Shiki code block should render "List<int[]> intervals"
+    And the rendered copy control should copy "List<int[]> intervals" and keep stable states in reading
+
+  @copy-controls @visual-parity
+  Scenario: Mobile Live Preview copy control writes code and keeps stable states
+    Given Obsidian is running in mobile emulation
+    And the built Advanced Code Editor plugin is enabled in the fixture vault
+    And the fixture note "CSharp token slicing.md" is open in Live Preview
+    Then the Live Preview code block should style the full source text "// Define constants for start and end indices"
+    And the rendered copy control should copy "public sealed class Solution" and keep stable states in live-preview
+
   @visual-parity
   Scenario: Mobile Reading mode proves Shiki-owned token colors across languages
     Given Obsidian is running in mobile emulation

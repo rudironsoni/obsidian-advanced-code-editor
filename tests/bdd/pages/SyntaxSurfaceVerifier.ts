@@ -67,6 +67,31 @@ export type SourceModeSyntaxState = {
 	isMobile: boolean;
 };
 
+export type CopyControlMode = 'reading' | 'live-preview';
+
+export type CopyControlState = {
+	mode: CopyControlMode;
+	isMobile: boolean;
+	blockText: string;
+	successWrite: string;
+	errorWrite: string;
+	initialText: string;
+	copiedText: string;
+	errorText: string;
+	initialState: string;
+	copiedState: string;
+	errorState: string;
+	initialAriaLabel: string;
+	copiedAriaLabel: string;
+	errorAriaLabel: string;
+	initialWidth: number;
+	copiedWidth: number;
+	errorWidth: number;
+	initialHeight: number;
+	copiedHeight: number;
+	errorHeight: number;
+};
+
 type RuntimeApp = {
 	isMobile: boolean;
 	plugins: {
@@ -220,6 +245,14 @@ class SyntaxSurfaceVerifier {
 		}
 
 		return this.getSourceModeSyntaxState();
+	}
+
+	async verifyCopyControl(mode: CopyControlMode): Promise<CopyControlState> {
+		await browser.waitUntil(async () => this.hasCopyControl(mode), {
+			timeout: 30000,
+			timeoutMsg: `Copy control did not mount in ${mode}`,
+		});
+		return this.getCopyControlState(mode);
 	}
 
 	async getReadingRenderState(): Promise<RenderState> {
@@ -404,6 +437,112 @@ class SyntaxSurfaceVerifier {
 				isMobile: runtimeApp.isMobile,
 			};
 		}, pluginId);
+	}
+
+	private async getCopyControlState(mode: CopyControlMode): Promise<CopyControlState> {
+		return executeObsidian(async ({ app }, selectedMode): Promise<CopyControlState> => {
+			const runtimeApp = app as unknown as RuntimeApp;
+			const active = (runtimeApp.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
+			const root =
+				active?.querySelector<HTMLElement>(selectedMode === 'reading' ? '.markdown-preview-view' : '.markdown-source-view.mod-cm6.is-live-preview') ??
+				document.querySelector<HTMLElement>(selectedMode === 'reading' ? '.markdown-preview-view' : '.markdown-source-view.mod-cm6.is-live-preview');
+			const block =
+				selectedMode === 'reading'
+					? root?.querySelector<HTMLElement>('.shiki-reading-block')
+					: root?.querySelector<HTMLElement>('.shiki-live-preview-header');
+			const button = block?.querySelector<HTMLButtonElement>('.shiki-copy-button');
+			if (!root || !block || !button) {
+				throw new Error(`Copy control was not mounted in ${selectedMode}`);
+			}
+
+			const settle = async (): Promise<void> => {
+				await Promise.resolve();
+				await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+			};
+			const dimensions = (): { width: number; height: number } => {
+				const rect = button.getBoundingClientRect();
+				return { width: rect.width, height: rect.height };
+			};
+			const snapshot = (): { text: string; state: string; ariaLabel: string; width: number; height: number } => {
+				const rect = dimensions();
+				return {
+					text: button.textContent ?? '',
+					state: button.dataset.shikiCopyState ?? '',
+					ariaLabel: button.getAttribute('aria-label') ?? '',
+					width: rect.width,
+					height: rect.height,
+				};
+			};
+
+			const clipboard = navigator.clipboard as Clipboard & { writeText: Clipboard['writeText'] };
+			const ownWriteTextDescriptor = Object.getOwnPropertyDescriptor(clipboard, 'writeText');
+			const writes: string[] = [];
+			let rejectNextWrite = false;
+			const writeText = (text: string): Promise<void> => {
+				writes.push(text);
+				if (rejectNextWrite) {
+					rejectNextWrite = false;
+					return Promise.reject(new Error('Forced clipboard failure'));
+				}
+				return Promise.resolve();
+			};
+			Object.defineProperty(clipboard, 'writeText', {
+				configurable: true,
+				value: writeText,
+			});
+
+			try {
+				const initial = snapshot();
+				button.click();
+				await settle();
+				const copied = snapshot();
+				rejectNextWrite = true;
+				button.click();
+				await settle();
+				const errored = snapshot();
+
+				return {
+					mode: selectedMode,
+					isMobile: runtimeApp.isMobile,
+					blockText: block.textContent ?? '',
+					successWrite: writes[0] ?? '',
+					errorWrite: writes[1] ?? '',
+					initialText: initial.text,
+					copiedText: copied.text,
+					errorText: errored.text,
+					initialState: initial.state,
+					copiedState: copied.state,
+					errorState: errored.state,
+					initialAriaLabel: initial.ariaLabel,
+					copiedAriaLabel: copied.ariaLabel,
+					errorAriaLabel: errored.ariaLabel,
+					initialWidth: initial.width,
+					copiedWidth: copied.width,
+					errorWidth: errored.width,
+					initialHeight: initial.height,
+					copiedHeight: copied.height,
+					errorHeight: errored.height,
+				};
+			} finally {
+				if (ownWriteTextDescriptor) {
+					Object.defineProperty(clipboard, 'writeText', ownWriteTextDescriptor);
+				} else {
+					const mutableClipboard = clipboard as unknown as { writeText?: Clipboard['writeText'] };
+					delete mutableClipboard.writeText;
+				}
+			}
+		}, mode);
+	}
+
+	private async hasCopyControl(mode: CopyControlMode): Promise<boolean> {
+		return executeObsidian(({ app }, selectedMode): boolean => {
+			const runtimeApp = app as unknown as RuntimeApp;
+			const active = (runtimeApp.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
+			const root =
+				active?.querySelector<HTMLElement>(selectedMode === 'reading' ? '.markdown-preview-view' : '.markdown-source-view.mod-cm6.is-live-preview') ??
+				document.querySelector<HTMLElement>(selectedMode === 'reading' ? '.markdown-preview-view' : '.markdown-source-view.mod-cm6.is-live-preview');
+			return root?.querySelector('.shiki-copy-button') !== null;
+		}, mode);
 	}
 }
 

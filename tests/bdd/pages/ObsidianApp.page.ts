@@ -2,6 +2,8 @@ import { browser } from '@wdio/globals';
 import { syntaxMatrixVerifier, type SyntaxMatrixMode, type SyntaxMatrixState } from './SyntaxMatrixVerifier.js';
 import {
 	syntaxSurfaceVerifier,
+	type CopyControlMode,
+	type CopyControlState,
 	type LivePreviewFenceCursorState,
 	type LivePreviewSyntaxState,
 	type RenderState,
@@ -120,6 +122,10 @@ class ObsidianAppPage {
 
 	async getSourceModeSyntaxState(): Promise<SourceModeSyntaxState> {
 		return syntaxSurfaceVerifier.getSourceModeSyntaxState();
+	}
+
+	async verifyCopyControl(mode: CopyControlMode): Promise<CopyControlState> {
+		return syntaxSurfaceVerifier.verifyCopyControl(mode);
 	}
 
 	async moveFocusAwayFromNote(): Promise<void> {
