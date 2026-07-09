@@ -362,6 +362,29 @@ class ObsidianAppPage {
 			{ className: phonePortraitClass, styleId: phonePortraitStyleId },
 		);
 		phonePortraitStyleApplied = true;
+		await browser.waitUntil(
+			async () =>
+				browser.execute(
+					(input): boolean => {
+						const viewContent = document.querySelector<HTMLElement>('.workspace-leaf.mod-active .view-content');
+						const markdownView = document.querySelector<HTMLElement>(
+							'.workspace-leaf.mod-active .markdown-source-view, .workspace-leaf.mod-active .markdown-preview-view',
+						);
+						const viewRect = viewContent?.getBoundingClientRect();
+						const markdownRect = markdownView?.getBoundingClientRect();
+						return (
+							document.body.classList.contains(input.className) &&
+							viewRect !== undefined &&
+							markdownRect !== undefined &&
+							Math.abs(viewRect.width - 430) <= 1 &&
+							markdownRect.width > 0 &&
+							markdownRect.width <= 430
+						);
+					},
+					{ className: phonePortraitClass },
+				),
+			{ timeout: 5000, timeoutMsg: 'Obsidian phone portrait layout did not settle' },
+		);
 	}
 
 	async resetWindowSize(): Promise<void> {
