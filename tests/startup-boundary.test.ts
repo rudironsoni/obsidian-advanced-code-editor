@@ -75,7 +75,7 @@ describe('startup module boundary', () => {
 		expect(cm6Plugin).not.toContain('update.docChanged || update.viewportChanged || update.selectionSet');
 		expect(livePreview).not.toContain('!update.docChanged && !update.viewportChanged && !update.selectionSet');
 		expect(sourceMode).not.toContain('update.docChanged || update.viewportChanged || update.selectionSet');
-		expect(livePreview).toContain('!update.docChanged && !update.viewportChanged && !update.focusChanged');
+		expect(livePreview).toContain('!update.docChanged && !update.viewportChanged && !update.focusChanged && !update.geometryChanged');
 		expect(sourceMode).toContain('update.docChanged || update.viewportChanged || update.focusChanged');
 	});
 
@@ -89,7 +89,7 @@ describe('startup module boundary', () => {
 		expect(livePreview).toContain('destroyed || !this.plugin.isCurrentInstance()');
 		expect(livePreview).toContain("closest('.markdown-source-view.mod-cm6')");
 		expect(livePreview).toContain('this.requestDecorationRefresh();');
-		expect(livePreview).toContain('this.rebuildBlocks();');
+		expect(livePreview).toContain('this.rebuildBlocks({ includeAllBlocks: true });');
 	});
 
 	test('source mode applies Shiki token offsets directly from code block start', () => {
@@ -167,7 +167,7 @@ describe('startup module boundary', () => {
 		expect(structure).toContain('ShikiLivePreviewLineNumberWidget');
 		expect(structure).not.toContain('isBlockSelected');
 		expect(structure).not.toContain('shiki-note-line-numbers');
-		expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged && !update.focusChanged)');
+		expect(livePreview).toContain('if (!update.docChanged && !update.viewportChanged && !update.focusChanged && !update.geometryChanged)');
 		expect(livePreview).toContain('retokenizeBlocks');
 		expect(livePreview).toContain('buildCm6ShikiTokenDecorations');
 		expect(cm6Tokens).toContain('plugin.highlighter.getTokenSegments(block.code, highlight.tokens)');
@@ -208,7 +208,7 @@ test('Live Preview refreshes Shiki widgets when editor mode toggles', () => {
 	expect(livePreview).toContain('refreshForModeChange(): void');
 	expect(livePreview).toContain('private readonly handleModeClassChange = (): void => {');
 	expect(livePreview).toContain('if (isLivePreview === this.lastRootLivePreviewClass)');
-	expect(livePreview).toContain('this.rebuildBlocks();');
+	expect(livePreview).toContain('this.rebuildBlocks({ includeAllBlocks: true });');
 	expect(livePreview).toContain('private readonly modeClassObserver: MutationObserver;');
 	expect(livePreview).toContain('new MutationObserver(this.handleModeClassChange)');
 	expect(livePreview).toContain('this.modeClassObserver.disconnect();');
@@ -227,9 +227,12 @@ test('plugin refreshes editor integration after workspace mode/layout changes', 
 	expect(main).toContain('signature === this.lastEditorIntegrationSignature');
 	expect(main).toContain('this.app.workspace.getActiveFile?.()?.path');
 	expect(main).toContain('void this.updateCm6Plugin?.();');
-	expect(main).toContain("this.registerEvent(this.app.workspace.on('layout-change', () => refreshEditorIntegration(false)));");
+	expect(main).toContain("this.registerEvent(this.app.workspace.on('layout-change', () => refreshEditorIntegration(true)));");
 	expect(main).toContain("this.registerEvent(this.app.workspace.on('active-leaf-change', () => refreshEditorIntegration(true)));");
 	expect(main).toContain("this.registerEvent(this.app.workspace.on('file-open', () => refreshEditorIntegration(true)));");
+	expect(read('packages/obsidian/src/modes/LivePreviewAdapter.ts')).toContain(
+		'this.rebuildBlocks({ includeAllBlocks: update.focusChanged || update.geometryChanged });',
+	);
 	expect(main).toContain('const livePreviewModeObserver = new MutationObserver(');
 	expect(main).toContain('mutations => {');
 	expect(main).toContain(

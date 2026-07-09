@@ -60,11 +60,11 @@ export class LivePreviewAdapter {
 
 		this.livePreviewActive = true;
 
-		if (!update.docChanged && !update.viewportChanged && !update.focusChanged) {
+		if (!update.docChanged && !update.viewportChanged && !update.focusChanged && !update.geometryChanged) {
 			return;
 		}
 
-		this.rebuildBlocks();
+		this.rebuildBlocks({ includeAllBlocks: update.focusChanged || update.geometryChanged });
 	}
 
 	private isActuallyLivePreview(isLivePreview: boolean): boolean {
@@ -77,7 +77,7 @@ export class LivePreviewAdapter {
 			return;
 		}
 		this.livePreviewActive = true;
-		this.rebuildBlocks();
+		this.rebuildBlocks({ includeAllBlocks: true });
 		this.requestDecorationRefresh();
 	}
 
@@ -89,7 +89,7 @@ export class LivePreviewAdapter {
 			return;
 		}
 		this.livePreviewActive = true;
-		this.rebuildBlocks();
+		this.rebuildBlocks({ includeAllBlocks: true });
 	}
 
 	refreshDomMounts(): void {
@@ -111,7 +111,7 @@ export class LivePreviewAdapter {
 		this.refreshForModeChange();
 	};
 
-	private rebuildBlocks(): void {
+	private rebuildBlocks(options: { includeAllBlocks?: boolean } = {}): void {
 		const parsed = this.parser.parseLivePreviewBlocks(this.collectLines());
 		const sourcePath = resolveCm6SourcePath(this.plugin, this.view);
 		this.blocks = parsed.map(block =>
@@ -144,19 +144,19 @@ export class LivePreviewAdapter {
 		this.structuralDecorations = Decoration.none;
 		this.refreshDecorationSet();
 		window.requestAnimationFrame(() => this.syncGutterVisibility());
-		void this.retokenizeBlocks(tokenBlocks);
+		void this.retokenizeBlocks(tokenBlocks, options);
 	}
 
-	private async retokenizeBlocks(blocks: CodeBlockModel[]): Promise<void> {
+	private async retokenizeBlocks(blocks: CodeBlockModel[], options: { includeAllBlocks?: boolean } = {}): Promise<void> {
 		const requestId = ++this.tokenizationRequest;
+		const includeAllBlocks = options.includeAllBlocks ?? false;
 		const eligibleBlocks = blocks.filter(
 			(block): block is CodeBlockModel & { codeFrom: number; codeTo: number } =>
 				block.codeFrom !== undefined &&
 				block.codeTo !== undefined &&
 				!!block.language &&
 				!this.plugin.loadedSettings.disabledLanguages.includes(block.language) &&
-				block.codeTo >= this.view.viewport.from &&
-				block.codeFrom <= this.view.viewport.to,
+				(includeAllBlocks || (block.codeTo >= this.view.viewport.from && block.codeFrom <= this.view.viewport.to)),
 		);
 		if (eligibleBlocks.length === 0) {
 			this.editTokenDecorations = Decoration.none;

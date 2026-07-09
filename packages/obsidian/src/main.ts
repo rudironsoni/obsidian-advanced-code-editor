@@ -103,7 +103,7 @@ export default class ShikiPlugin extends Plugin {
 			100,
 			true,
 		);
-		this.registerEvent(this.app.workspace.on('layout-change', () => refreshEditorIntegration(false)));
+		this.registerEvent(this.app.workspace.on('layout-change', () => refreshEditorIntegration(true)));
 		this.registerEvent(this.app.workspace.on('active-leaf-change', () => refreshEditorIntegration(true)));
 		this.registerEvent(this.app.workspace.on('file-open', () => refreshEditorIntegration(true)));
 		const livePreviewModeObserver = new MutationObserver(mutations => {
