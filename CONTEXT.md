@@ -87,3 +87,15 @@ _Avoid_: Best-effort benchmark, informational metric
 **Same-run reference surface**:
 A behaviorally comparable rendering mode measured in the same WDIO run to keep performance assertions tied to the current machine and Obsidian session.
 _Avoid_: Historical baseline, static benchmark
+
+**Runtime visual parity**:
+User-visible agreement between Reading mode, Live Preview, and Raw Source mode for Shiki token ownership, theme background, gutters, and code block controls.
+_Avoid_: Screenshot-only parity, unit-test parity
+
+**Beta release path**:
+The documented workflow that turns a verified implementation batch into a GitHub prerelease that BRAT can install.
+_Avoid_: Ad hoc beta, local-only release
+
+**Enhancement batch**:
+A coherent set of product-facing improvements built only after the relevant runtime gates protect the behavior being changed.
+_Avoid_: Opportunistic feature change, unguarded polish
