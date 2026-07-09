@@ -2,6 +2,7 @@ name: Create Plugin Beta Release
 
 on:
     push:
+        # Keep these typed branch globs in sync with docs/beta-release-path.md.
         branches:
             - 'feature/**'
             - 'feature-*'

@@ -84,14 +84,28 @@ describe('startup bundle', () => {
 
 	test('beta workflow publishes typed branches with computed SemVer tags', () => {
 		const workflow = readFileSync(new URL('../.github/workflows/beta-release.yml', import.meta.url), 'utf8');
+		const releasePathDoc = readFileSync(new URL('../docs/beta-release-path.md', import.meta.url), 'utf8');
 
 		expect(workflow).toContain('PLUGIN_NAME: advanced-code-block');
+		expect(workflow).toContain('Keep these typed branch globs in sync with docs/beta-release-path.md');
 		expect(workflow).toContain("'feature/**'");
 		expect(workflow).toContain("'feature-*'");
+		expect(workflow).toContain("'feat/**'");
+		expect(workflow).toContain("'feat-*'");
 		expect(workflow).toContain("'fix/**'");
 		expect(workflow).toContain("'bug/**'");
+		expect(workflow).toContain("'bugfix/**'");
+		expect(workflow).toContain("'hotfix/**'");
 		expect(workflow).toContain("'chore/**'");
 		expect(workflow).toContain("'deps/**'");
+		expect(workflow).toContain("'docs/**'");
+		expect(workflow).toContain("'refactor/**'");
+		expect(workflow).toContain("'perf/**'");
+		expect(workflow).toContain("'test/**'");
+		expect(workflow).toContain("'tests/**'");
+		expect(workflow).toContain("'ci/**'");
+		expect(workflow).toContain("'build/**'");
+		expect(workflow).toContain("'style/**'");
 		expect(workflow).toContain('git fetch --tags --force');
 		expect(workflow).toContain('id: beta-version');
 		expect(workflow).toContain('bun scripts/compute-beta-version.ts');
@@ -104,5 +118,20 @@ describe('startup bundle', () => {
 		expect(workflow).toContain('target_commitish: ${{ github.ref_name }}');
 		expect(workflow).toContain('dist/*.js');
 		expect(workflow).toContain('dist/*.css');
+		expect(workflow).toContain('${{ env.PLUGIN_NAME }}-${{ steps.beta-version.outputs.new_tag }}.zip');
+		expect(workflow).toContain('dist/manifest.json');
+
+		expect(releasePathDoc).toContain('.github/workflows/beta-release.yml');
+		expect(releasePathDoc).toContain('typed implementation branch');
+		expect(releasePathDoc).toContain('It is not `master`');
+		expect(releasePathDoc).toContain('`feat/**` or `feat-*`');
+		expect(releasePathDoc).toContain('scripts/compute-beta-version.ts');
+		expect(releasePathDoc).toContain('target_commitish: ${{ github.ref_name }}');
+		expect(releasePathDoc).toContain('`main.js`');
+		expect(releasePathDoc).toContain('`manifest.json`');
+		expect(releasePathDoc).toContain('`styles.css`');
+		expect(releasePathDoc).toContain('`advanced-code-block-<beta-version>.zip`');
+		expect(releasePathDoc).toContain('`isPrerelease` is `true`');
+		expect(releasePathDoc).toContain('Do not hand-edit release assets locally');
 	});
 });
