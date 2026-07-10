@@ -5,8 +5,9 @@
       "type": "stdio",
       "command": "npx",
       "args": [
-        "-y",
-        "@wdio/mcp"
+        "--yes",
+        "--package=@wdio/mcp",
+        "wdio-mcp"
       ],
       "env": {}
     }

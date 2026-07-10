@@ -573,6 +573,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 							this.syncBlock(measure.blockId, scrollbar.scrollLeft);
 						}
 					}
+					this.syncClosingFenceScrollbarState(measure.blockId, measure.maxScrollLeft > 0 && !measure.disabled);
 					for (const element of [...measure.rows, ...measure.scrollbars]) {
 						nextScrollTargets.add(element);
 					}
@@ -596,6 +597,15 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					if (cache.disabled) {
 						this.setScrollLeft(row, 0);
 					}
+				}
+			}
+
+			private syncClosingFenceScrollbarState(blockId: string, hasVisibleScrollbar: boolean): void {
+				const escapedBlockId = CSS.escape(blockId);
+				for (const closingFence of this.view.dom.querySelectorAll<HTMLElement>(
+					`.shiki-live-preview-closing-fence-line[data-shiki-block-id="${escapedBlockId}"]`,
+				)) {
+					closingFence.classList.toggle('shiki-live-preview-closing-fence-has-scrollbar', hasVisibleScrollbar);
 				}
 			}
 

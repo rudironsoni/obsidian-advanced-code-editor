@@ -5,8 +5,9 @@
       "type": "local",
       "command": [
         "npx",
-        "-y",
-        "@wdio/mcp"
+        "--yes",
+        "--package=@wdio/mcp",
+        "wdio-mcp"
       ],
       "enabled": true,
       "environment": {}

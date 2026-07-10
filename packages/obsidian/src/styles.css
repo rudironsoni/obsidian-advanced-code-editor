@@ -382,6 +382,13 @@ span.shiki-ul {
 	pointer-events: none;
 }
 
+.markdown-source-view.mod-cm6.is-live-preview .shiki-block-horizontal-scrollbar {
+	border-right: var(--shiki-code-block-border-width) solid var(--shiki-code-block-border-color);
+	border-bottom: var(--shiki-code-block-border-width) solid var(--shiki-code-block-border-color);
+	border-left: var(--shiki-code-block-border-width) solid var(--shiki-code-block-border-color);
+	border-radius: 0 0 var(--shiki-code-block-border-radius) var(--shiki-code-block-border-radius);
+}
+
 .shiki-block-horizontal-scrollbar::-webkit-scrollbar {
 	height: 10px;
 }
@@ -585,6 +592,11 @@ body.shiki-use-editor-font-size .markdown-rendered .shiki-reading-block code {
 .markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-live-preview-closing-fence-line {
 	border-bottom: var(--shiki-code-block-border-width) solid var(--shiki-code-block-border-color);
 	border-radius: 0 0 var(--shiki-code-block-border-radius) var(--shiki-code-block-border-radius);
+}
+
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-live-preview-closing-fence-line.shiki-live-preview-closing-fence-has-scrollbar {
+	border-bottom: 0;
+	border-radius: 0;
 }
 
 .markdown-source-view.mod-cm6.is-live-preview .cm-line.shiki-live-preview-fence-line .shiki-live-preview-fence-text {

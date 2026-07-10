@@ -244,6 +244,39 @@ describe('block horizontal scroll identity', () => {
 		expect(styles).not.toContain('transform: translateX(calc(-1 * var(--shiki-block-scroll-left, 0px)))');
 	});
 
+	test('joins a visible scrollbar to its closing fence', async () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const view = new EditorView({
+			doc: 'long\n```',
+			extensions: [createBlockHorizontalScrollPlugin()],
+			parent,
+		});
+		const blockId = 'Note.md::live-preview::5::120::5::ts::closing-fence';
+		const [codeRow, closingFence] = [...view.dom.querySelectorAll<HTMLElement>('.cm-line')];
+		const scrollbar = document.createElement('div');
+
+		codeRow.classList.add(SHIKI_BLOCK_SCROLL_ROW_CLASS, 'shiki-live-preview-code-line');
+		codeRow.dataset.shikiBlockId = blockId;
+		defineLayout(codeRow, { clientWidth: 300, scrollWidth: 1000 });
+		closingFence.classList.add('shiki-live-preview-closing-fence-line');
+		closingFence.dataset.shikiBlockId = blockId;
+		scrollbar.className = 'shiki-block-horizontal-scrollbar';
+		scrollbar.dataset.shikiBlockId = blockId;
+		defineLayout(scrollbar, { clientWidth: 300, scrollWidth: 1000 });
+		view.dom.appendChild(scrollbar);
+
+		try {
+			await waitForBlockScrollMeasure(view);
+
+			expect(scrollbar.hidden).toBe(false);
+			expect(closingFence.classList.contains('shiki-live-preview-closing-fence-has-scrollbar')).toBe(true);
+		} finally {
+			view.destroy();
+			parent.remove();
+		}
+	});
+
 	test('shares Reading mode gutter tokens with Live Preview line numbers', () => {
 		const styles = read('packages/obsidian/src/styles.css');
 		const readingGutterRule = styles.match(/\.shiki-line-numbers \{([\s\S]*?)\n\}/)?.[1] ?? '';

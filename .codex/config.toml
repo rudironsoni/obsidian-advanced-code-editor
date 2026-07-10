@@ -3,7 +3,7 @@ default_permissions = "rulesync"
 [mcp_servers.wdio-mcp]
 type = "stdio"
 command = "npx"
-args = [ "-y", "@wdio/mcp" ]
+args = [ "--yes", "--package=@wdio/mcp", "wdio-mcp" ]
 
 [features]
 hooks = true
