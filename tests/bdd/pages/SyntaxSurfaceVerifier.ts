@@ -19,6 +19,22 @@ export type RenderState = {
 	debug: string[];
 };
 
+export type LanguageLessBlockState = {
+	mode: 'reading' | 'live-preview' | 'source';
+	advancedBlockCount: number;
+	stockReadingPreCount: number;
+	headerCount: number;
+	languageLabels: string[];
+	copyControlCount: number;
+	lineNumberCount: number;
+	codeLineCount: number;
+	fenceLineCount: number;
+	sourceTokenCount: number;
+	rawFenceVisible: boolean;
+	text: string;
+	isMobile: boolean;
+};
+
 export type LivePreviewSyntaxState = {
 	lines: number;
 	tokens: number;
@@ -147,6 +163,56 @@ type RuntimeApp = {
 };
 
 class SyntaxSurfaceVerifier {
+	async waitForLanguageLessBlockState(mode: LanguageLessBlockState['mode']): Promise<LanguageLessBlockState> {
+		let lastState: LanguageLessBlockState | undefined;
+		await browser.waitUntil(
+			async () => {
+				const state = await this.getLanguageLessBlockState(mode);
+				lastState = state;
+				if (mode === 'source') {
+					return state.rawFenceVisible && state.sourceTokenCount > 0;
+				}
+				return state.advancedBlockCount === 1 && state.headerCount === 1 && state.copyControlCount === 1 && state.codeLineCount >= 3;
+			},
+			{ timeout: 30000, timeoutMsg: `Language-less block did not become plugin-owned in ${mode}: ${JSON.stringify(lastState)}` },
+		);
+		return this.getLanguageLessBlockState(mode);
+	}
+
+	async getLanguageLessBlockState(mode: LanguageLessBlockState['mode']): Promise<LanguageLessBlockState> {
+		return executeObsidian(({ app }, selectedMode): LanguageLessBlockState => {
+			const runtimeApp = app as unknown as RuntimeApp;
+			const active = (runtimeApp.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
+			const scope = active ?? document.querySelector<HTMLElement>('.workspace-leaf.mod-active') ?? document.body;
+			const readingBlocks = [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block')];
+			const livePreviewHeaders = [...scope.querySelectorAll<HTMLElement>('.shiki-live-preview-header')];
+			const headers =
+				selectedMode === 'reading' ? [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block .shiki-block-header')] : livePreviewHeaders;
+			const stockReadingPreCount = [...scope.querySelectorAll<HTMLElement>('.markdown-preview-view pre')].filter(
+				pre => !pre.closest('.shiki-reading-block'),
+			).length;
+
+			return {
+				mode: selectedMode,
+				advancedBlockCount: selectedMode === 'reading' ? readingBlocks.length : selectedMode === 'live-preview' ? livePreviewHeaders.length : 0,
+				stockReadingPreCount,
+				headerCount: headers.length,
+				languageLabels: headers.map(header => header.querySelector<HTMLElement>('.shiki-lang-name')?.textContent?.trim() ?? ''),
+				copyControlCount: headers.reduce((count, header) => count + header.querySelectorAll('.shiki-copy-button').length, 0),
+				lineNumberCount: scope.querySelectorAll(
+					selectedMode === 'reading' ? '.shiki-reading-block .shiki-line-numbers > span' : '.shiki-live-preview-line-number',
+				).length,
+				codeLineCount: scope.querySelectorAll(selectedMode === 'reading' ? '.shiki-reading-block .shiki-code-line' : '.shiki-live-preview-code-line')
+					.length,
+				fenceLineCount: scope.querySelectorAll('.shiki-live-preview-fence-line').length,
+				sourceTokenCount: scope.querySelectorAll('.shiki-source-token').length,
+				rawFenceVisible: (scope.textContent ?? '').includes('```'),
+				text: scope.textContent ?? '',
+				isMobile: runtimeApp.isMobile,
+			};
+		}, mode);
+	}
+
 	async waitForReadingRender(expectedText: string): Promise<RenderState> {
 		let lastState: RenderState | undefined;
 		try {

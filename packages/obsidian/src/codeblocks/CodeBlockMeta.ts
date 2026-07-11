@@ -4,6 +4,8 @@ export interface CodeBlockMeta {
 	openingFence: string;
 }
 
+export const DEFAULT_CODE_BLOCK_LANGUAGE = 'text';
+
 const OPENING_FENCE_RE = /^\s*([`~]{3,})([^\s`~]*)?(.*)$/;
 
 export interface ParsedCodeBlockMeta {

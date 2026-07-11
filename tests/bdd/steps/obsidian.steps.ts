@@ -125,6 +125,34 @@ Then('Reading mode should render one visual row per source line', async () => {
 	await browser.saveScreenshot(path.join(artifactDir, `reading-line-layout-${state.isMobile ? 'mobile' : 'desktop'}.png`));
 });
 
+Then('the language-less code block should use Advanced Code Editor in {word}', async (mode: 'reading' | 'live-preview' | 'source') => {
+	const state = await obsidianApp.getLanguageLessBlockState(mode);
+
+	if (mode === 'source') {
+		assert.equal(state.rawFenceVisible, true, `expected editable Markdown fences in Source mode: ${JSON.stringify(state)}`);
+		assert.ok(state.sourceTokenCount > 0, `expected Advanced Code Editor source decorations: ${JSON.stringify(state)}`);
+		assert.ok(state.text.includes('Current duplicate entities:'), `expected language-less source text: ${JSON.stringify(state)}`);
+		mkdirSync(artifactDir, { recursive: true });
+		await browser.saveScreenshot(path.join(artifactDir, `language-less-code-block-source-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+		return;
+	}
+
+	assert.equal(state.advancedBlockCount, 1, `expected one Advanced Code Editor block: ${JSON.stringify(state)}`);
+	assert.equal(state.headerCount, 1, `expected one Advanced Code Editor header: ${JSON.stringify(state)}`);
+	assert.deepEqual(state.languageLabels, ['text'], `expected the plain-text fallback label: ${JSON.stringify(state)}`);
+	assert.equal(state.copyControlCount, 1, `expected one copy control: ${JSON.stringify(state)}`);
+	assert.ok(state.lineNumberCount >= 3, `expected internal line numbers: ${JSON.stringify(state)}`);
+	assert.ok(state.codeLineCount >= 3, `expected plugin-owned code rows: ${JSON.stringify(state)}`);
+	assert.ok(state.text.includes('Current duplicate entities:'), `expected language-less source text: ${JSON.stringify(state)}`);
+	if (mode === 'reading') {
+		assert.equal(state.stockReadingPreCount, 0, `expected no stock Reading mode code block: ${JSON.stringify(state)}`);
+	} else {
+		assert.equal(state.fenceLineCount, 2, `expected plugin-owned Live Preview fence rows: ${JSON.stringify(state)}`);
+	}
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `language-less-code-block-${mode}-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+});
+
 Then('the Live Preview code block should style the full source text {string}', async (expectedText: string) => {
 	const state = await obsidianApp.waitForLivePreviewStyledSource(expectedText);
 

@@ -7,6 +7,7 @@ import type { InlineCodeBlock } from 'packages/obsidian/src/InlineCodeBlock';
 import { CodeBlockRegistry } from 'packages/obsidian/src/codeblocks/CodeBlockRegistry';
 import { SourceModeTokenizationCache } from 'packages/obsidian/src/runtime/SourceModeTokenizationCache';
 import { getObsidianSafeLanguageNames } from 'packages/obsidian/src/runtime/LanguageMetadata';
+import { DEFAULT_CODE_BLOCK_LANGUAGE } from 'packages/obsidian/src/codeblocks/CodeBlockMeta';
 import { getActiveTheme } from 'packages/obsidian/src/runtime/ThemeBridge';
 import type { ReadingViewAdapter } from 'packages/obsidian/src/modes/ReadingViewAdapter';
 
@@ -198,7 +199,10 @@ export default class ShikiPlugin extends Plugin {
 				return;
 			}
 
-			const codeElements = el.querySelectorAll<HTMLElement>('pre > code[class*="language-"]');
+			const codeElements = [
+				...(el.matches('pre') ? el.querySelectorAll<HTMLElement>(':scope > code') : []),
+				...el.querySelectorAll<HTMLElement>('pre > code'),
+			];
 			const processedPre = new Set<HTMLElement>();
 			const sourceFromSectionInfo = (pre: HTMLElement, renderedText: string): string => {
 				const sectionInfo = ctx.getSectionInfo(pre.parentElement ?? pre) ?? ctx.getSectionInfo(pre);
@@ -214,8 +218,9 @@ export default class ShikiPlugin extends Plugin {
 			};
 			for (const codeElement of codeElements) {
 				const className = [...codeElement.classList].find(value => value.startsWith('language-'));
-				const language = className?.slice('language-'.length) ?? '';
-				if (language === '' || !languages.has(language)) {
+				const declaredLanguage = className?.slice('language-'.length) ?? '';
+				const language = declaredLanguage || DEFAULT_CODE_BLOCK_LANGUAGE;
+				if (declaredLanguage !== '' && !languages.has(declaredLanguage)) {
 					continue;
 				}
 

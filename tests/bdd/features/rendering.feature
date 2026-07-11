@@ -1,6 +1,16 @@
 @desktop
 Feature: Reading mode syntax highlighting
 
+  @language-less
+  Scenario: A language-less fenced block uses Advanced Code Editor in Reading mode and Live Preview
+    Given the built Advanced Code Editor plugin is enabled in the fixture vault
+    And the fixture note "Language-less code block.md" is open in reading mode
+    Then the language-less code block should use Advanced Code Editor in reading
+    When the fixture note "Language-less code block.md" is open in Live Preview
+    Then the language-less code block should use Advanced Code Editor in live-preview
+    When the fixture note "Language-less code block.md" is open in raw Source mode
+    Then the language-less code block should use Advanced Code Editor in source
+
   @reading-lines
   Scenario: A C# fenced code block renders in Reading mode without Markdown fences
     Given the built Advanced Code Editor plugin is enabled in the fixture vault
