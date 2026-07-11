@@ -1,5 +1,47 @@
 import { createRequire } from 'node:module';
+import { spawnSync } from 'node:child_process';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
+
+if (process.env.STARTUP_BENCH_WORKER !== 'true') {
+	const samples = [];
+	for (let index = 0; index < 12; index++) {
+		const run = spawnSync(process.execPath, [new URL(import.meta.url).pathname], {
+			cwd: process.cwd(),
+			env: { ...process.env, STARTUP_BENCH_WORKER: 'true' },
+			encoding: 'utf8',
+		});
+		if (run.status !== 0) {
+			process.stderr.write(run.stderr || run.stdout);
+			process.exit(run.status ?? 1);
+		}
+		const line = run.stdout.trim().split('\n').at(-1);
+		samples.push(JSON.parse(line));
+	}
+
+	const measured = samples.slice(1);
+	const percentile = (values, fraction) => {
+		const sorted = [...values].sort((a, b) => a - b);
+		return sorted[Math.ceil(sorted.length * fraction) - 1];
+	};
+	const metrics = Object.fromEntries(
+		['requireMs', 'onloadMs', 'totalMs'].map(key => {
+			const values = measured.map(sample => sample[key]);
+			return [
+				key,
+				{
+					min: Math.min(...values),
+					max: Math.max(...values),
+					median: percentile(values, 0.5),
+					p95: percentile(values, 0.95),
+				},
+			];
+		}),
+	);
+	const result = { mode: measured[0].mode, samples: measured.length, metrics };
+	console.log(JSON.stringify(result, null, 2));
+	if (metrics.totalMs.median > 50 || metrics.totalMs.p95 > 75) process.exitCode = 1;
+	process.exit();
+}
 
 GlobalRegistrator.register();
 
@@ -175,7 +217,3 @@ const result = {
 };
 
 console.log(JSON.stringify(result));
-
-if (result.totalMs > 200) {
-	process.exitCode = 1;
-}
