@@ -62,6 +62,23 @@ describe('code block parser', () => {
 			closingFenceLine: 6,
 		});
 	});
+
+	test('parseLivePreviewBlocks treats an unlabeled fence as plain text', () => {
+		const parser = new CodeBlockParser();
+		const lines: CodeBlockLineInfo[] = [
+			{ lineNumber: 1, from: 0, to: 2, text: '```' },
+			{ lineNumber: 2, from: 4, to: 14, text: 'plain text' },
+			{ lineNumber: 3, from: 15, to: 17, text: '```' },
+		];
+
+		const blocks = parser.parseLivePreviewBlocks(lines);
+
+		expect(blocks).toHaveLength(1);
+		expect(blocks[0]).toMatchObject({
+			language: 'text',
+			range: { lineFrom: 2, lineTo: 2, charFrom: 4, charTo: 14 },
+		});
+	});
 	test('parseLivePreviewBlocks gives identical blocks distinct logical identities', () => {
 		const parser = new CodeBlockParser();
 		const source = ['```ts', 'const repeated = true;', '```', '', '```ts', 'const repeated = true;', '```'].join('\n');

@@ -7,6 +7,8 @@ import type { InlineCodeBlock } from 'packages/obsidian/src/InlineCodeBlock';
 import { CodeBlockRegistry } from 'packages/obsidian/src/codeblocks/CodeBlockRegistry';
 import { SourceModeTokenizationCache } from 'packages/obsidian/src/runtime/SourceModeTokenizationCache';
 import { getObsidianSafeLanguageNames } from 'packages/obsidian/src/runtime/LanguageMetadata';
+import { DEFAULT_CODE_BLOCK_LANGUAGE } from 'packages/obsidian/src/codeblocks/CodeBlockMeta';
+import { findReadingCodeElements } from 'packages/obsidian/src/codeblocks/ReadingCodeElementDiscovery';
 import { getActiveTheme } from 'packages/obsidian/src/runtime/ThemeBridge';
 import type { ReadingViewAdapter } from 'packages/obsidian/src/modes/ReadingViewAdapter';
 
@@ -160,13 +162,18 @@ export default class ShikiPlugin extends Plugin {
 		if (this.unloaded || this.cm6PluginRegistered) {
 			return;
 		}
-		await this.ensureSettingsLoaded();
-		this.applyFontSizeClass();
-
-		const { createCm6Plugin } = await import('packages/obsidian/src/codemirror/Cm6_ViewPlugin');
-		this.registerEditorExtension([createCm6Plugin(this)]);
 		this.cm6PluginRegistered = true;
-		this.app.workspace.updateOptions();
+		try {
+			await this.ensureSettingsLoaded();
+			this.applyFontSizeClass();
+
+			const { createCm6Plugin } = await import('packages/obsidian/src/codemirror/Cm6_ViewPlugin');
+			this.registerEditorExtension([createCm6Plugin(this)]);
+			this.app.workspace.updateOptions();
+		} catch (error) {
+			this.cm6PluginRegistered = false;
+			throw error;
+		}
 	}
 
 	async registerCodeBlockProcessors(): Promise<void> {
@@ -198,7 +205,7 @@ export default class ShikiPlugin extends Plugin {
 				return;
 			}
 
-			const codeElements = el.querySelectorAll<HTMLElement>('pre > code[class*="language-"]');
+			const codeElements = findReadingCodeElements(el);
 			const processedPre = new Set<HTMLElement>();
 			const sourceFromSectionInfo = (pre: HTMLElement, renderedText: string): string => {
 				const sectionInfo = ctx.getSectionInfo(pre.parentElement ?? pre) ?? ctx.getSectionInfo(pre);
@@ -212,10 +219,21 @@ export default class ShikiPlugin extends Plugin {
 				}
 				return sectionSource;
 			};
+			const getBlockContainer = (pre: HTMLElement): HTMLElement => {
+				const parent = pre.parentElement;
+				if (!parent || parent.childElementCount === 1) {
+					return parent ?? pre;
+				}
+				const wrapper = pre.ownerDocument.createElement('div');
+				pre.before(wrapper);
+				wrapper.appendChild(pre);
+				return wrapper;
+			};
 			for (const codeElement of codeElements) {
 				const className = [...codeElement.classList].find(value => value.startsWith('language-'));
-				const language = className?.slice('language-'.length) ?? '';
-				if (language === '' || !languages.has(language)) {
+				const declaredLanguage = className?.slice('language-'.length) ?? '';
+				const language = declaredLanguage || DEFAULT_CODE_BLOCK_LANGUAGE;
+				if (declaredLanguage !== '' && !languages.has(declaredLanguage)) {
 					continue;
 				}
 
@@ -236,7 +254,7 @@ export default class ShikiPlugin extends Plugin {
 				const sectionSource = sourceFromSectionInfo(pre, codeElement.textContent ?? '');
 				const codeBlock = new CodeBlock(
 					this,
-					pre.parentElement ?? pre,
+					getBlockContainer(pre),
 					sectionSource.trim() ? sectionSource : (codeElement.textContent ?? ''),
 					language,
 					ctx,
@@ -254,7 +272,7 @@ export default class ShikiPlugin extends Plugin {
 				}
 				processedPre.add(pre);
 				const sectionSource = sourceFromSectionInfo(pre, pre.textContent ?? '');
-				const codeBlock = new CodeBlock(this, pre.parentElement ?? pre, sectionSource.trim() ? sectionSource : (pre.textContent ?? ''), language, ctx);
+				const codeBlock = new CodeBlock(this, getBlockContainer(pre), sectionSource.trim() ? sectionSource : (pre.textContent ?? ''), language, ctx);
 				ctx.addChild(codeBlock);
 			}
 		}, 1000);
@@ -303,6 +321,12 @@ export default class ShikiPlugin extends Plugin {
 	}
 
 	refreshEditorIntegrationIfChanged(force = false): void {
+		if (!this.cm6PluginRegistered) {
+			void this.registerCm6Plugin().catch(error => {
+				console.warn('Unable to register Shiki editor integration.', error);
+			});
+			return;
+		}
 		const signature = this.editorIntegrationSignature();
 		if (!force && signature === this.lastEditorIntegrationSignature) {
 			return;

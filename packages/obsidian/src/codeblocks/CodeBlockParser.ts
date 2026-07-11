@@ -1,4 +1,4 @@
-import { buildCodeBlockMeta, parseCodeBlockMeta } from 'packages/obsidian/src/codeblocks/CodeBlockMeta';
+import { buildCodeBlockMeta, DEFAULT_CODE_BLOCK_LANGUAGE, parseCodeBlockMeta } from 'packages/obsidian/src/codeblocks/CodeBlockMeta';
 import { makeParsedCodeBlockIdentity } from 'packages/obsidian/src/codeblocks/CodeBlockIdentity';
 import type { CodeBlockLineInfo, ParsedCodeBlockModel } from 'packages/obsidian/src/codeblocks/CodeBlockModel';
 
@@ -16,10 +16,7 @@ export class CodeBlockParser {
 					continue;
 				}
 
-				const canonicalLanguage = opening.language;
-				if (!canonicalLanguage?.trim()) {
-					continue;
-				}
+				const canonicalLanguage = opening.language.trim() || DEFAULT_CODE_BLOCK_LANGUAGE;
 
 				current = {
 					closingFence: opening.openingFence,
@@ -33,7 +30,7 @@ export class CodeBlockParser {
 			if (line.text.trim().startsWith(current.closingFence)) {
 				const codeStartLine = current.openingLine + 1;
 				const codeEndLine = line.lineNumber - 1;
-				if (codeStartLine <= codeEndLine && current.language !== '') {
+				if (codeStartLine <= codeEndLine) {
 					const codeFromLine = getLine(codeStartLine);
 					const codeToLine = getLine(codeEndLine);
 					const openingLine = getLine(current.openingLine);

@@ -229,6 +229,9 @@ test('plugin refreshes editor integration after workspace mode/layout changes', 
 	expect(main).toContain('force = false');
 	expect(main).toContain('this.refreshEditorIntegrationIfChanged(force === true);');
 	expect(main).toContain('refreshEditorIntegrationIfChanged(force = false): void');
+	expect(main).toContain('if (!this.cm6PluginRegistered)');
+	expect(main).toContain('void this.registerCm6Plugin().catch(error => {');
+	expect(main).toContain('this.cm6PluginRegistered = false;');
 	expect(main).toContain('signature === this.lastEditorIntegrationSignature');
 	expect(main).toContain('this.app.workspace.getActiveFile?.()?.path');
 	expect(main).toContain('void this.updateCm6Plugin?.();');

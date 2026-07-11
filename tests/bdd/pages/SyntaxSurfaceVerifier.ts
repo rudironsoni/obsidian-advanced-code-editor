@@ -9,10 +9,40 @@ export type RenderState = {
 	tokens: number;
 	text: string;
 	csharpListTokenColors: string[];
+	renderedLineCount: number;
+	numberedLineCount: number;
+	codeLineHeight: number;
+	lineTopDeltas: number[];
 	width: number;
 	height: number;
 	isMobile: boolean;
 	debug: string[];
+};
+
+export type LanguageLessBlockState = {
+	mode: 'reading' | 'live-preview' | 'source';
+	advancedBlockCount: number;
+	stockReadingPreCount: number;
+	headerCount: number;
+	languageLabels: string[];
+	copyControlCount: number;
+	lineNumberCount: number;
+	codeLineCount: number;
+	fenceLineCount: number;
+	sourceTokenCount: number;
+	rawFenceVisible: boolean;
+	text: string;
+	isMobile: boolean;
+};
+
+export type MultipleReadingBlocksState = {
+	advancedBlockCount: number;
+	stockPreCount: number;
+	headerCount: number;
+	languageLabels: string[];
+	isMobile: boolean;
+	renderedBlockCount: number;
+	codeLineCount: number;
 };
 
 export type LivePreviewSyntaxState = {
@@ -143,6 +173,127 @@ type RuntimeApp = {
 };
 
 class SyntaxSurfaceVerifier {
+	async waitForLanguageLessBlockState(mode: LanguageLessBlockState['mode']): Promise<LanguageLessBlockState> {
+		let lastState: LanguageLessBlockState | undefined;
+		await browser.waitUntil(
+			async () => {
+				const state = await this.getLanguageLessBlockState(mode);
+				lastState = state;
+				if (mode === 'source') {
+					return state.rawFenceVisible && state.sourceTokenCount > 0;
+				}
+				return state.advancedBlockCount === 1 && state.headerCount === 1 && state.copyControlCount === 1 && state.codeLineCount >= 3;
+			},
+			{ timeout: 30000, timeoutMsg: `Language-less block did not become plugin-owned in ${mode}: ${JSON.stringify(lastState)}` },
+		);
+		return this.getLanguageLessBlockState(mode);
+	}
+
+	async waitForMultipleLanguageLessBlocksState(): Promise<LanguageLessBlockState> {
+		try {
+			await browser.waitUntil(
+				async () => {
+					const state = await this.getLanguageLessBlockState('live-preview');
+					return (
+						state.advancedBlockCount === 3 &&
+						state.headerCount === 3 &&
+						state.copyControlCount === 3 &&
+						state.fenceLineCount >= 5 &&
+						state.codeLineCount >= 8
+					);
+				},
+				{ timeout: 5000, timeoutMsg: 'Language-less Live Preview blocks were not all plugin-owned' },
+			);
+		} catch (error) {
+			const state = await this.getLanguageLessBlockState('live-preview');
+			throw new Error(`${String(error)}: ${JSON.stringify(state)}`);
+		}
+		return this.getLanguageLessBlockState('live-preview');
+	}
+
+	async waitForMultipleReadingBlocksState(): Promise<MultipleReadingBlocksState> {
+		let lastState: MultipleReadingBlocksState | undefined;
+		await browser.waitUntil(
+			async () => {
+				lastState = await this.getMultipleReadingBlocksState();
+				return (
+					lastState.advancedBlockCount === 2 &&
+					lastState.stockPreCount === 0 &&
+					lastState.headerCount === 2 &&
+					lastState.renderedBlockCount === 2 &&
+					lastState.codeLineCount === 8
+				);
+			},
+			{ timeout: 30000, timeoutMsg: `Reading mode did not claim both code blocks: ${JSON.stringify(lastState)}` },
+		);
+		return this.getMultipleReadingBlocksState();
+	}
+
+	async waitForMixedReadingBlocksState(): Promise<MultipleReadingBlocksState> {
+		await browser.waitUntil(
+			async () => {
+				const state = await this.getMultipleReadingBlocksState();
+				return state.advancedBlockCount === 4 && state.stockPreCount === 0 && state.headerCount === 4 && state.renderedBlockCount === 4;
+			},
+			{ timeout: 30000, timeoutMsg: 'Reading mode did not claim every mixed code block' },
+		);
+		return this.getMultipleReadingBlocksState();
+	}
+
+	async getMultipleReadingBlocksState(): Promise<MultipleReadingBlocksState> {
+		return executeObsidian(({ app }): MultipleReadingBlocksState => {
+			const runtimeApp = app as unknown as RuntimeApp;
+			const active = (runtimeApp.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
+			const scope = active ?? document.querySelector<HTMLElement>('.workspace-leaf.mod-active') ?? document.body;
+			const blocks = [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block')];
+			const headers = [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block .shiki-block-header')];
+			return {
+				advancedBlockCount: blocks.length,
+				stockPreCount: [...scope.querySelectorAll<HTMLElement>('.markdown-preview-view pre')].filter(pre => !pre.closest('.shiki-reading-block'))
+					.length,
+				headerCount: headers.length,
+				languageLabels: headers.map(header => header.querySelector<HTMLElement>('.shiki-lang-name')?.textContent?.trim() ?? ''),
+				isMobile: runtimeApp.isMobile,
+				renderedBlockCount: scope.querySelectorAll('.shiki-reading-block code[data-shiki-highlight-state="rendered"]').length,
+				codeLineCount: scope.querySelectorAll('.shiki-reading-block .shiki-code-line').length,
+			};
+		});
+	}
+
+	async getLanguageLessBlockState(mode: LanguageLessBlockState['mode']): Promise<LanguageLessBlockState> {
+		return executeObsidian(({ app }, selectedMode): LanguageLessBlockState => {
+			const runtimeApp = app as unknown as RuntimeApp;
+			const active = (runtimeApp.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
+			const scope = active ?? document.querySelector<HTMLElement>('.workspace-leaf.mod-active') ?? document.body;
+			const readingBlocks = [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block')];
+			const livePreviewHeaders = [...scope.querySelectorAll<HTMLElement>('.shiki-live-preview-header')];
+			const headers =
+				selectedMode === 'reading' ? [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block .shiki-block-header')] : livePreviewHeaders;
+			const stockReadingPreCount = [...scope.querySelectorAll<HTMLElement>('.markdown-preview-view pre')].filter(
+				pre => !pre.closest('.shiki-reading-block'),
+			).length;
+
+			return {
+				mode: selectedMode,
+				advancedBlockCount: selectedMode === 'reading' ? readingBlocks.length : selectedMode === 'live-preview' ? livePreviewHeaders.length : 0,
+				stockReadingPreCount,
+				headerCount: headers.length,
+				languageLabels: headers.map(header => header.querySelector<HTMLElement>('.shiki-lang-name')?.textContent?.trim() ?? ''),
+				copyControlCount: headers.reduce((count, header) => count + header.querySelectorAll('.shiki-copy-button').length, 0),
+				lineNumberCount: scope.querySelectorAll(
+					selectedMode === 'reading' ? '.shiki-reading-block .shiki-line-numbers > span' : '.shiki-live-preview-line-number',
+				).length,
+				codeLineCount: scope.querySelectorAll(selectedMode === 'reading' ? '.shiki-reading-block .shiki-code-line' : '.shiki-live-preview-code-line')
+					.length,
+				fenceLineCount: scope.querySelectorAll('.shiki-live-preview-fence-line').length,
+				sourceTokenCount: scope.querySelectorAll('.shiki-source-token').length,
+				rawFenceVisible: (scope.textContent ?? '').includes('```'),
+				text: scope.textContent ?? '',
+				isMobile: runtimeApp.isMobile,
+			};
+		}, mode);
+	}
+
 	async waitForReadingRender(expectedText: string): Promise<RenderState> {
 		let lastState: RenderState | undefined;
 		try {
@@ -308,6 +459,10 @@ class SyntaxSurfaceVerifier {
 			const block = blocks[0];
 			const rect = block?.getBoundingClientRect();
 			const tokens = block?.querySelectorAll('.shiki-reading-token').length ?? 0;
+			const renderedLines = [...(block?.querySelectorAll<HTMLElement>('.shiki-code-line') ?? [])];
+			const lineTops = renderedLines.map(line => line.getBoundingClientRect().top);
+			const lineTopDeltas = lineTops.slice(1).map((top, index) => top - (lineTops[index] ?? top));
+			const codeLineHeight = renderedLines[0] ? Number.parseFloat(getComputedStyle(renderedLines[0]).lineHeight) : 0;
 			const csharpListTokenColors = block
 				? [...block.querySelectorAll<HTMLElement>('.shiki-reading-token')]
 						.filter(token => token.textContent === 'List')
@@ -325,6 +480,10 @@ class SyntaxSurfaceVerifier {
 				tokens,
 				text: block?.textContent ?? '',
 				csharpListTokenColors,
+				renderedLineCount: renderedLines.length,
+				numberedLineCount: block?.querySelectorAll('.shiki-line-numbers > span').length ?? 0,
+				codeLineHeight,
+				lineTopDeltas,
 				width: rect?.width ?? 0,
 				height: rect?.height ?? 0,
 				isMobile: runtimeApp.isMobile,

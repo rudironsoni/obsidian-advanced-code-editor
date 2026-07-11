@@ -1,12 +1,41 @@
 @mobile
 Feature: Mobile-emulated syntax highlighting
 
+  @language-less
+  Scenario: A language-less fenced block uses Advanced Code Editor in mobile Reading mode and Live Preview
+    Given Obsidian is running in mobile emulation
+    And the built Advanced Code Editor plugin is enabled in the fixture vault
+    And the fixture note "Language-less code block.md" is open in reading mode
+    Then the language-less code block should use Advanced Code Editor in reading
+    When the fixture note "Language-less code block.md" is open in Live Preview
+    Then the language-less code block should use Advanced Code Editor in live-preview
+    When the fixture note "Language-less code block.md" is open in raw Source mode
+    Then the language-less code block should use Advanced Code Editor in source
+
+  @multiple-language-less
+  Scenario: Multiple language-less blocks all use Advanced Code Editor after switching from mobile Reading mode to Live Preview
+    Given Obsidian is running in mobile emulation
+    And the built Advanced Code Editor plugin is enabled in the fixture vault
+    And the fixture note "Multiple language-less code blocks.md" is open in reading mode
+    Then all mixed code blocks should use Advanced Code Editor in Reading mode
+    When the fixture note "Multiple language-less code blocks.md" is open in Live Preview
+    Then all three language-less code blocks should use Advanced Code Editor in Live Preview
+
+  @reading-lines
   Scenario: A C# fenced code block renders in mobile Reading mode without Markdown fences
     Given Obsidian is running in mobile emulation
     And the built Advanced Code Editor plugin is enabled in the fixture vault
     And the fixture note "CSharp padded reading.md" is open in reading mode
     Then a visible Shiki code block should render "List<int[]> intervals"
     And Reading mode should color repeated C# generic type names consistently
+    And Reading mode should render one visual row per source line
+
+  @reading-multiple-blocks
+  Scenario: Multiple C# blocks in one note all use Advanced Code Editor in mobile Reading mode
+    Given Obsidian is running in mobile emulation
+    And the built Advanced Code Editor plugin is enabled in the fixture vault
+    And the fixture note "Multiple reading code blocks.md" is open in reading mode
+    Then both Reading mode code blocks should use Advanced Code Editor
 
   Scenario: A C# fenced code block preserves full token source slices in mobile Live Preview
     Given Obsidian is running in mobile emulation

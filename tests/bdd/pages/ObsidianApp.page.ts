@@ -6,6 +6,8 @@ import {
 	type CopyControlState,
 	type LivePreviewFenceCursorState,
 	type LivePreviewSyntaxState,
+	type LanguageLessBlockState,
+	type MultipleReadingBlocksState,
 	type MetadataParityMode,
 	type MetadataParityState,
 	type RenderState,
@@ -84,6 +86,22 @@ type RuntimeApp = {
 };
 
 class ObsidianAppPage {
+	async getLanguageLessBlockState(mode: LanguageLessBlockState['mode']): Promise<LanguageLessBlockState> {
+		return syntaxSurfaceVerifier.waitForLanguageLessBlockState(mode);
+	}
+
+	async getMultipleLanguageLessBlocksState(): Promise<LanguageLessBlockState> {
+		return syntaxSurfaceVerifier.waitForMultipleLanguageLessBlocksState();
+	}
+
+	async getMultipleReadingBlocksState(): Promise<MultipleReadingBlocksState> {
+		return syntaxSurfaceVerifier.waitForMultipleReadingBlocksState();
+	}
+
+	async getMixedReadingBlocksState(): Promise<MultipleReadingBlocksState> {
+		return syntaxSurfaceVerifier.waitForMixedReadingBlocksState();
+	}
+
 	async waitForPluginLoaded(): Promise<PluginLoadState> {
 		await browser.waitUntil(async () => (await this.getPluginLoadState()).loaded, {
 			timeoutMsg: `${pluginId} did not load`,
