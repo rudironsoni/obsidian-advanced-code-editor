@@ -17,6 +17,7 @@ Feature: Mobile-emulated syntax highlighting
     Given Obsidian is running in mobile emulation
     And the built Advanced Code Editor plugin is enabled in the fixture vault
     And the fixture note "Multiple language-less code blocks.md" is open in reading mode
+    Then all mixed code blocks should use Advanced Code Editor in Reading mode
     When the fixture note "Multiple language-less code blocks.md" is open in Live Preview
     Then all three language-less code blocks should use Advanced Code Editor in Live Preview
 

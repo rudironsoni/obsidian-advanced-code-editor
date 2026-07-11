@@ -98,6 +98,10 @@ class ObsidianAppPage {
 		return syntaxSurfaceVerifier.waitForMultipleReadingBlocksState();
 	}
 
+	async getMixedReadingBlocksState(): Promise<MultipleReadingBlocksState> {
+		return syntaxSurfaceVerifier.waitForMixedReadingBlocksState();
+	}
+
 	async waitForPluginLoaded(): Promise<PluginLoadState> {
 		await browser.waitUntil(async () => (await this.getPluginLoadState()).loaded, {
 			timeoutMsg: `${pluginId} did not load`,

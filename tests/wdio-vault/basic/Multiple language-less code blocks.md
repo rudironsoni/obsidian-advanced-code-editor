@@ -29,3 +29,13 @@ public class SpiderBasedPrimitivaIngestor : ILotteryIngestor
     private async Task CrawlAsync() { ... }
 }
 ```
+
+**Target Pattern (DotnetSpider):**
+
+```csharp
+[DisplayName("La Primitiva")]
+public class PrimitivaIngestor : Spider
+{
+    protected override async Task InitializeAsync() { }
+}
+```

@@ -137,6 +137,17 @@ Then('both Reading mode code blocks should use Advanced Code Editor', async () =
 	await browser.saveScreenshot(path.join(artifactDir, `multiple-reading-code-blocks-${state.isMobile ? 'mobile' : 'desktop'}.png`));
 });
 
+Then('all mixed code blocks should use Advanced Code Editor in Reading mode', async () => {
+	const state = await obsidianApp.getMixedReadingBlocksState();
+	assert.equal(state.advancedBlockCount, 4, `expected four Advanced Code Editor blocks: ${JSON.stringify(state)}`);
+	assert.equal(state.stockPreCount, 0, `expected no stock Reading mode blocks: ${JSON.stringify(state)}`);
+	assert.equal(state.headerCount, 4, `expected four Advanced Code Editor headers: ${JSON.stringify(state)}`);
+	assert.deepEqual(state.languageLabels, ['text', 'text', 'text', 'csharp'], `expected three TEXT labels and one C# label: ${JSON.stringify(state)}`);
+	assert.equal(state.renderedBlockCount, 4, `expected every block to finish Shiki rendering: ${JSON.stringify(state)}`);
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `mixed-reading-code-blocks-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+});
+
 Then('the language-less code block should use Advanced Code Editor in {word}', async (mode: 'reading' | 'live-preview' | 'source') => {
 	const state = await obsidianApp.getLanguageLessBlockState(mode);
 

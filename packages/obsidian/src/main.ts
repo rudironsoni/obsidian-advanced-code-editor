@@ -204,10 +204,11 @@ export default class ShikiPlugin extends Plugin {
 				return;
 			}
 
-			const codeElements = [
+			const codeElements = new Set<HTMLElement>([
+				...(el.matches('code') && el.parentElement?.matches('pre') ? [el] : []),
 				...(el.matches('pre') ? el.querySelectorAll<HTMLElement>(':scope > code') : []),
 				...el.querySelectorAll<HTMLElement>('pre > code'),
-			];
+			]);
 			const processedPre = new Set<HTMLElement>();
 			const sourceFromSectionInfo = (pre: HTMLElement, renderedText: string): string => {
 				const sectionInfo = ctx.getSectionInfo(pre.parentElement ?? pre) ?? ctx.getSectionInfo(pre);

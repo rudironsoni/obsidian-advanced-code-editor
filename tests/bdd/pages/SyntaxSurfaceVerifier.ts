@@ -229,6 +229,17 @@ class SyntaxSurfaceVerifier {
 		return this.getMultipleReadingBlocksState();
 	}
 
+	async waitForMixedReadingBlocksState(): Promise<MultipleReadingBlocksState> {
+		await browser.waitUntil(
+			async () => {
+				const state = await this.getMultipleReadingBlocksState();
+				return state.advancedBlockCount === 4 && state.stockPreCount === 0 && state.headerCount === 4 && state.renderedBlockCount === 4;
+			},
+			{ timeout: 30000, timeoutMsg: 'Reading mode did not claim every mixed code block' },
+		);
+		return this.getMultipleReadingBlocksState();
+	}
+
 	async getMultipleReadingBlocksState(): Promise<MultipleReadingBlocksState> {
 		return executeObsidian(({ app }): MultipleReadingBlocksState => {
 			const runtimeApp = app as unknown as RuntimeApp;
