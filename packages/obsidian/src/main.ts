@@ -8,6 +8,7 @@ import { CodeBlockRegistry } from 'packages/obsidian/src/codeblocks/CodeBlockReg
 import { SourceModeTokenizationCache } from 'packages/obsidian/src/runtime/SourceModeTokenizationCache';
 import { getObsidianSafeLanguageNames } from 'packages/obsidian/src/runtime/LanguageMetadata';
 import { DEFAULT_CODE_BLOCK_LANGUAGE } from 'packages/obsidian/src/codeblocks/CodeBlockMeta';
+import { findReadingCodeElements } from 'packages/obsidian/src/codeblocks/ReadingCodeElementDiscovery';
 import { getActiveTheme } from 'packages/obsidian/src/runtime/ThemeBridge';
 import type { ReadingViewAdapter } from 'packages/obsidian/src/modes/ReadingViewAdapter';
 
@@ -204,11 +205,7 @@ export default class ShikiPlugin extends Plugin {
 				return;
 			}
 
-			const codeElements = new Set<HTMLElement>([
-				...(el.matches('code') && el.parentElement?.matches('pre') ? [el] : []),
-				...(el.matches('pre') ? el.querySelectorAll<HTMLElement>(':scope > code') : []),
-				...el.querySelectorAll<HTMLElement>('pre > code'),
-			]);
+			const codeElements = findReadingCodeElements(el);
 			const processedPre = new Set<HTMLElement>();
 			const sourceFromSectionInfo = (pre: HTMLElement, renderedText: string): string => {
 				const sectionInfo = ctx.getSectionInfo(pre.parentElement ?? pre) ?? ctx.getSectionInfo(pre);

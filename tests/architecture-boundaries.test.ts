@@ -63,7 +63,7 @@ describe('architecture boundaries', () => {
 		const registerProcessors = extractBlock(mainSource, 'async registerCodeBlockProcessors');
 
 		expect(registerProcessors).toContain('getObsidianSafeLanguageNames()');
-		expect(registerProcessors).toContain("el.matches('code') && el.parentElement?.matches('pre')");
+		expect(registerProcessors).toContain('findReadingCodeElements(el)');
 		expect(registerProcessors).not.toContain('highlighter.obsidianSafeLanguageNames');
 		expect(registerProcessors).not.toContain('monacoRuntime.obsidianSafeLanguageNames');
 		expect(registerProcessors).not.toContain('ModernMonacoLoader');
