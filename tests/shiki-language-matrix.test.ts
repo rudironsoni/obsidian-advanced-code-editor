@@ -1,4 +1,7 @@
-import { describe, expect, test } from 'bun:test';
+import { beforeAll, describe, expect, mock, test } from 'bun:test';
+import { compress, init as initZstd } from '@bokuweb/zstd-wasm';
+import { bundledLanguagesInfo } from 'shiki/langs';
+import { bundledThemes } from 'shiki/themes';
 import { buildShikiTokenSegments, ShikiHighlighter } from 'packages/obsidian/src/ShikiHighlighter';
 
 const matrix = [
@@ -14,6 +17,18 @@ const matrix = [
 	{ language: 'html', lineText: '<section class="note"><h1>Title</h1></section>', needles: ['section', 'class', 'note', 'h1'] },
 	{ language: 'css', lineText: '.note { color: rebeccapurple; display: grid; }', needles: ['note', 'color', 'rebeccapurple', 'display', 'grid'] },
 ] as const;
+
+beforeAll(async () => {
+	await initZstd();
+	const canonicalIds = ['csharp', 'typescript', 'javascript', 'python', 'rust', 'go', 'json', 'yaml', 'shellscript', 'html', 'css'];
+	const languageEntries = await Promise.all(
+		canonicalIds.map(async id => [id, (await bundledLanguagesInfo.find(language => language.id === id)!.import()).default]),
+	);
+	const themeIds = ['github-dark', 'github-light'] as const;
+	const themeEntries = await Promise.all(themeIds.map(async id => [id, (await bundledThemes[id]()).default]));
+	const bytes = compress(Buffer.from(JSON.stringify({ languages: Object.fromEntries(languageEntries), themes: Object.fromEntries(themeEntries) })), 3);
+	mock.module('virtual:compressed-shiki-assets', () => ({ compressedShikiAssets: Buffer.from(bytes).toString('base64') }));
+});
 
 function createHighlighter(disabledLanguages: string[] = []): ShikiHighlighter {
 	const plugin = {

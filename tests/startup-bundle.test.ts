@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 
 type PluginManifest = {
 	id: string;
@@ -18,8 +18,13 @@ describe('startup bundle', () => {
 	test('startup JavaScript stays small enough for fast Obsidian activation', () => {
 		const bytes = statSync(new URL('../dist/main.js', import.meta.url)).size;
 
-		// Keep the mobile-safe release as a single file while supporting the advertised Shiki language matrix.
-		expect(bytes).toBeLessThanOrEqual(16 * 1024 * 1024);
+		expect(bytes).toBeLessThanOrEqual(3.5 * 1024 * 1024);
+	});
+
+	test('release contains exactly one JavaScript entrypoint and no Shiki sidecars', () => {
+		const javascriptFiles = readdirSync(new URL('../dist/', import.meta.url)).filter(path => path.endsWith('.js'));
+
+		expect(javascriptFiles).toEqual(['main.js']);
 	});
 
 	test('startup JavaScript is the real Obsidian plugin entrypoint', () => {
@@ -36,6 +41,7 @@ describe('startup bundle', () => {
 		const manifest = readFileSync(new URL('../dist/manifest.json', import.meta.url), 'utf8');
 
 		expect(startupBundle).toContain('createHighlighter');
+		expect(startupBundle).not.toContain('shiki/bundle/full');
 		expect(startupBundle).not.toContain('monaco.editor.create');
 		expect(startupBundle).not.toContain('modern-monaco');
 		expect(manifest).not.toContain('shikiModernMonacoFallback');

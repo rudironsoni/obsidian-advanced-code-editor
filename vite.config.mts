@@ -1,10 +1,15 @@
 import path from 'node:path';
 import { builtinModules } from 'node:module';
 import { defineConfig, type UserConfig } from 'vite';
+import type { Plugin } from 'vite';
+import { bundledLanguagesInfo } from 'shiki/langs';
+import { bundledThemes } from 'shiki/themes';
+import { compress, init as initZstd } from '@bokuweb/zstd-wasm';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import banner from 'vite-plugin-banner';
 import { getBuildBanner } from '@lemons_dev/lemons-obsidian-plugin-automation';
 import manifest from './manifest.json' with { type: 'json' };
+import { BUNDLED_THEMES_INFO } from './packages/obsidian/src/settings/BundledThemeInfo';
 
 const externalNodeBuiltins = builtinModules;
 
@@ -12,6 +17,37 @@ const entryFile = 'packages/obsidian/src/main.ts';
 
 function getBuildEntryFile(): string {
 	return entryFile;
+}
+
+const SHIKI_ASSETS_MODULE = 'virtual:compressed-shiki-assets';
+const RESOLVED_SHIKI_ASSETS_MODULE = `\0${SHIKI_ASSETS_MODULE}`;
+
+async function compressRegistry(value: unknown): Promise<string> {
+	await initZstd();
+	return Buffer.from(compress(Buffer.from(JSON.stringify(value)), 19)).toString('base64');
+}
+
+function compressedShikiAssets(): Plugin {
+	return {
+		name: 'compressed-shiki-assets',
+		resolveId(id) {
+			return id === SHIKI_ASSETS_MODULE ? RESOLVED_SHIKI_ASSETS_MODULE : undefined;
+		},
+		async load(id) {
+			if (id !== RESOLVED_SHIKI_ASSETS_MODULE) return undefined;
+			const languageEntries = await Promise.all(bundledLanguagesInfo.map(async language => [language.id, (await language.import()).default] as const));
+			const themeEntries = await Promise.all(BUNDLED_THEMES_INFO.map(async theme => [theme.id, (await bundledThemes[theme.id]()).default] as const));
+			if (new Set(languageEntries.map(([id]) => id)).size !== bundledLanguagesInfo.length) {
+				throw new Error('Compressed Shiki registry contains duplicate canonical languages');
+			}
+			if (new Set(themeEntries.map(([id]) => id)).size !== BUNDLED_THEMES_INFO.length) {
+				throw new Error('Compressed Shiki registry contains duplicate selectable themes');
+			}
+			const registry = { languages: Object.fromEntries(languageEntries), themes: Object.fromEntries(themeEntries) };
+			const payload = await compressRegistry(registry);
+			return `export const compressedShikiAssets = ${JSON.stringify(payload)};`;
+		},
+	};
 }
 
 export default defineConfig(({ mode }) => {
@@ -38,6 +74,7 @@ export default defineConfig(({ mode }) => {
 
 	return {
 		plugins: [
+			compressedShikiAssets(),
 			banner({
 				outDir,
 				content: getBuildBanner(prod ? 'Release Build' : 'Dev Build', version => version),

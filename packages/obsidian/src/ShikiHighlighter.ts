@@ -1,5 +1,6 @@
-import type { Highlighter, TokensResult, ThemedToken } from 'shiki';
+import type { HighlighterCore, TokensResult, ThemedToken } from 'shiki';
 import { getConfiguredThemes } from 'packages/obsidian/src/runtime/ThemeBridge';
+import { compressedShikiRegistry } from 'packages/obsidian/src/runtime/CompressedShikiRegistry';
 import type ShikiPlugin from 'packages/obsidian/src/main';
 import { getObsidianSafeLanguageNames, resolveLanguageAliasFromMetadata } from 'packages/obsidian/src/runtime/LanguageMetadata';
 
@@ -73,7 +74,7 @@ function fallbackTokenColumn(line: string, tokenContent: string, cursorColumn: n
 }
 
 export class ShikiHighlighter {
-	private highlighter: Highlighter | undefined;
+	private highlighter: HighlighterCore | undefined;
 	private readonly plugin: ShikiPlugin;
 	private loadedLanguages = new Set<string>();
 	private initPromise: Promise<void> | undefined;
@@ -99,11 +100,18 @@ export class ShikiHighlighter {
 	}
 
 	private async createHighlighter(): Promise<void> {
-		const { createHighlighter } = await import('shiki/bundle/full');
+		const [{ createHighlighterCore }, { createOnigurumaEngine }, { default: loadWasm }] = await Promise.all([
+			import('shiki/core'),
+			import('shiki/engine/oniguruma'),
+			import('shiki/wasm'),
+		]);
 		const themes = getConfiguredThemes(this.plugin);
-		this.highlighter = await createHighlighter({
-			themes: themes.length > 0 ? themes : ['github-dark', 'github-light'],
+		const configuredThemes = themes.length > 0 ? themes : ['github-dark', 'github-light'];
+		const registrations = await Promise.all(configuredThemes.map(theme => compressedShikiRegistry.loadTheme(theme)));
+		this.highlighter = await createHighlighterCore({
+			themes: registrations,
 			langs: [],
+			engine: createOnigurumaEngine(loadWasm),
 		});
 	}
 
@@ -136,8 +144,7 @@ export class ShikiHighlighter {
 		}
 		const canonical = this.resolveLanguageAlias(lang) ?? lang;
 		try {
-			// Shiki 3.x: load language dynamically
-			await this.highlighter.loadLanguage(canonical as never);
+			await this.highlighter.loadLanguage(...(await compressedShikiRegistry.loadLanguage(canonical)));
 			this.loadedLanguages.add(lang);
 			this.loadedLanguages.add(canonical);
 		} catch {
@@ -151,14 +158,14 @@ export class ShikiHighlighter {
 		if (this.plugin.loadedSettings.disabledLanguages.includes(normalized)) {
 			return undefined;
 		}
-		if (!this.highlighter) {
-			await this.init();
-		}
-		const theme = this.plugin.getActiveTheme();
-		const canonical = this.resolveLanguageAlias(normalized) ?? normalized;
 		try {
+			if (!this.highlighter) await this.init();
+			const highlighter = this.highlighter;
+			if (!highlighter) return undefined;
+			const theme = this.plugin.getActiveTheme();
+			const canonical = this.resolveLanguageAlias(normalized) ?? normalized;
 			await this.ensureLanguage(canonical);
-			return this.highlighter!.codeToTokens(code, { lang: canonical as never, theme });
+			return highlighter.codeToTokens(code, { lang: canonical, theme });
 		} catch {
 			return undefined;
 		}

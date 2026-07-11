@@ -123,7 +123,8 @@ describe('startup module boundary', () => {
 		const metadata = read('packages/obsidian/src/runtime/LanguageMetadata.ts');
 
 		expect(highlighter).toContain('getObsidianSafeLanguageNames');
-		expect(highlighter).toContain("await import('shiki/bundle/full')");
+		expect(highlighter).toContain("import('shiki/core')");
+		expect(highlighter).not.toContain('shiki/bundle/full');
 		expect(highlighter).not.toContain("await import('shiki')");
 		expect(main).toContain('getObsidianSafeLanguageNames()');
 		expect(main).not.toContain("from 'shiki'");
@@ -258,7 +259,8 @@ test('ShikiHighlighter does not depend on Monaco runtime', () => {
 	expect(highlighter).not.toContain('Monaco');
 	expect(highlighter).not.toContain('modern-monaco');
 	expect(highlighter).toContain('createHighlighter');
-	expect(highlighter).toContain("await import('shiki/bundle/full')");
+	expect(highlighter).toContain("import('shiki/core')");
+	expect(highlighter).not.toContain('shiki/bundle/full');
 	expect(highlighter).toContain('codeToTokens');
 });
 
