@@ -111,6 +111,20 @@ Then('Reading mode should color repeated C# generic type names consistently', as
 	assert.equal(distinctListColors.size, 1, `expected repeated C# List type tokens to use one color: ${JSON.stringify(state)}`);
 });
 
+Then('Reading mode should render one visual row per source line', async () => {
+	const state = await obsidianApp.getReadingRenderState();
+	writeJsonArtifact(`reading-line-layout-${state.isMobile ? 'mobile' : 'desktop'}`, state);
+
+	assert.ok(state.renderedLineCount > 1, `expected multiple rendered source lines: ${JSON.stringify(state)}`);
+	assert.equal(state.renderedLineCount, state.numberedLineCount, `expected one numbered row per rendered source line: ${JSON.stringify(state)}`);
+	assert.ok(state.codeLineHeight > 0, `expected a measurable Reading mode line height: ${JSON.stringify(state)}`);
+	for (const delta of state.lineTopDeltas) {
+		assert.ok(Math.abs(delta - state.codeLineHeight) <= 1, `expected adjacent Reading mode rows to advance by one line height: ${JSON.stringify(state)}`);
+	}
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `reading-line-layout-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+});
+
 Then('the Live Preview code block should style the full source text {string}', async (expectedText: string) => {
 	const state = await obsidianApp.waitForLivePreviewStyledSource(expectedText);
 

@@ -1,11 +1,13 @@
 @desktop
 Feature: Reading mode syntax highlighting
 
+  @reading-lines
   Scenario: A C# fenced code block renders in Reading mode without Markdown fences
     Given the built Advanced Code Editor plugin is enabled in the fixture vault
     And the fixture note "CSharp padded reading.md" is open in reading mode
     Then a visible Shiki code block should render "List<int[]> intervals"
     And Reading mode should color repeated C# generic type names consistently
+    And Reading mode should render one visual row per source line
 
   Scenario: A C# fenced code block preserves full token source slices in Live Preview
     Given the built Advanced Code Editor plugin is enabled in the fixture vault

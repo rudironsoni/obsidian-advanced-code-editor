@@ -238,7 +238,12 @@ export class ReadingViewAdapter {
 			lineElement.classList.add('shiki-code-line', ...getLineMetadataClasses(metadata, i + 1));
 			const lineSegments = tokenLines[i];
 			if (!lineSegments?.length) {
-				lineElement.appendChild(codeElement.ownerDocument.createTextNode(lines[i] ?? ''));
+				const line = lines[i] ?? '';
+				if (line === '') {
+					lineElement.appendChild(codeElement.ownerDocument.createElement('br'));
+				} else {
+					lineElement.appendChild(codeElement.ownerDocument.createTextNode(line));
+				}
 			} else {
 				for (const segment of lineSegments) {
 					if (!segment.token) {
@@ -260,9 +265,6 @@ export class ReadingViewAdapter {
 				}
 			}
 			codeElement.appendChild(lineElement);
-			if (i < lines.length - 1) {
-				codeElement.appendChild(codeElement.ownerDocument.createTextNode('\n'));
-			}
 		}
 
 		codeElement.dataset.shikiHighlightState = 'rendered';

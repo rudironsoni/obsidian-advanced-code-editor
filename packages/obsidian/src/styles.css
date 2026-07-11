@@ -342,7 +342,6 @@ span.shiki-ul {
 
 .shiki-code-line {
 	display: block;
-	min-height: var(--line-height-normal);
 }
 
 .shiki-code-line.shiki-line-highlight,

@@ -9,6 +9,10 @@ export type RenderState = {
 	tokens: number;
 	text: string;
 	csharpListTokenColors: string[];
+	renderedLineCount: number;
+	numberedLineCount: number;
+	codeLineHeight: number;
+	lineTopDeltas: number[];
 	width: number;
 	height: number;
 	isMobile: boolean;
@@ -308,6 +312,10 @@ class SyntaxSurfaceVerifier {
 			const block = blocks[0];
 			const rect = block?.getBoundingClientRect();
 			const tokens = block?.querySelectorAll('.shiki-reading-token').length ?? 0;
+			const renderedLines = [...(block?.querySelectorAll<HTMLElement>('.shiki-code-line') ?? [])];
+			const lineTops = renderedLines.map(line => line.getBoundingClientRect().top);
+			const lineTopDeltas = lineTops.slice(1).map((top, index) => top - (lineTops[index] ?? top));
+			const codeLineHeight = renderedLines[0] ? Number.parseFloat(getComputedStyle(renderedLines[0]).lineHeight) : 0;
 			const csharpListTokenColors = block
 				? [...block.querySelectorAll<HTMLElement>('.shiki-reading-token')]
 						.filter(token => token.textContent === 'List')
@@ -325,6 +333,10 @@ class SyntaxSurfaceVerifier {
 				tokens,
 				text: block?.textContent ?? '',
 				csharpListTokenColors,
+				renderedLineCount: renderedLines.length,
+				numberedLineCount: block?.querySelectorAll('.shiki-line-numbers > span').length ?? 0,
+				codeLineHeight,
+				lineTopDeltas,
 				width: rect?.width ?? 0,
 				height: rect?.height ?? 0,
 				isMobile: runtimeApp.isMobile,
