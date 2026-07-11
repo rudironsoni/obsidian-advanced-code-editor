@@ -90,6 +90,10 @@ class ObsidianAppPage {
 		return syntaxSurfaceVerifier.waitForLanguageLessBlockState(mode);
 	}
 
+	async getMultipleLanguageLessBlocksState(): Promise<LanguageLessBlockState> {
+		return syntaxSurfaceVerifier.waitForMultipleLanguageLessBlocksState();
+	}
+
 	async getMultipleReadingBlocksState(): Promise<MultipleReadingBlocksState> {
 		return syntaxSurfaceVerifier.waitForMultipleReadingBlocksState();
 	}

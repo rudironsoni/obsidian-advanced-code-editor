@@ -161,13 +161,18 @@ export default class ShikiPlugin extends Plugin {
 		if (this.unloaded || this.cm6PluginRegistered) {
 			return;
 		}
-		await this.ensureSettingsLoaded();
-		this.applyFontSizeClass();
-
-		const { createCm6Plugin } = await import('packages/obsidian/src/codemirror/Cm6_ViewPlugin');
-		this.registerEditorExtension([createCm6Plugin(this)]);
 		this.cm6PluginRegistered = true;
-		this.app.workspace.updateOptions();
+		try {
+			await this.ensureSettingsLoaded();
+			this.applyFontSizeClass();
+
+			const { createCm6Plugin } = await import('packages/obsidian/src/codemirror/Cm6_ViewPlugin');
+			this.registerEditorExtension([createCm6Plugin(this)]);
+			this.app.workspace.updateOptions();
+		} catch (error) {
+			this.cm6PluginRegistered = false;
+			throw error;
+		}
 	}
 
 	async registerCodeBlockProcessors(): Promise<void> {
@@ -318,6 +323,12 @@ export default class ShikiPlugin extends Plugin {
 	}
 
 	refreshEditorIntegrationIfChanged(force = false): void {
+		if (!this.cm6PluginRegistered) {
+			void this.registerCm6Plugin().catch(error => {
+				console.warn('Unable to register Shiki editor integration.', error);
+			});
+			return;
+		}
 		const signature = this.editorIntegrationSignature();
 		if (!force && signature === this.lastEditorIntegrationSignature) {
 			return;

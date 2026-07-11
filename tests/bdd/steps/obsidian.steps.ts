@@ -165,6 +165,18 @@ Then('the language-less code block should use Advanced Code Editor in {word}', a
 	await browser.saveScreenshot(path.join(artifactDir, `language-less-code-block-${mode}-${state.isMobile ? 'mobile' : 'desktop'}.png`));
 });
 
+Then('all three language-less code blocks should use Advanced Code Editor in Live Preview', async () => {
+	const state = await obsidianApp.getMultipleLanguageLessBlocksState();
+	assert.equal(state.advancedBlockCount, 3, `expected three Advanced Code Editor blocks: ${JSON.stringify(state)}`);
+	assert.equal(state.headerCount, 3, `expected three Advanced Code Editor headers: ${JSON.stringify(state)}`);
+	assert.deepEqual(state.languageLabels, ['text', 'text', 'text'], `expected three TEXT labels: ${JSON.stringify(state)}`);
+	assert.equal(state.copyControlCount, 3, `expected three copy controls: ${JSON.stringify(state)}`);
+	assert.ok(state.fenceLineCount >= 5, `expected every visible fence row to be plugin-owned: ${JSON.stringify(state)}`);
+	assert.ok(state.codeLineCount >= 8, `expected every visible source row to be plugin-owned: ${JSON.stringify(state)}`);
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `multiple-language-less-live-preview-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+});
+
 Then('the Live Preview code block should style the full source text {string}', async (expectedText: string) => {
 	const state = await obsidianApp.waitForLivePreviewStyledSource(expectedText);
 

@@ -189,6 +189,28 @@ class SyntaxSurfaceVerifier {
 		return this.getLanguageLessBlockState(mode);
 	}
 
+	async waitForMultipleLanguageLessBlocksState(): Promise<LanguageLessBlockState> {
+		try {
+			await browser.waitUntil(
+				async () => {
+					const state = await this.getLanguageLessBlockState('live-preview');
+					return (
+						state.advancedBlockCount === 3 &&
+						state.headerCount === 3 &&
+						state.copyControlCount === 3 &&
+						state.fenceLineCount >= 5 &&
+						state.codeLineCount >= 8
+					);
+				},
+				{ timeout: 5000, timeoutMsg: 'Language-less Live Preview blocks were not all plugin-owned' },
+			);
+		} catch (error) {
+			const state = await this.getLanguageLessBlockState('live-preview');
+			throw new Error(`${String(error)}: ${JSON.stringify(state)}`);
+		}
+		return this.getLanguageLessBlockState('live-preview');
+	}
+
 	async waitForMultipleReadingBlocksState(): Promise<MultipleReadingBlocksState> {
 		let lastState: MultipleReadingBlocksState | undefined;
 		await browser.waitUntil(
