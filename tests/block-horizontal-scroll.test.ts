@@ -345,6 +345,7 @@ describe('block horizontal scroll identity', () => {
 		expect(livePreviewCodeLineRule).toContain('overflow-x: hidden');
 		expect(livePreviewCodeLineRule).toContain('touch-action: pan-y pinch-zoom');
 		expect(livePreviewCodeLineRule).toContain('scrollbar-width: none');
+		expect(livePreviewCodeLineRule).toContain('-webkit-overflow-scrolling: touch');
 		expect(livePreviewCodeContentRule).toContain('touch-action: pan-y pinch-zoom');
 		expect(livePreviewScrollerRule).not.toContain('touch-action');
 		expect(livePreviewContentRule).not.toContain('touch-action');
@@ -367,13 +368,15 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('this.pointerCaptureTarget?.releasePointerCapture(this.pointerId);');
 		expect(source).toContain('private syncBlockImmediate(blockId: string, scrollLeft: number): void {');
 		expect(source).toContain('private syncGestureBlock(blockId: string, scrollLeft: number): void {');
-		expect(source).toContain('this.immediateGestureSyncBlockIds.has(blockId)');
-		expect(source).toContain('this.applyHorizontalGestureScroll(this.pointerBlockId, this.pointerStartScrollLeft - deltaX, true);');
-		expect(source).toContain('this.applyHorizontalGestureScroll(this.touchBlockId, this.touchStartScrollLeft - deltaX, true);');
+		expect(source).toContain("private gestureInput: 'pointer' | 'touch' | undefined;");
+		expect(source).toContain("if (this.gestureInput === 'pointer')");
+		expect(source).toContain('this.queueGestureBlock(blockId, nextScrollLeft);');
+		expect(source).toContain('this.applyHorizontalGestureScroll(this.pointerBlockId, this.pointerStartScrollLeft - deltaX, false);');
+		expect(source).toContain('this.applyHorizontalGestureScroll(this.touchBlockId, this.touchStartScrollLeft - deltaX, false);');
 		expect(source).toContain('this.applyBlockScroll(blockId, nextScrollLeft);');
 	});
 
-	test('moves every Live Preview row immediately from a horizontal touch gesture', async () => {
+	test('moves every Live Preview row on the next frame of a horizontal touch gesture', async () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({
@@ -395,6 +398,11 @@ describe('block horizontal scroll identity', () => {
 			const move = dispatchTouch(content, 'touchmove', 60, 22, content);
 
 			expect(move.defaultPrevented).toBe(true);
+			expect(longRow.scrollLeft).toBe(0);
+			expect(shortRow.scrollLeft).toBe(0);
+
+			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+
 			expect(longRow.scrollLeft).toBe(200);
 			expect(shortRow.scrollLeft).toBe(200);
 		} finally {
@@ -425,13 +433,48 @@ describe('block horizontal scroll identity', () => {
 			dispatchTouch(content, 'touchmove', 60, 22, content);
 			dispatchTouch(content, 'touchmove', 40, 22, content);
 
-			expect(longRow.scrollLeft).toBe(200);
-			expect(shortRow.scrollLeft).toBe(200);
+			expect(longRow.scrollLeft).toBe(0);
+			expect(shortRow.scrollLeft).toBe(0);
 
 			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
 			expect(longRow.scrollLeft).toBe(220);
 			expect(shortRow.scrollLeft).toBe(220);
+		} finally {
+			view.destroy();
+			parent.remove();
+		}
+	});
+
+	test('uses pointer events once when the browser also emits touch events', async () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const view = new EditorView({ doc: 'long\nshort', extensions: [createBlockHorizontalScrollPlugin()], parent });
+		const blockId = 'Note.md::live-preview::5::120::5::ts::pointer-owner';
+		const [longRow, shortRow] = prepareCodeRows(view, blockId, 2);
+		const content = document.createElement('span');
+		const pointerId = 42;
+
+		content.className = 'shiki-live-preview-code-content';
+		content.textContent = 'longLineThatReceivesThePointer';
+		await waitForBlockScrollMeasure(view);
+		longRow.appendChild(content);
+
+		try {
+			content.dispatchEvent(
+				new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 260, clientY: 20, pointerId, pointerType: 'touch' }),
+			);
+			dispatchTouch(content, 'touchstart', 260, 20, content);
+			content.dispatchEvent(
+				new PointerEvent('pointermove', { bubbles: true, cancelable: true, clientX: 160, clientY: 22, pointerId, pointerType: 'touch' }),
+			);
+			const duplicateTouchMove = dispatchTouch(content, 'touchmove', 60, 22, content);
+
+			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+
+			expect(duplicateTouchMove.defaultPrevented).toBe(true);
+			expect(longRow.scrollLeft).toBe(100);
+			expect(shortRow.scrollLeft).toBe(100);
 		} finally {
 			view.destroy();
 			parent.remove();
@@ -496,8 +539,8 @@ describe('block horizontal scroll identity', () => {
 				new PointerEvent('pointermove', { bubbles: true, cancelable: true, clientX: 40, clientY: 22, pointerId, pointerType: 'touch' }),
 			);
 
-			expect(longRow.scrollLeft).toBe(200);
-			expect(shortRow.scrollLeft).toBe(200);
+			expect(longRow.scrollLeft).toBe(0);
+			expect(shortRow.scrollLeft).toBe(0);
 
 			content.dispatchEvent(
 				new PointerEvent('pointerup', { bubbles: true, cancelable: true, clientX: 40, clientY: 22, pointerId, pointerType: 'touch' }),

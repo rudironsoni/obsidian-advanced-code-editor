@@ -503,8 +503,19 @@ When('I repeatedly scroll the first code block horizontally with wheel gestures'
 
 When('I repeatedly scroll the first code block horizontally with touch gestures', async () => {
 	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected repeated touch performance check to run in Live Preview');
+	let referenceMetrics: HorizontalScrollPerformanceResult['metrics'] | undefined;
+	if (activeHorizontalScrollNotePath) {
+		await horizontalScrollPage.openFixture(activeHorizontalScrollNotePath, 'reading');
+		await horizontalScrollPage.waitForHorizontalScrollReady('reading', 1, true);
+		await horizontalScrollPage.resetScrollPositions('reading');
+		referenceMetrics = (await horizontalScrollPage.measureRepeatedTouchScroll('reading', 0)).metrics;
+		await horizontalScrollPage.openFixture(activeHorizontalScrollNotePath, 'live-preview');
+		await horizontalScrollPage.waitForHorizontalScrollReady('live-preview', 1, true);
+		activeHorizontalScrollMode = 'live-preview';
+	}
 	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
 	lastHorizontalScrollPerformance = await horizontalScrollPage.measureRepeatedTouchScroll(activeHorizontalScrollMode, 0);
+	lastHorizontalScrollPerformance.referenceMetrics = referenceMetrics;
 	lastHorizontalScrollState = lastHorizontalScrollPerformance.state;
 	writeJsonArtifact(`horizontal-scroll-${activeHorizontalScrollMode}-touch-performance`, lastHorizontalScrollPerformance);
 });
@@ -565,7 +576,11 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	const first = state.blocks[0];
 	assert.ok(first, `expected a first code block after performance scroll: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.mode, 'live-preview', `expected Live Preview mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
-	assert.ok(metrics.eventCount >= 55, `expected at least 55 measured scroll events: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	const minimumEventCount = metrics.p95InputToPaintMs > 0 ? 220 : 55;
+	assert.ok(
+		metrics.eventCount >= minimumEventCount,
+		`expected at least ${minimumEventCount} measured scroll events: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+	);
 	assert.ok(metrics.p95DispatchMs <= 12, `expected p95 scroll dispatch under 12ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(metrics.maxDispatchMs <= 50, `expected max scroll dispatch under 50ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(
@@ -574,6 +589,23 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	);
 	if (lastHorizontalScrollPerformance.referenceMetrics) {
 		const reference = lastHorizontalScrollPerformance.referenceMetrics;
+		if (metrics.p95InputToPaintMs > 0) {
+			const p95FrameLimit = Math.min(33, reference.p95FrameGapMs * 1.5 + 8);
+			const maxFrameLimit = Math.min(50, reference.maxFrameGapMs * 1.5 + 16);
+			const inputToPaintLimit = Math.min(33, reference.p95InputToPaintMs * 1.5 + 8);
+			assert.ok(
+				metrics.p95FrameGapMs <= p95FrameLimit,
+				`expected Live Preview p95 frame gap under ${p95FrameLimit}ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+			);
+			assert.ok(
+				metrics.maxFrameGapMs <= maxFrameLimit,
+				`expected Live Preview max frame gap under ${maxFrameLimit}ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+			);
+			assert.ok(
+				metrics.p95InputToPaintMs <= inputToPaintLimit,
+				`expected Live Preview p95 input-to-paint under ${inputToPaintLimit}ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+			);
+		}
 		assert.ok(
 			metrics.p95DispatchMs <= reference.p95DispatchMs * 3 + 4,
 			`expected Live Preview p95 dispatch to stay near Reading mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`,

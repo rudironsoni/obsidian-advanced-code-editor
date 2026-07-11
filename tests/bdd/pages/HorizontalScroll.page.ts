@@ -180,7 +180,10 @@ export type HorizontalScrollPerformanceMetrics = {
 	eventCount: number;
 	p95DispatchMs: number;
 	maxDispatchMs: number;
+	p95FrameGapMs: number;
 	maxFrameGapMs: number;
+	p95InputToPaintMs: number;
+	maxInputToPaintMs: number;
 	finalScrollLeft: number;
 	rowScrollLeftMin: number;
 	rowScrollLeftMax: number;
@@ -242,6 +245,7 @@ type RepeatedTouchInput = {
 	blockIndex: number;
 	frames: number;
 	deltaX: number;
+	movesPerFrame: number;
 };
 
 type NativeRowOverflowInput = {
@@ -834,7 +838,10 @@ class HorizontalScrollPage {
 						eventCount: dispatchDurations.length,
 						p95DispatchMs: sortedDurations[p95Index] ?? 0,
 						maxDispatchMs: Math.max(0, ...dispatchDurations),
+						p95FrameGapMs: maxFrameGapMs,
 						maxFrameGapMs,
+						p95InputToPaintMs: 0,
+						maxInputToPaintMs: 0,
 						finalScrollLeft: Math.max(
 							0,
 							target.scrollLeft,
@@ -906,6 +913,8 @@ class HorizontalScrollPage {
 				const startY = Math.round(rect.top + Math.min(10, Math.max(4, rect.height / 2)));
 				const pointerId = 41;
 				const dispatchDurations: number[] = [];
+				const frameGaps: number[] = [];
+				const inputToPaintDurations: number[] = [];
 				let maxFrameGapMs = 0;
 				let lastFrame = performance.now();
 				let lastObservedScrollLeft = 0;
@@ -962,24 +971,30 @@ class HorizontalScrollPage {
 						pointerType: 'touch',
 					}),
 				);
-				for (let index = 0; index < input.frames; index++) {
+				for (let frame = 0; frame < input.frames; frame++) {
+					const inputStartedAt = performance.now();
+					for (let move = 0; move < input.movesPerFrame; move++) {
+						const eventIndex = frame * input.movesPerFrame + move + 1;
+						const beforeDispatch = performance.now();
+						target.dispatchEvent(
+							new PointerEvent('pointermove', {
+								bubbles: true,
+								cancelable: true,
+								clientX: startX - input.deltaX * eventIndex,
+								clientY: startY,
+								pointerId,
+								pointerType: 'touch',
+							}),
+						);
+						dispatchDurations.push(performance.now() - beforeDispatch);
+					}
 					await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 					const frameNow = performance.now();
-					maxFrameGapMs = Math.max(maxFrameGapMs, frameNow - lastFrame);
+					const frameGap = frameNow - lastFrame;
+					frameGaps.push(frameGap);
+					maxFrameGapMs = Math.max(maxFrameGapMs, frameGap);
+					inputToPaintDurations.push(frameNow - inputStartedAt);
 					lastFrame = frameNow;
-					const beforeDispatch = performance.now();
-					target.dispatchEvent(
-						new PointerEvent('pointermove', {
-							bubbles: true,
-							cancelable: true,
-							clientX: startX - input.deltaX * (index + 1),
-							clientY: startY,
-							pointerId,
-							pointerType: 'touch',
-						}),
-					);
-					dispatchDurations.push(performance.now() - beforeDispatch);
-					await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 					const observedScrollLeft = Math.max(0, target.scrollLeft, block.scrollbar?.scrollLeft ?? 0, ...block.rows.map(row => row.scrollLeft));
 					if (observedScrollLeft + 1 < lastObservedScrollLeft) {
 						backtrackCount++;
@@ -991,7 +1006,7 @@ class HorizontalScrollPage {
 					new PointerEvent('pointerup', {
 						bubbles: true,
 						cancelable: true,
-						clientX: startX - input.deltaX * input.frames,
+						clientX: startX - input.deltaX * input.frames * input.movesPerFrame,
 						clientY: startY,
 						pointerId,
 						pointerType: 'touch',
@@ -1001,7 +1016,10 @@ class HorizontalScrollPage {
 				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 				const rowScrollLeftValues = block.rows.map(row => row.scrollLeft);
 				const sortedDurations = [...dispatchDurations].sort((first, second) => first - second);
+				const sortedFrameGaps = [...frameGaps].sort((first, second) => first - second);
+				const sortedInputToPaint = [...inputToPaintDurations].sort((first, second) => first - second);
 				const p95Index = Math.max(0, Math.ceil(sortedDurations.length * 0.95) - 1);
+				const frameP95Index = Math.max(0, Math.ceil(sortedFrameGaps.length * 0.95) - 1);
 				const probeStartedAt = performance.now();
 				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => window.setTimeout(resolve, 0))));
 				return {
@@ -1009,7 +1027,10 @@ class HorizontalScrollPage {
 						eventCount: dispatchDurations.length,
 						p95DispatchMs: sortedDurations[p95Index] ?? 0,
 						maxDispatchMs: Math.max(0, ...dispatchDurations),
+						p95FrameGapMs: sortedFrameGaps[frameP95Index] ?? 0,
 						maxFrameGapMs,
+						p95InputToPaintMs: sortedInputToPaint[frameP95Index] ?? 0,
+						maxInputToPaintMs: Math.max(0, ...inputToPaintDurations),
 						finalScrollLeft: Math.max(0, target.scrollLeft, block.scrollbar?.scrollLeft ?? 0, ...block.rows.map(row => row.scrollLeft)),
 						rowScrollLeftMin: rowScrollLeftValues.length ? Math.min(...rowScrollLeftValues) : 0,
 						rowScrollLeftMax: Math.max(0, ...block.rows.map(row => row.scrollLeft)),
@@ -1021,7 +1042,7 @@ class HorizontalScrollPage {
 					responsivenessProbeMs: performance.now() - probeStartedAt,
 				};
 			},
-			{ mode, blockIndex, frames: 60, deltaX: 18 },
+			{ mode, blockIndex, frames: 60, movesPerFrame: 4, deltaX: 4 },
 		);
 		const state = await this.collectScrollState(mode, 'repeated-touch-after');
 		return { metrics: measurement.metrics, responsivenessProbeMs: measurement.responsivenessProbeMs, state };

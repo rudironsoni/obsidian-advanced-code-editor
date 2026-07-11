@@ -495,6 +495,13 @@ class ObsidianAppPage {
 			runtimeApp.workspace.trigger?.('layout-change');
 		});
 		await browser.pause(500);
+		await executeObsidian(({ app }) => {
+			const runtimeApp = app as unknown as RuntimeApp;
+			if (!runtimeApp.isMobile) return;
+			runtimeApp.workspace.leftSplit?.collapse();
+			runtimeApp.workspace.trigger?.('layout-change');
+		});
+		await browser.pause(250);
 	}
 
 	async expectMobileEmulation(): Promise<void> {

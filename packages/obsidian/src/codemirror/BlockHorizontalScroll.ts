@@ -108,6 +108,7 @@ interface BlockScrollMeasure {
 export function createBlockHorizontalScrollPlugin(): Extension {
 	return ViewPlugin.fromClass(
 		class BlockHorizontalScrollPlugin {
+			private gestureInput: 'pointer' | 'touch' | undefined;
 			private readonly scrollLeftByBlock = new Map<string, number>();
 			private syncing = false;
 			private touchBlockId: string | undefined;
@@ -131,9 +132,10 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private readonly rowNativeMaxScrollLeftByElement = new WeakMap<HTMLElement, number>();
 			private readonly expectedScrollLeftByElement = new WeakMap<HTMLElement, number>();
 			private readonly pendingScrollLeftByBlock = new Map<string, number>();
-			private readonly immediateGestureSyncBlockIds = new Set<string>();
+			private readonly immediateWheelSyncBlockIds = new Set<string>();
 			private scrollFlushFrame: number | undefined;
 			private gestureFrameReset: number | undefined;
+			private readonly gestureSettleFrames = new Map<string, number>();
 			private measureScheduled = false;
 
 			constructor(private readonly view: EditorView) {
@@ -159,6 +161,8 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				if (this.gestureFrameReset !== undefined) {
 					window.cancelAnimationFrame(this.gestureFrameReset);
 				}
+				for (const frame of this.gestureSettleFrames.values()) window.cancelAnimationFrame(frame);
+				this.gestureSettleFrames.clear();
 				for (const target of this.observedScrollTargets) {
 					target.removeEventListener('scroll', this.onScroll);
 				}
@@ -230,6 +234,9 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					this.resetPointer();
 					return;
 				}
+				this.resetTouch();
+				this.gestureInput = 'pointer';
+				this.cancelGestureSettle(target.blockId);
 				this.pointerId = event.pointerId;
 				this.pointerBlockId = target.blockId;
 				this.pointerStartX = event.clientX;
@@ -245,7 +252,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			};
 
 			readonly onPointerMove = (event: PointerEvent): boolean | void => {
-				if (this.pointerId !== event.pointerId || !this.pointerBlockId) {
+				if (this.gestureInput !== 'pointer' || this.pointerId !== event.pointerId || !this.pointerBlockId) {
 					return;
 				}
 				const deltaX = event.clientX - this.pointerStartX;
@@ -261,18 +268,23 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					return;
 				}
 				this.cancelHorizontalGesture(event);
-				this.applyHorizontalGestureScroll(this.pointerBlockId, this.pointerStartScrollLeft - deltaX, true);
+				this.applyHorizontalGestureScroll(this.pointerBlockId, this.pointerStartScrollLeft - deltaX, false);
 				return true;
 			};
 
 			readonly onPointerEnd = (event: PointerEvent): void => {
 				if (this.pointerId === event.pointerId) {
+					const blockId = this.pointerBlockId;
 					this.flushScheduledScrolls();
 					this.resetPointer();
+					if (blockId) this.scheduleGestureSettle(blockId);
 				}
 			};
 
 			readonly onTouchStart = (event: TouchEvent): boolean | void => {
+				if (this.gestureInput === 'pointer') {
+					return;
+				}
 				const touch = event.changedTouches[0];
 				const target = touch ? this.scrollTargetFromEvent(event.target, touch.clientX, touch.clientY) : undefined;
 				if (!target || !touch || this.isBlockScrollDisabled(target.blockId)) {
@@ -280,6 +292,8 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					return;
 				}
 				this.touchBlockId = target.blockId;
+				this.gestureInput = 'touch';
+				this.cancelGestureSettle(target.blockId);
 				this.touchStartX = touch.clientX;
 				this.touchStartY = touch.clientY;
 				this.touchStartScrollLeft = target.scrollLeft;
@@ -288,7 +302,11 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			};
 
 			readonly onTouchMove = (event: TouchEvent): boolean | void => {
-				if (!this.touchBlockId || this.touchId === undefined) {
+				if (this.gestureInput === 'pointer' && this.pointerHorizontal) {
+					this.cancelHorizontalGesture(event);
+					return true;
+				}
+				if (this.gestureInput !== 'touch' || !this.touchBlockId || this.touchId === undefined) {
 					return;
 				}
 				const touch = this.findTouch(event.changedTouches, this.touchId);
@@ -308,13 +326,15 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					return;
 				}
 				this.cancelHorizontalGesture(event);
-				this.applyHorizontalGestureScroll(this.touchBlockId, this.touchStartScrollLeft - deltaX, true);
+				this.applyHorizontalGestureScroll(this.touchBlockId, this.touchStartScrollLeft - deltaX, false);
 				return true;
 			};
 
 			readonly onTouchEnd = (): void => {
+				const blockId = this.touchBlockId;
 				this.flushScheduledScrolls();
 				this.resetTouch();
+				if (blockId) this.scheduleGestureSettle(blockId);
 			};
 
 			private readonly onDomMutations = (records: MutationRecord[]): void => {
@@ -350,12 +370,12 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private syncGestureBlock(blockId: string, scrollLeft: number): void {
 				const nextScrollLeft = this.clampBlockScrollLeft(blockId, scrollLeft);
 				this.scrollLeftByBlock.set(stableBlockScrollMemoryKey(blockId), nextScrollLeft);
-				if (this.immediateGestureSyncBlockIds.has(blockId)) {
+				if (this.immediateWheelSyncBlockIds.has(blockId)) {
 					this.pendingScrollLeftByBlock.set(blockId, nextScrollLeft);
 					this.scheduleScrollFlush();
 					return;
 				}
-				this.immediateGestureSyncBlockIds.add(blockId);
+				this.immediateWheelSyncBlockIds.add(blockId);
 				this.scheduleGestureFrameReset();
 				this.pendingScrollLeftByBlock.delete(blockId);
 				this.syncing = true;
@@ -364,6 +384,13 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				} finally {
 					this.syncing = false;
 				}
+			}
+
+			private queueGestureBlock(blockId: string, scrollLeft: number): void {
+				const nextScrollLeft = this.clampBlockScrollLeft(blockId, scrollLeft);
+				this.scrollLeftByBlock.set(stableBlockScrollMemoryKey(blockId), nextScrollLeft);
+				this.pendingScrollLeftByBlock.set(blockId, nextScrollLeft);
+				this.scheduleScrollFlush();
 			}
 
 			private applyHorizontalGestureScroll(blockId: string, scrollLeft: number, immediate: boolean): void {
@@ -376,7 +403,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					this.syncGestureBlock(blockId, nextScrollLeft);
 					return;
 				}
-				this.syncBlock(blockId, nextScrollLeft);
+				this.queueGestureBlock(blockId, nextScrollLeft);
 			}
 
 			private cancelHorizontalGesture(event: Event): void {
@@ -412,8 +439,25 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				this.gestureFrameReset = window.requestAnimationFrame(() => {
 					this.gestureFrameReset = undefined;
-					this.immediateGestureSyncBlockIds.clear();
+					this.immediateWheelSyncBlockIds.clear();
 				});
+			}
+
+			private scheduleGestureSettle(blockId: string): void {
+				this.cancelGestureSettle(blockId);
+				const frame = window.requestAnimationFrame(() => {
+					this.gestureSettleFrames.delete(blockId);
+					const scrollLeft = this.scrollLeftByBlock.get(stableBlockScrollMemoryKey(blockId));
+					if (scrollLeft !== undefined && this.blockCacheById.has(blockId)) this.syncBlockImmediate(blockId, scrollLeft);
+				});
+				this.gestureSettleFrames.set(blockId, frame);
+			}
+
+			private cancelGestureSettle(blockId: string): void {
+				const frame = this.gestureSettleFrames.get(blockId);
+				if (frame === undefined) return;
+				window.cancelAnimationFrame(frame);
+				this.gestureSettleFrames.delete(blockId);
 			}
 
 			private flushPendingScrolls(): void {
@@ -751,6 +795,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.touchBlockId = undefined;
 				this.touchHorizontal = false;
 				this.touchId = undefined;
+				if (this.gestureInput === 'touch') this.gestureInput = undefined;
 			}
 
 			private resetPointer(): void {
@@ -765,6 +810,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.pointerBlockId = undefined;
 				this.pointerCaptureTarget = undefined;
 				this.pointerHorizontal = false;
+				if (this.gestureInput === 'pointer') this.gestureInput = undefined;
 			}
 		},
 		{
