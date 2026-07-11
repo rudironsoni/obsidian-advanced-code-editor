@@ -115,6 +115,16 @@ Feature: Block-owned horizontal scroll
     Then the Live Preview code block line-number gutter should match Reading mode
 
   @mobile
+  Scenario: Mobile portrait Reading mode touch gestures scroll long code without moving the note
+    Given Obsidian is running in mobile emulation
+    And Obsidian is sized like a phone portrait
+    And horizontal scroll settings use nowrap with line numbers
+    And the fixture note "CSharp padded reading.md" is open in reading mode for horizontal scroll
+    When I scroll the first code block horizontally with a touch gesture
+    Then the active note should keep horizontal scroll inside the first code block
+    And the surrounding note should not move horizontally
+
+  @mobile
   Scenario: Mobile-emulated Live Preview touch gestures keep horizontal scroll inside the code block
     Given Obsidian is running in mobile emulation
     And horizontal scroll settings use nowrap with line numbers

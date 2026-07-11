@@ -255,6 +255,7 @@ type TouchGestureCoordinates = {
 	endX: number;
 	endY: number;
 	touchAction: string;
+	bodyTouchAction: string;
 	hitTargetClassName: string;
 	hitTargetTouchAction: string;
 };
@@ -540,6 +541,7 @@ class HorizontalScrollPage {
 					endX,
 					endY: startY,
 					touchAction: getComputedStyle(target).touchAction,
+					bodyTouchAction: block.body ? getComputedStyle(block.body).touchAction : '',
 					hitTargetClassName: hitElement.className,
 					hitTargetTouchAction: getComputedStyle(hitElement).touchAction,
 				};
@@ -547,7 +549,11 @@ class HorizontalScrollPage {
 			{ mode, blockIndex },
 		);
 
-		if (
+		if (mode === 'reading') {
+			if (!coordinates.touchAction.includes('pan-x') || !coordinates.bodyTouchAction.includes('pan-x')) {
+				throw new Error(`Expected Reading mode touch ancestors to allow native horizontal pan: ${JSON.stringify(coordinates)}`);
+			}
+		} else if (
 			!coordinates.touchAction.includes('pan-y') ||
 			coordinates.touchAction.includes('pan-x') ||
 			!coordinates.hitTargetTouchAction.includes('pan-y') ||

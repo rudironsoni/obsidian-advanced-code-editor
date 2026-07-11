@@ -61,6 +61,7 @@ span.shiki-ul {
 	align-items: stretch;
 	overflow-x: hidden;
 	min-width: 0;
+	touch-action: pan-x pan-y;
 }
 
 .markdown-rendered .shiki-reading-block code,
