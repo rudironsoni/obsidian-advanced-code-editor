@@ -216,6 +216,16 @@ export default class ShikiPlugin extends Plugin {
 				}
 				return sectionSource;
 			};
+			const getBlockContainer = (pre: HTMLElement): HTMLElement => {
+				const parent = pre.parentElement;
+				if (!parent || parent.childElementCount === 1) {
+					return parent ?? pre;
+				}
+				const wrapper = pre.ownerDocument.createElement('div');
+				pre.before(wrapper);
+				wrapper.appendChild(pre);
+				return wrapper;
+			};
 			for (const codeElement of codeElements) {
 				const className = [...codeElement.classList].find(value => value.startsWith('language-'));
 				const declaredLanguage = className?.slice('language-'.length) ?? '';
@@ -241,7 +251,7 @@ export default class ShikiPlugin extends Plugin {
 				const sectionSource = sourceFromSectionInfo(pre, codeElement.textContent ?? '');
 				const codeBlock = new CodeBlock(
 					this,
-					pre.parentElement ?? pre,
+					getBlockContainer(pre),
 					sectionSource.trim() ? sectionSource : (codeElement.textContent ?? ''),
 					language,
 					ctx,
@@ -259,7 +269,7 @@ export default class ShikiPlugin extends Plugin {
 				}
 				processedPre.add(pre);
 				const sectionSource = sourceFromSectionInfo(pre, pre.textContent ?? '');
-				const codeBlock = new CodeBlock(this, pre.parentElement ?? pre, sectionSource.trim() ? sectionSource : (pre.textContent ?? ''), language, ctx);
+				const codeBlock = new CodeBlock(this, getBlockContainer(pre), sectionSource.trim() ? sectionSource : (pre.textContent ?? ''), language, ctx);
 				ctx.addChild(codeBlock);
 			}
 		}, 1000);

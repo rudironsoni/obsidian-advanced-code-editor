@@ -7,6 +7,7 @@ import {
 	type LivePreviewFenceCursorState,
 	type LivePreviewSyntaxState,
 	type LanguageLessBlockState,
+	type MultipleReadingBlocksState,
 	type MetadataParityMode,
 	type MetadataParityState,
 	type RenderState,
@@ -87,6 +88,10 @@ type RuntimeApp = {
 class ObsidianAppPage {
 	async getLanguageLessBlockState(mode: LanguageLessBlockState['mode']): Promise<LanguageLessBlockState> {
 		return syntaxSurfaceVerifier.waitForLanguageLessBlockState(mode);
+	}
+
+	async getMultipleReadingBlocksState(): Promise<MultipleReadingBlocksState> {
+		return syntaxSurfaceVerifier.waitForMultipleReadingBlocksState();
 	}
 
 	async waitForPluginLoaded(): Promise<PluginLoadState> {

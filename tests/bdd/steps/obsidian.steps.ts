@@ -125,6 +125,18 @@ Then('Reading mode should render one visual row per source line', async () => {
 	await browser.saveScreenshot(path.join(artifactDir, `reading-line-layout-${state.isMobile ? 'mobile' : 'desktop'}.png`));
 });
 
+Then('both Reading mode code blocks should use Advanced Code Editor', async () => {
+	const state = await obsidianApp.getMultipleReadingBlocksState();
+	assert.equal(state.advancedBlockCount, 2, `expected two Advanced Code Editor blocks: ${JSON.stringify(state)}`);
+	assert.equal(state.stockPreCount, 0, `expected no stock Reading mode code blocks: ${JSON.stringify(state)}`);
+	assert.equal(state.headerCount, 2, `expected two Advanced Code Editor headers: ${JSON.stringify(state)}`);
+	assert.deepEqual(state.languageLabels, ['csharp', 'csharp'], `expected both C# labels: ${JSON.stringify(state)}`);
+	assert.equal(state.renderedBlockCount, 2, `expected both blocks to finish Shiki rendering: ${JSON.stringify(state)}`);
+	assert.equal(state.codeLineCount, 8, `expected four source rows in each block: ${JSON.stringify(state)}`);
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, `multiple-reading-code-blocks-${state.isMobile ? 'mobile' : 'desktop'}.png`));
+});
+
 Then('the language-less code block should use Advanced Code Editor in {word}', async (mode: 'reading' | 'live-preview' | 'source') => {
 	const state = await obsidianApp.getLanguageLessBlockState(mode);
 

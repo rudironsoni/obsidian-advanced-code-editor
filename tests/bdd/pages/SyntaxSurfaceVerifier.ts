@@ -35,6 +35,16 @@ export type LanguageLessBlockState = {
 	isMobile: boolean;
 };
 
+export type MultipleReadingBlocksState = {
+	advancedBlockCount: number;
+	stockPreCount: number;
+	headerCount: number;
+	languageLabels: string[];
+	isMobile: boolean;
+	renderedBlockCount: number;
+	codeLineCount: number;
+};
+
 export type LivePreviewSyntaxState = {
 	lines: number;
 	tokens: number;
@@ -177,6 +187,44 @@ class SyntaxSurfaceVerifier {
 			{ timeout: 30000, timeoutMsg: `Language-less block did not become plugin-owned in ${mode}: ${JSON.stringify(lastState)}` },
 		);
 		return this.getLanguageLessBlockState(mode);
+	}
+
+	async waitForMultipleReadingBlocksState(): Promise<MultipleReadingBlocksState> {
+		let lastState: MultipleReadingBlocksState | undefined;
+		await browser.waitUntil(
+			async () => {
+				lastState = await this.getMultipleReadingBlocksState();
+				return (
+					lastState.advancedBlockCount === 2 &&
+					lastState.stockPreCount === 0 &&
+					lastState.headerCount === 2 &&
+					lastState.renderedBlockCount === 2 &&
+					lastState.codeLineCount === 8
+				);
+			},
+			{ timeout: 30000, timeoutMsg: `Reading mode did not claim both code blocks: ${JSON.stringify(lastState)}` },
+		);
+		return this.getMultipleReadingBlocksState();
+	}
+
+	async getMultipleReadingBlocksState(): Promise<MultipleReadingBlocksState> {
+		return executeObsidian(({ app }): MultipleReadingBlocksState => {
+			const runtimeApp = app as unknown as RuntimeApp;
+			const active = (runtimeApp.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
+			const scope = active ?? document.querySelector<HTMLElement>('.workspace-leaf.mod-active') ?? document.body;
+			const blocks = [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block')];
+			const headers = [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block .shiki-block-header')];
+			return {
+				advancedBlockCount: blocks.length,
+				stockPreCount: [...scope.querySelectorAll<HTMLElement>('.markdown-preview-view pre')].filter(pre => !pre.closest('.shiki-reading-block'))
+					.length,
+				headerCount: headers.length,
+				languageLabels: headers.map(header => header.querySelector<HTMLElement>('.shiki-lang-name')?.textContent?.trim() ?? ''),
+				isMobile: runtimeApp.isMobile,
+				renderedBlockCount: scope.querySelectorAll('.shiki-reading-block code[data-shiki-highlight-state="rendered"]').length,
+				codeLineCount: scope.querySelectorAll('.shiki-reading-block .shiki-code-line').length,
+			};
+		});
 	}
 
 	async getLanguageLessBlockState(mode: LanguageLessBlockState['mode']): Promise<LanguageLessBlockState> {

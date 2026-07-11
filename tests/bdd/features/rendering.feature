@@ -19,6 +19,12 @@ Feature: Reading mode syntax highlighting
     And Reading mode should color repeated C# generic type names consistently
     And Reading mode should render one visual row per source line
 
+  @reading-multiple-blocks
+  Scenario: Multiple C# blocks in one note all use Advanced Code Editor in Reading mode
+    Given the built Advanced Code Editor plugin is enabled in the fixture vault
+    And the fixture note "Multiple reading code blocks.md" is open in reading mode
+    Then both Reading mode code blocks should use Advanced Code Editor
+
   Scenario: A C# fenced code block preserves full token source slices in Live Preview
     Given the built Advanced Code Editor plugin is enabled in the fixture vault
     And the fixture note "CSharp token slicing.md" is open in Live Preview
