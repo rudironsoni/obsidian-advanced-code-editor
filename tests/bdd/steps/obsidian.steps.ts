@@ -576,7 +576,7 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	const first = state.blocks[0];
 	assert.ok(first, `expected a first code block after performance scroll: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.mode, 'live-preview', `expected Live Preview mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
-	const minimumEventCount = metrics.p95InputToPaintMs > 0 ? 220 : 55;
+	const minimumEventCount = metrics.trustedTouch ? 1 : 55;
 	assert.ok(
 		metrics.eventCount >= minimumEventCount,
 		`expected at least ${minimumEventCount} measured scroll events: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
@@ -589,7 +589,7 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	);
 	if (lastHorizontalScrollPerformance.referenceMetrics) {
 		const reference = lastHorizontalScrollPerformance.referenceMetrics;
-		if (metrics.p95InputToPaintMs > 0) {
+		if (metrics.trustedTouch || metrics.p95InputToPaintMs > 0) {
 			const p95FrameLimit = Math.min(33, reference.p95FrameGapMs * 1.5 + 8);
 			const maxFrameLimit = Math.min(50, reference.maxFrameGapMs * 1.5 + 16);
 			const inputToPaintLimit = Math.min(33, reference.p95InputToPaintMs * 1.5 + 8);
@@ -621,6 +621,8 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	}
 	assert.equal(metrics.backtrackCount, 0, `expected horizontal scroll not to jump backward: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(metrics.maxBacktrackPx, 0, `expected no horizontal scroll backtrack distance: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(metrics.maxRowSpread <= 1, `expected sibling rows to synchronize before paint: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	assert.ok(metrics.maxSyncFrames <= 1, `expected sibling rows to settle within one frame: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(first.scrollLeft > 0, `expected first block to scroll horizontally: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);

@@ -177,6 +177,7 @@ export type HorizontalScrollState = {
 };
 
 export type HorizontalScrollPerformanceMetrics = {
+	trustedTouch: boolean;
 	eventCount: number;
 	p95DispatchMs: number;
 	maxDispatchMs: number;
@@ -184,6 +185,8 @@ export type HorizontalScrollPerformanceMetrics = {
 	maxFrameGapMs: number;
 	p95InputToPaintMs: number;
 	maxInputToPaintMs: number;
+	maxRowSpread: number;
+	maxSyncFrames: number;
 	finalScrollLeft: number;
 	rowScrollLeftMin: number;
 	rowScrollLeftMax: number;
@@ -238,14 +241,6 @@ type RepeatedWheelInput = {
 	blockIndex: number;
 	frames: number;
 	deltaX: number;
-};
-
-type RepeatedTouchInput = {
-	mode: HorizontalScrollMode;
-	blockIndex: number;
-	frames: number;
-	deltaX: number;
-	movesPerFrame: number;
 };
 
 type NativeRowOverflowInput = {
@@ -528,8 +523,9 @@ class HorizontalScrollPage {
 				const block = blocks[input.blockIndex];
 				if (!block) throw new Error(`Code block ${input.blockIndex + 1} was not found`);
 
-				const target = input.mode === 'live-preview' ? (block.row ?? block.scrollbar ?? block.body) : (block.scrollbar ?? block.row ?? block.body);
+				const target = input.mode === 'live-preview' ? (block.row ?? block.scrollbar ?? block.body) : (block.body ?? block.scrollbar ?? block.row);
 				if (!target) throw new Error(`Code block ${input.blockIndex + 1} has no touch target`);
+				target.scrollIntoView({ block: 'center', inline: 'nearest' });
 
 				const rect = target.getBoundingClientRect();
 				const inset = Math.min(24, Math.max(8, rect.width / 8));
@@ -553,17 +549,13 @@ class HorizontalScrollPage {
 			{ mode, blockIndex },
 		);
 
+		const allowsNativeHorizontalPan = (touchAction: string): boolean => touchAction === 'manipulation' || touchAction.includes('pan-x');
 		if (mode === 'reading') {
-			if (!coordinates.touchAction.includes('pan-x') || !coordinates.bodyTouchAction.includes('pan-x')) {
+			if (!allowsNativeHorizontalPan(coordinates.touchAction) || !allowsNativeHorizontalPan(coordinates.bodyTouchAction)) {
 				throw new Error(`Expected Reading mode touch ancestors to allow native horizontal pan: ${JSON.stringify(coordinates)}`);
 			}
-		} else if (
-			!coordinates.touchAction.includes('pan-y') ||
-			coordinates.touchAction.includes('pan-x') ||
-			!coordinates.hitTargetTouchAction.includes('pan-y') ||
-			coordinates.hitTargetTouchAction.includes('pan-x')
-		) {
-			throw new Error(`Expected horizontal block touch target to reserve horizontal pan for JS: ${JSON.stringify(coordinates)}`);
+		} else if (!allowsNativeHorizontalPan(coordinates.touchAction) || !allowsNativeHorizontalPan(coordinates.hitTargetTouchAction)) {
+			throw new Error(`Expected Live Preview touch targets to allow native horizontal pan: ${JSON.stringify(coordinates)}`);
 		}
 
 		await browser.performActions([
@@ -835,6 +827,7 @@ class HorizontalScrollPage {
 				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => window.setTimeout(resolve, 0))));
 				return {
 					metrics: {
+						trustedTouch: false,
 						eventCount: dispatchDurations.length,
 						p95DispatchMs: sortedDurations[p95Index] ?? 0,
 						maxDispatchMs: Math.max(0, ...dispatchDurations),
@@ -842,6 +835,8 @@ class HorizontalScrollPage {
 						maxFrameGapMs,
 						p95InputToPaintMs: 0,
 						maxInputToPaintMs: 0,
+						maxRowSpread: 0,
+						maxSyncFrames: 0,
 						finalScrollLeft: Math.max(
 							0,
 							target.scrollLeft,
@@ -866,8 +861,9 @@ class HorizontalScrollPage {
 	}
 
 	async measureRepeatedTouchScroll(mode: HorizontalScrollMode, blockIndex: number): Promise<HorizontalScrollPerformanceResult> {
-		const measurement = await executeObsidian(
-			async ({ app }, input: RepeatedTouchInput): Promise<{ metrics: HorizontalScrollPerformanceMetrics; responsivenessProbeMs: number }> => {
+		const probeKey = '__shikiWdioTrustedTouchProbe';
+		await executeObsidian(
+			async ({ app }, input: { mode: HorizontalScrollMode; blockIndex: number; probeKey: string }) => {
 				const runtimeApp = app as unknown as RuntimeApp;
 				const root =
 					runtimeApp.workspace.activeLeaf?.view?.containerEl ??
@@ -877,175 +873,184 @@ class HorizontalScrollPage {
 				const noteScroller =
 					input.mode === 'reading' ? root.querySelector<HTMLElement>('.markdown-preview-view') : root.querySelector<HTMLElement>('.cm-scroller');
 				const scope = noteScroller ?? root;
-				const blockIds = new Set<string>();
-				for (const element of scope.querySelectorAll<HTMLElement>('[data-shiki-block-id]')) {
-					const blockId = element.dataset.shikiBlockId;
-					if (blockId) blockIds.add(blockId);
-				}
+				const blockIds = new Set(
+					[...scope.querySelectorAll<HTMLElement>('[data-shiki-block-id]')]
+						.map(element => element.dataset.shikiBlockId)
+						.filter((blockId): blockId is string => !!blockId),
+				);
 				const blocks = [...blockIds]
 					.map(blockId => {
 						const escapedBlockId = CSS.escape(blockId);
+						const rootElement =
+							scope.querySelector<HTMLElement>(`.shiki-reading-block[data-shiki-block-id="${escapedBlockId}"]`) ??
+							scope.querySelector<HTMLElement>(`[data-shiki-block-id="${escapedBlockId}"]`);
 						const rows = [...scope.querySelectorAll<HTMLElement>(`.shiki-block-scroll-row[data-shiki-block-id="${escapedBlockId}"]`)];
-						const scrollbars = [
-							...scope.querySelectorAll<HTMLElement>(`.shiki-block-horizontal-scrollbar[data-shiki-block-id="${escapedBlockId}"]`),
-						];
-						return { blockId, rows, scrollbar: scrollbars[0] ?? null };
+						const scrollbar = scope.querySelector<HTMLElement>(`.shiki-block-horizontal-scrollbar[data-shiki-block-id="${escapedBlockId}"]`);
+						const body = rootElement?.querySelector<HTMLElement>('.shiki-block-body') ?? null;
+						return { blockId, rows, scrollbar, body };
 					})
-					.filter(block => block.rows.length > 0 || block.scrollbar !== null);
-				const block = blocks[input.blockIndex];
+					.filter(block => block.rows.length > 0 || block.scrollbar || block.body);
+				let block = blocks[input.blockIndex];
 				if (!block) throw new Error(`Code block ${input.blockIndex + 1} was not found`);
+				const initialTarget =
+					input.mode === 'live-preview' ? (block.rows[0] ?? block.scrollbar ?? block.body) : (block.body ?? block.scrollbar ?? block.rows[0]);
+				if (!initialTarget) throw new Error(`Code block ${input.blockIndex + 1} has no trusted touch target`);
+				initialTarget.scrollIntoView({ block: 'center', inline: 'nearest' });
+				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+				const escapedBlockId = CSS.escape(block.blockId);
+				const currentRootElement =
+					scope.querySelector<HTMLElement>(`.shiki-reading-block[data-shiki-block-id="${escapedBlockId}"]`) ??
+					scope.querySelector<HTMLElement>(`[data-shiki-block-id="${escapedBlockId}"]`);
+				block = {
+					blockId: block.blockId,
+					rows: [...scope.querySelectorAll<HTMLElement>(`.shiki-block-scroll-row[data-shiki-block-id="${escapedBlockId}"]`)],
+					scrollbar: scope.querySelector<HTMLElement>(`.shiki-block-horizontal-scrollbar[data-shiki-block-id="${escapedBlockId}"]`),
+					body: currentRootElement?.querySelector<HTMLElement>('.shiki-block-body') ?? null,
+				};
+				const target =
+					input.mode === 'live-preview' ? (block.rows[0] ?? block.scrollbar ?? block.body) : (block.body ?? block.scrollbar ?? block.rows[0]);
+				if (!target) throw new Error(`Code block ${input.blockIndex + 1} remounted without a trusted touch target`);
 
-				const target = input.mode === 'live-preview' ? (block.rows[0] ?? block.scrollbar) : (block.scrollbar ?? block.rows[0]);
-				if (!target) throw new Error(`Code block ${input.blockIndex + 1} has no horizontal scroll target`);
-				for (const row of block.rows) {
-					row.scrollLeft = 0;
-				}
-				if (block.scrollbar) {
-					block.scrollbar.scrollLeft = 0;
-				}
-				if (noteScroller) {
-					noteScroller.scrollLeft = 0;
-				}
-				document.scrollingElement?.scrollTo({ left: 0 });
-
-				const rect = target.getBoundingClientRect();
-				const startX = Math.round(rect.left + Math.min(Math.max(160, rect.width * 0.75), Math.max(8, rect.width - 16)));
-				const startY = Math.round(rect.top + Math.min(10, Math.max(4, rect.height / 2)));
-				const pointerId = 41;
 				const dispatchDurations: number[] = [];
 				const frameGaps: number[] = [];
 				const inputToPaintDurations: number[] = [];
-				let maxFrameGapMs = 0;
+				const rowSpreads: number[] = [];
+				const syncFrames: number[] = [];
+				let eventCount = 0;
+				let scrollEventCount = 0;
 				let lastFrame = performance.now();
+				let lastInputAt: number | undefined;
+				let lastActivityAt: number | undefined;
 				let lastObservedScrollLeft = 0;
 				let backtrackCount = 0;
 				let maxBacktrackPx = 0;
-				const warmupPointerId = 40;
-
-				target.dispatchEvent(
-					new PointerEvent('pointerdown', {
-						bubbles: true,
-						cancelable: true,
-						clientX: startX,
-						clientY: startY,
-						pointerId: warmupPointerId,
-						pointerType: 'touch',
-					}),
-				);
-				target.dispatchEvent(
-					new PointerEvent('pointermove', {
-						bubbles: true,
-						cancelable: true,
-						clientX: startX - 1,
-						clientY: startY,
-						pointerId: warmupPointerId,
-						pointerType: 'touch',
-					}),
-				);
-				target.dispatchEvent(
-					new PointerEvent('pointerup', {
-						bubbles: true,
-						cancelable: true,
-						clientX: startX - 1,
-						clientY: startY,
-						pointerId: warmupPointerId,
-						pointerType: 'touch',
-					}),
-				);
-				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-				for (const row of block.rows) {
-					row.scrollLeft = 0;
-				}
-				if (block.scrollbar) {
-					block.scrollbar.scrollLeft = 0;
-				}
-				lastFrame = performance.now();
-
-				target.dispatchEvent(
-					new PointerEvent('pointerdown', {
-						bubbles: true,
-						cancelable: true,
-						clientX: startX,
-						clientY: startY,
-						pointerId,
-						pointerType: 'touch',
-					}),
-				);
-				for (let frame = 0; frame < input.frames; frame++) {
-					const inputStartedAt = performance.now();
-					for (let move = 0; move < input.movesPerFrame; move++) {
-						const eventIndex = frame * input.movesPerFrame + move + 1;
-						const beforeDispatch = performance.now();
-						target.dispatchEvent(
-							new PointerEvent('pointermove', {
-								bubbles: true,
-								cancelable: true,
-								clientX: startX - input.deltaX * eventIndex,
-								clientY: startY,
-								pointerId,
-								pointerType: 'touch',
-							}),
-						);
-						dispatchDurations.push(performance.now() - beforeDispatch);
+				let frame = 0;
+				let spreadFrame = 0;
+				const onPointerMove = (): void => {
+					const startedAt = performance.now();
+					eventCount++;
+					lastInputAt = startedAt;
+					lastActivityAt = startedAt;
+					queueMicrotask(() => dispatchDurations.push(performance.now() - startedAt));
+				};
+				const recordSpread = (attempt = 1): void => {
+					const offsets = block.rows.length ? block.rows.map(row => row.scrollLeft) : [target.scrollLeft];
+					const spread = Math.max(0, ...offsets) - Math.min(...offsets);
+					if (spread > 1 && attempt < 8) {
+						spreadFrame = requestAnimationFrame(() => recordSpread(attempt + 1));
+						return;
 					}
-					await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-					const frameNow = performance.now();
-					const frameGap = frameNow - lastFrame;
-					frameGaps.push(frameGap);
-					maxFrameGapMs = Math.max(maxFrameGapMs, frameGap);
-					inputToPaintDurations.push(frameNow - inputStartedAt);
-					lastFrame = frameNow;
-					const observedScrollLeft = Math.max(0, target.scrollLeft, block.scrollbar?.scrollLeft ?? 0, ...block.rows.map(row => row.scrollLeft));
-					if (observedScrollLeft + 1 < lastObservedScrollLeft) {
+					spreadFrame = 0;
+					rowSpreads.push(spread);
+					syncFrames.push(attempt);
+					const observed = Math.max(0, target.scrollLeft, block.scrollbar?.scrollLeft ?? 0, ...offsets);
+					if (observed + 1 < lastObservedScrollLeft) {
 						backtrackCount++;
-						maxBacktrackPx = Math.max(maxBacktrackPx, lastObservedScrollLeft - observedScrollLeft);
+						maxBacktrackPx = Math.max(maxBacktrackPx, lastObservedScrollLeft - observed);
 					}
-					lastObservedScrollLeft = observedScrollLeft;
+					lastObservedScrollLeft = observed;
+				};
+				const onScroll = (): void => {
+					scrollEventCount++;
+					lastActivityAt = performance.now();
+					if (!spreadFrame) {
+						spreadFrame = requestAnimationFrame(() => recordSpread());
+					}
+				};
+				const tick = (now: number): void => {
+					if (lastActivityAt !== undefined && now - lastActivityAt <= 100) frameGaps.push(now - lastFrame);
+					lastFrame = now;
+					if (lastInputAt !== undefined && now >= lastInputAt) {
+						inputToPaintDurations.push(now - lastInputAt);
+						lastInputAt = undefined;
+					}
+					frame = requestAnimationFrame(tick);
+				};
+				target.addEventListener('pointermove', onPointerMove, true);
+				for (const element of [...block.rows, block.scrollbar, block.body].filter((element): element is HTMLElement => !!element)) {
+					element.addEventListener('scroll', onScroll);
 				}
-				target.dispatchEvent(
-					new PointerEvent('pointerup', {
-						bubbles: true,
-						cancelable: true,
-						clientX: startX - input.deltaX * input.frames * input.movesPerFrame,
-						clientY: startY,
-						pointerId,
-						pointerType: 'touch',
-					}),
-				);
-
-				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-				const rowScrollLeftValues = block.rows.map(row => row.scrollLeft);
-				const sortedDurations = [...dispatchDurations].sort((first, second) => first - second);
-				const sortedFrameGaps = [...frameGaps].sort((first, second) => first - second);
-				const sortedInputToPaint = [...inputToPaintDurations].sort((first, second) => first - second);
-				const p95Index = Math.max(0, Math.ceil(sortedDurations.length * 0.95) - 1);
-				const frameP95Index = Math.max(0, Math.ceil(sortedFrameGaps.length * 0.95) - 1);
-				const probeStartedAt = performance.now();
-				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => window.setTimeout(resolve, 0))));
-				return {
-					metrics: {
-						eventCount: dispatchDurations.length,
-						p95DispatchMs: sortedDurations[p95Index] ?? 0,
-						maxDispatchMs: Math.max(0, ...dispatchDurations),
-						p95FrameGapMs: sortedFrameGaps[frameP95Index] ?? 0,
-						maxFrameGapMs,
-						p95InputToPaintMs: sortedInputToPaint[frameP95Index] ?? 0,
-						maxInputToPaintMs: Math.max(0, ...inputToPaintDurations),
-						finalScrollLeft: Math.max(0, target.scrollLeft, block.scrollbar?.scrollLeft ?? 0, ...block.rows.map(row => row.scrollLeft)),
-						rowScrollLeftMin: rowScrollLeftValues.length ? Math.min(...rowScrollLeftValues) : 0,
-						rowScrollLeftMax: Math.max(0, ...block.rows.map(row => row.scrollLeft)),
-						noteScrollLeft: noteScroller?.scrollLeft ?? 0,
-						documentScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
-						backtrackCount,
-						maxBacktrackPx,
+				frame = requestAnimationFrame(tick);
+				const probeHost = document.documentElement as HTMLElement & Record<string, unknown>;
+				probeHost[input.probeKey] = {
+					finish: () => {
+						cancelAnimationFrame(frame);
+						if (spreadFrame) cancelAnimationFrame(spreadFrame);
+						target.removeEventListener('pointermove', onPointerMove, true);
+						for (const element of [...block.rows, block.scrollbar, block.body].filter((element): element is HTMLElement => !!element)) {
+							element.removeEventListener('scroll', onScroll);
+						}
+						const result = {
+							dispatchDurations,
+							frameGaps,
+							inputToPaintDurations,
+							rowSpreads,
+							syncFrames,
+							eventCount: eventCount + scrollEventCount,
+							backtrackCount,
+							maxBacktrackPx,
+						};
+						delete probeHost[input.probeKey];
+						return result;
 					},
-					responsivenessProbeMs: performance.now() - probeStartedAt,
 				};
 			},
-			{ mode, blockIndex, frames: 60, movesPerFrame: 4, deltaX: 4 },
+			{ mode, blockIndex, probeKey },
 		);
+
+		await this.performWebDriverTouchGesture(mode, blockIndex);
+		await browser.pause(100);
+		const raw = await executeObsidian((_, key: string) => {
+			const probeHost = document.documentElement as HTMLElement & Record<string, unknown>;
+			const probe = probeHost[key] as
+				| {
+						finish(): {
+							dispatchDurations: number[];
+							frameGaps: number[];
+							inputToPaintDurations: number[];
+							rowSpreads: number[];
+							syncFrames: number[];
+							eventCount: number;
+							backtrackCount: number;
+							maxBacktrackPx: number;
+						};
+				  }
+				| undefined;
+			if (!probe) throw new Error('Trusted touch performance probe was not found');
+			return probe.finish();
+		}, probeKey);
+		const percentile95 = (values: number[]): number => {
+			const sorted = [...values].sort((first, second) => first - second);
+			return sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)] ?? 0;
+		};
 		const state = await this.collectScrollState(mode, 'repeated-touch-after');
-		return { metrics: measurement.metrics, responsivenessProbeMs: measurement.responsivenessProbeMs, state };
+		const block = state.blocks[blockIndex];
+		if (!block) throw new Error(`Code block ${blockIndex + 1} was not found after trusted touch`);
+		const probeStartedAt = performance.now();
+		await browser.executeAsync(done => requestAnimationFrame(() => requestAnimationFrame(() => done())));
+		return {
+			metrics: {
+				trustedTouch: true,
+				eventCount: raw.eventCount,
+				p95DispatchMs: percentile95(raw.dispatchDurations),
+				maxDispatchMs: Math.max(0, ...raw.dispatchDurations),
+				p95FrameGapMs: percentile95(raw.frameGaps),
+				maxFrameGapMs: Math.max(0, ...raw.frameGaps),
+				p95InputToPaintMs: percentile95(raw.inputToPaintDurations),
+				maxInputToPaintMs: Math.max(0, ...raw.inputToPaintDurations),
+				maxRowSpread: Math.max(0, ...raw.rowSpreads),
+				maxSyncFrames: Math.max(0, ...raw.syncFrames),
+				finalScrollLeft: block.scrollLeft,
+				rowScrollLeftMin: block.rowScrollLeftMin,
+				rowScrollLeftMax: block.rowScrollLeftMax,
+				noteScrollLeft: state.noteScrollLeft,
+				documentScrollLeft: state.documentScrollLeft,
+				backtrackCount: raw.backtrackCount,
+				maxBacktrackPx: raw.maxBacktrackPx,
+			},
+			responsivenessProbeMs: performance.now() - probeStartedAt,
+			state,
+		};
 	}
 
 	async measureFirstWheelLatency(mode: HorizontalScrollMode, blockIndex: number): Promise<HorizontalScrollWheelLatencyResult> {

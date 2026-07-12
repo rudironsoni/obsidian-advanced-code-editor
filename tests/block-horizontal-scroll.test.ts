@@ -204,8 +204,9 @@ describe('block horizontal scroll identity', () => {
 		const rowScrollBranch = source.match(/if \(source\.classList\.contains\(SHIKI_BLOCK_SCROLL_ROW_CLASS\)\) \{([\s\S]*?)\n\t\t\t\t\}/)?.[1] ?? '';
 
 		expect(rowScrollBranch).toContain('this.clampBlockScrollLeft(blockId, source.scrollLeft)');
-		expect(rowScrollBranch).toContain('this.setScrollLeft(source, scrollLeft)');
-		expect(rowScrollBranch).toContain('this.syncBlockImmediate(blockId, scrollLeft)');
+		expect(rowScrollBranch).toContain('this.expectedScrollLeftByElement.set(source, scrollLeft)');
+		expect(rowScrollBranch).toContain('this.syncNativeRow(blockId, scrollLeft, source)');
+		expect(rowScrollBranch).not.toContain('this.syncBlockImmediate(blockId, scrollLeft)');
 		expect(rowScrollBranch.trim()).not.toBe('return;');
 	});
 
@@ -321,9 +322,10 @@ describe('block horizontal scroll identity', () => {
 		const livePreviewCodeLineRule =
 			styles.match(/\.markdown-source-view\.mod-cm6\.is-live-preview \.cm-line\.shiki-live-preview-code-line \{([\s\S]*?)\n\}/)?.[1] ?? '';
 
-		expect(livePreviewCodeLineRule).toContain('overflow-x: hidden');
-		expect(livePreviewCodeLineRule).toContain('clip-path: inset(0)');
+		expect(livePreviewCodeLineRule).toContain('overflow-x: auto');
+		expect(livePreviewCodeLineRule).not.toContain('clip-path');
 		expect(livePreviewCodeLineRule).not.toContain('contain: paint');
+		expect(livePreviewCodeLineRule).toContain('contain: layout style');
 	});
 
 	test('lets Live Preview handle horizontal touch pan inside blocks on mobile', () => {
@@ -342,16 +344,16 @@ describe('block horizontal scroll identity', () => {
 			styles.match(/(?:^|\n)\.markdown-source-view\.mod-cm6\.is-live-preview \.shiki-live-preview-line-number \{([\s\S]*?)\n\}/)?.[1] ?? '';
 
 		expect(livePreviewRootRule).not.toContain('touch-action');
-		expect(livePreviewCodeLineRule).toContain('overflow-x: hidden');
-		expect(livePreviewCodeLineRule).toContain('touch-action: pan-y pinch-zoom');
+		expect(livePreviewCodeLineRule).toContain('overflow-x: auto');
+		expect(livePreviewCodeLineRule).toContain('touch-action: pan-x pan-y pinch-zoom');
 		expect(livePreviewCodeLineRule).toContain('scrollbar-width: none');
 		expect(livePreviewCodeLineRule).toContain('-webkit-overflow-scrolling: touch');
-		expect(livePreviewCodeContentRule).toContain('touch-action: pan-y pinch-zoom');
+		expect(livePreviewCodeContentRule).toContain('touch-action: pan-x pan-y pinch-zoom');
 		expect(livePreviewScrollerRule).not.toContain('touch-action');
 		expect(livePreviewContentRule).not.toContain('touch-action');
-		expect(livePreviewLineNumberRule).toContain('touch-action: pan-y pinch-zoom');
+		expect(livePreviewLineNumberRule).toContain('touch-action: pan-x pan-y pinch-zoom');
 		expect(livePreviewRootRule).not.toContain('touch-action: pan-x pan-y');
-		expect(livePreviewCodeLineRule).not.toContain('touch-action: pan-x pan-y');
+		expect(livePreviewCodeLineRule).toContain('touch-action: pan-x pan-y');
 		expect(source).toContain('readonly onPointerDown = (event: PointerEvent): boolean | void => {');
 		expect(source).toContain('readonly onTouchStart = (event: TouchEvent): boolean | void => {');
 		expect(source).toContain('eventHandlers: {');
@@ -361,22 +363,24 @@ describe('block horizontal scroll identity', () => {
 		expect(source).not.toContain("target.addEventListener('pointermove', this.onPointerMove");
 		expect(source).toContain('this.touchId = touch.identifier;');
 		expect(source).toContain('const touch = this.findTouch(event.changedTouches, this.touchId);');
-		expect(source).toContain('this.cancelHorizontalGesture(event);');
+		expect(source).toContain('this.containNativeHorizontalGesture(event);');
 		expect(source).toContain('event.stopImmediatePropagation();');
+		expect(source).toContain('private syncNativeRow(blockId: string, scrollLeft: number, source: HTMLElement): void {');
+		expect(source).toContain('this.applyBlockScroll(blockId, scrollLeft, nativeSource);');
+		expect(source).toContain('if (row === nativeSource) continue;');
 		expect(source).toContain('private applyHorizontalGestureScroll(blockId: string, scrollLeft: number, immediate: boolean): void {');
-		expect(source).toContain('this.pointerCaptureTarget?.setPointerCapture(event.pointerId);');
-		expect(source).toContain('this.pointerCaptureTarget?.releasePointerCapture(this.pointerId);');
+		expect(source).not.toContain('setPointerCapture');
+		expect(source).not.toContain('releasePointerCapture');
 		expect(source).toContain('private syncBlockImmediate(blockId: string, scrollLeft: number): void {');
 		expect(source).toContain('private syncGestureBlock(blockId: string, scrollLeft: number): void {');
 		expect(source).toContain("private gestureInput: 'pointer' | 'touch' | undefined;");
 		expect(source).toContain("if (this.gestureInput === 'pointer')");
-		expect(source).toContain('this.queueGestureBlock(blockId, nextScrollLeft);');
-		expect(source).toContain('this.applyHorizontalGestureScroll(this.pointerBlockId, this.pointerStartScrollLeft - deltaX, false);');
-		expect(source).toContain('this.applyHorizontalGestureScroll(this.touchBlockId, this.touchStartScrollLeft - deltaX, false);');
+		expect(source).not.toContain('pointerStartScrollLeft');
+		expect(source).not.toContain('touchStartScrollLeft');
 		expect(source).toContain('this.applyBlockScroll(blockId, nextScrollLeft);');
 	});
 
-	test('moves every Live Preview row on the next frame of a horizontal touch gesture', async () => {
+	test('leaves horizontal touch movement to the native row scroller', async () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({
@@ -397,21 +401,21 @@ describe('block horizontal scroll identity', () => {
 			dispatchTouch(content, 'touchstart', 260, 20);
 			const move = dispatchTouch(content, 'touchmove', 60, 22, content);
 
-			expect(move.defaultPrevented).toBe(true);
+			expect(move.defaultPrevented).toBe(false);
 			expect(longRow.scrollLeft).toBe(0);
 			expect(shortRow.scrollLeft).toBe(0);
 
 			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
-			expect(longRow.scrollLeft).toBe(200);
-			expect(shortRow.scrollLeft).toBe(200);
+			expect(longRow.scrollLeft).toBe(0);
+			expect(shortRow.scrollLeft).toBe(0);
 		} finally {
 			view.destroy();
 			parent.remove();
 		}
 	});
 
-	test('coalesces repeated touch moves in the same animation frame', async () => {
+	test('coalesces repeated native row scroll events in the same animation frame', async () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({
@@ -421,19 +425,15 @@ describe('block horizontal scroll identity', () => {
 		});
 		const blockId = 'Note.md::live-preview::5::120::5::ts::coalesce';
 		const [longRow, shortRow] = prepareCodeRows(view, blockId, 2);
-		const content = document.createElement('span');
-
-		content.className = 'shiki-live-preview-code-content';
-		content.textContent = 'longLineThatReceivesTheFinger';
 		await waitForBlockScrollMeasure(view);
-		longRow.appendChild(content);
 
 		try {
-			dispatchTouch(content, 'touchstart', 260, 20);
-			dispatchTouch(content, 'touchmove', 60, 22, content);
-			dispatchTouch(content, 'touchmove', 40, 22, content);
+			longRow.scrollLeft = 180;
+			longRow.dispatchEvent(new Event('scroll', { bubbles: true }));
+			longRow.scrollLeft = 220;
+			longRow.dispatchEvent(new Event('scroll', { bubbles: true }));
 
-			expect(longRow.scrollLeft).toBe(0);
+			expect(longRow.scrollLeft).toBe(220);
 			expect(shortRow.scrollLeft).toBe(0);
 
 			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
@@ -472,9 +472,9 @@ describe('block horizontal scroll identity', () => {
 
 			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
-			expect(duplicateTouchMove.defaultPrevented).toBe(true);
-			expect(longRow.scrollLeft).toBe(100);
-			expect(shortRow.scrollLeft).toBe(100);
+			expect(duplicateTouchMove.defaultPrevented).toBe(false);
+			expect(longRow.scrollLeft).toBe(0);
+			expect(shortRow.scrollLeft).toBe(0);
 		} finally {
 			view.destroy();
 			parent.remove();
@@ -510,7 +510,7 @@ describe('block horizontal scroll identity', () => {
 		}
 	});
 
-	test('flushes pending pointer scroll when the gesture ends', async () => {
+	test('does not synthesize row scrolling when a pointer gesture ends', async () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({
@@ -546,8 +546,8 @@ describe('block horizontal scroll identity', () => {
 				new PointerEvent('pointerup', { bubbles: true, cancelable: true, clientX: 40, clientY: 22, pointerId, pointerType: 'touch' }),
 			);
 
-			expect(longRow.scrollLeft).toBe(220);
-			expect(shortRow.scrollLeft).toBe(220);
+			expect(longRow.scrollLeft).toBe(0);
+			expect(shortRow.scrollLeft).toBe(0);
 		} finally {
 			view.destroy();
 			parent.remove();
@@ -617,7 +617,7 @@ describe('block horizontal scroll identity', () => {
 		}
 	});
 
-	test('syncs native Live Preview row touch scroll across every row immediately', async () => {
+	test('syncs native Live Preview row touch scroll to sibling rows on the next frame', async () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({
@@ -632,6 +632,11 @@ describe('block horizontal scroll identity', () => {
 		try {
 			longRow.scrollLeft = 180;
 			longRow.dispatchEvent(new Event('scroll', { bubbles: true }));
+
+			expect(longRow.scrollLeft).toBe(180);
+			expect(shortRow.scrollLeft).toBe(0);
+
+			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
 			expect(longRow.scrollLeft).toBe(180);
 			expect(shortRow.scrollLeft).toBe(180);
