@@ -56,6 +56,57 @@ describe('render children', () => {
 		expect(normalizeReadingCodeSource('\n\n```csharp\nList<int[]> intervals = [];\n```\ntrailing section text')).toBe('List<int[]> intervals = [];');
 	});
 
+	test('CodeBlock hands a rendered Live Preview code-line click back to the editor', async () => {
+		const sourceRoot = document.createElement('div');
+		sourceRoot.className = 'markdown-source-view mod-cm6 is-live-preview';
+		const container = sourceRoot.createDiv();
+		const setCursorCalls: unknown[] = [];
+		let focusCalls = 0;
+		const ctx = {
+			sourcePath: 'note.md',
+			getSectionInfo: () => ({ text: '```ts\nfirst();\nsecond();\n```', lineStart: 4 }),
+		};
+		const plugin = {
+			app: {
+				workspace: {
+					activeLeaf: {
+						view: {
+							containerEl: sourceRoot,
+							editor: {
+								setCursor: (cursor: unknown): void => {
+									setCursorCalls.push(cursor);
+								},
+								focus: (): void => {
+									focusCalls++;
+								},
+							},
+						},
+					},
+				},
+			},
+			readingViewAdapter: {
+				renderBlock: async (): Promise<string> => {
+					container.empty();
+					container.createDiv({ cls: 'shiki-code-line', text: 'first();' });
+					container.createDiv({ cls: 'shiki-code-line', text: 'second();' });
+					return 'block-id';
+				},
+				disposeBlock: (): void => undefined,
+			},
+			addActiveCodeBlock: (): void => undefined,
+			removeActiveCodeBlock: (): void => undefined,
+		};
+		const codeBlock = new CodeBlock(plugin as never, container, 'first();\nsecond();', 'ts', ctx as never);
+
+		codeBlock.onload();
+		await new Promise(resolve => setTimeout(resolve, 0));
+		container.querySelectorAll<HTMLElement>('.shiki-code-line')[1]?.click();
+
+		expect(setCursorCalls).toEqual([{ line: 6, ch: 0 }]);
+		expect(focusCalls).toBe(1);
+		codeBlock.onunload();
+	});
+
 	test('ReadingViewAdapter keeps ordinary unfenced code unchanged', () => {
 		expect(normalizeReadingCodeSource('List<int[]> intervals = [];\n')).toBe('List<int[]> intervals = [];');
 		expect(normalizeReadingCodeSource('const fence = "```";')).toBe('const fence = "```";');

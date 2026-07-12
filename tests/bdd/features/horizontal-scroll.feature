@@ -52,6 +52,13 @@ Feature: Block-owned horizontal scroll
     Then the Live Preview code text should remain visible inside the code block
     And the surrounding note should not move horizontally
 
+  @desktop @live-preview-editing
+  Scenario: Rendered Live Preview code remains editable
+    Given horizontal scroll settings use nowrap with line numbers
+    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+    When I tap rendered Live Preview code and type
+    Then the Live Preview code block should accept the typed edit
+
   @mobile @source @visual-parity
   Scenario: Mobile-emulated raw Source mode keeps Markdown editable without rendered block chrome
     Given Obsidian is running in mobile emulation
@@ -106,3 +113,11 @@ Feature: Block-owned horizontal scroll
     When I force the first Live Preview row past its native scroll range
     Then the Live Preview code text should remain visible inside the code block
     And the surrounding note should not move horizontally
+
+  @mobile @live-preview-editing
+  Scenario: Mobile-emulated rendered Live Preview code remains editable
+    Given Obsidian is running in mobile emulation
+    And horizontal scroll settings use nowrap with line numbers
+    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
+    When I tap rendered Live Preview code and type
+    Then the Live Preview code block should accept the typed edit

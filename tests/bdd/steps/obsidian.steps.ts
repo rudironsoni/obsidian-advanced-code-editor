@@ -26,6 +26,7 @@ let lastHorizontalScrollPerformance: HorizontalScrollPerformanceResult | undefin
 let lastHorizontalScrollWheelLatency: HorizontalScrollWheelLatencyResult | undefined;
 let lastHorizontalScrollLineNumberLayout: HorizontalScrollLineNumberLayoutComparison | undefined;
 let lastHorizontalScrollTakeover: HorizontalScrollTakeoverResult | undefined;
+let lastLivePreviewTapEdit: Awaited<ReturnType<typeof horizontalScrollPage.editRenderedLivePreviewBlockWithUserInput>> | undefined;
 
 Given('the built Advanced Code Editor plugin is enabled in the fixture vault', async () => {
 	await obsidianApp.waitForPluginLoaded();
@@ -493,6 +494,18 @@ When('I edit the raw Source mode horizontal scroll marker', async () => {
 	lastExactEdit = await horizontalScrollPage.editMarkerAfterScroll();
 	lastHorizontalScrollState = await horizontalScrollPage.collectScrollState(activeHorizontalScrollMode, 'after-source-edit');
 	writeJsonArtifact('horizontal-scroll-source-exact-edit', { edit: lastExactEdit, scroll: lastHorizontalScrollState });
+});
+
+When('I tap rendered Live Preview code and type', async () => {
+	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected rendered tap edit to run in Live Preview');
+	lastLivePreviewTapEdit = await horizontalScrollPage.editRenderedLivePreviewBlockWithUserInput();
+	writeJsonArtifact('live-preview-tap-edit', lastLivePreviewTapEdit);
+});
+
+Then('the Live Preview code block should accept the typed edit', () => {
+	assert.ok(lastLivePreviewTapEdit, 'expected a Live Preview tap edit result');
+	assert.equal(lastLivePreviewTapEdit.documentChanged, true, `expected the document to change: ${JSON.stringify(lastLivePreviewTapEdit)}`);
+	assert.equal(lastLivePreviewTapEdit.editInsideFence, true, `expected the edit inside the fenced block: ${JSON.stringify(lastLivePreviewTapEdit)}`);
 });
 
 When('I repeatedly scroll the first code block horizontally with wheel gestures', async () => {

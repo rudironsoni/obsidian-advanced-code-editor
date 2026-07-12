@@ -9,6 +9,15 @@ const horizontalScrollEditText = '__WDIO_HORIZONTAL_SCROLL_EDIT__';
 export type HorizontalScrollMode = 'reading' | 'live-preview' | 'source';
 export type HorizontalScrollGesture = 'scrollbar' | 'wheel' | 'shift-wheel' | 'touch';
 
+export type LivePreviewTapEditResult = {
+	documentChanged: boolean;
+	editInsideFence: boolean;
+	renderedBlockCountAfterTap: number;
+	activeElementClassName: string;
+	tapCoordinates: { x: number; y: number; hitTargetClassName: string } | null;
+	cursorAfterTap: { line: number; ch: number };
+};
+
 type PluginSettings = {
 	wrapLines: boolean;
 	showLineNumbers: boolean;
@@ -1549,6 +1558,89 @@ class HorizontalScrollPage {
 				};
 			},
 			{ marker: this.marker, editText: this.editText },
+		);
+	}
+
+	async editRenderedLivePreviewBlockWithUserInput(): Promise<LivePreviewTapEditResult> {
+		const editText = '__WDIO_LIVE_PREVIEW_TAP_EDIT__';
+		let tapCoordinates: LivePreviewTapEditResult['tapCoordinates'] = null;
+		const before = await executeObsidian(({ app }) => {
+			const runtimeApp = app as unknown as RuntimeApp;
+			const editor = runtimeApp.workspace.activeLeaf?.view?.editor;
+			if (!editor) throw new Error('Active markdown editor was not available before Live Preview tap edit');
+			return editor.getValue();
+		});
+		const targetSelector =
+			'.workspace-leaf.mod-active .shiki-reading-block .shiki-code-line, .workspace-leaf.mod-active .shiki-live-preview-block .shiki-code-line';
+		const target = await browser.$(targetSelector);
+		await target.waitForDisplayed({ timeout: 5000 });
+		if (await executeObsidian(({ app }) => (app as unknown as RuntimeApp).isMobile)) {
+			tapCoordinates = await browser.execute(async selector => {
+				const element = document.querySelector<HTMLElement>(selector);
+				if (!element) throw new Error(`Live Preview edit target not found: ${selector}`);
+				const scrollOwner = element.closest<HTMLElement>('.shiki-block-body');
+				if (!scrollOwner) throw new Error('Live Preview edit target has no block scroll owner');
+				scrollOwner.scrollIntoView({ block: 'center', inline: 'nearest' });
+				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+				const rect = element.getBoundingClientRect();
+				const ownerRect = scrollOwner.getBoundingClientRect();
+				const visibleLeft = Math.max(ownerRect.left + 60, rect.left + 5);
+				const visibleRight = Math.min(ownerRect.right - 5, rect.right - 5);
+				if (visibleRight <= visibleLeft) {
+					throw new Error(`Live Preview code line has no visible tap area: ${JSON.stringify({ rect, ownerRect })}`);
+				}
+				const x = Math.round((visibleLeft + visibleRight) / 2);
+				const y = Math.round(Math.max(1, Math.min(window.innerHeight - 2, rect.top + rect.height / 2)));
+				return { x, y, hitTargetClassName: document.elementFromPoint(x, y)?.className ?? '' };
+			}, targetSelector);
+			const { x, y } = tapCoordinates;
+			await browser.performActions([
+				{
+					type: 'pointer',
+					id: 'live-preview-edit-finger',
+					parameters: { pointerType: 'touch' },
+					actions: [
+						{ type: 'pointerMove', duration: 0, x, y },
+						{ type: 'pointerDown', button: 0 },
+						{ type: 'pause', duration: 80 },
+						{ type: 'pointerUp', button: 0 },
+					],
+				},
+			]);
+			await browser.releaseActions();
+		} else {
+			await target.click();
+		}
+		await browser.pause(250);
+		const cursorAfterTap = await executeObsidian(({ app }) => {
+			const editor = (app as unknown as RuntimeApp).workspace.activeLeaf?.view?.editor;
+			if (!editor) throw new Error('Active markdown editor was not available after Live Preview tap');
+			return editor.getCursor();
+		});
+		await browser.keys(editText);
+		await browser.pause(250);
+
+		return executeObsidian(
+			({ app }, input): LivePreviewTapEditResult => {
+				const runtimeApp = app as unknown as RuntimeApp;
+				const editor = runtimeApp.workspace.activeLeaf?.view?.editor;
+				if (!editor) throw new Error('Active markdown editor was not available after Live Preview tap edit');
+				const after = editor.getValue();
+				const openingFence = after.indexOf('```');
+				const closingFence = after.indexOf('```', openingFence + 3);
+				const editIndex = after.indexOf(input.editText);
+				return {
+					documentChanged: after !== input.before,
+					editInsideFence: editIndex > openingFence && editIndex < closingFence,
+					renderedBlockCountAfterTap: document.querySelectorAll(
+						'.workspace-leaf.mod-active .shiki-reading-block, .workspace-leaf.mod-active .shiki-live-preview-block',
+					).length,
+					activeElementClassName: document.activeElement instanceof HTMLElement ? document.activeElement.className : '',
+					tapCoordinates: input.tapCoordinates,
+					cursorAfterTap: input.cursorAfterTap,
+				};
+			},
+			{ before, editText, tapCoordinates, cursorAfterTap },
 		);
 	}
 
