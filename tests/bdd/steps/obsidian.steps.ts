@@ -584,8 +584,9 @@ Then('every Live Preview row should remain aligned during compositor takeover', 
 	assert.equal(result.touchMoveDefaultPrevented, false, `expected native touch movement to remain enabled: ${JSON.stringify(result)}`);
 	assert.ok(result.rowScrollLeftValues.length > 1, `expected multiple Live Preview rows: ${JSON.stringify(result)}`);
 	assert.ok(result.effectiveRowScrollLeftValues[0] > 0, `expected active horizontal movement: ${JSON.stringify(result)}`);
-	const effectiveSpread = Math.max(...result.effectiveRowScrollLeftValues) - Math.min(...result.effectiveRowScrollLeftValues);
-	assert.ok(effectiveSpread <= 1, `expected all rows to share one active visual offset: ${JSON.stringify(result)}`);
+	assert.ok(Math.max(...result.visualRowMovementValues) > 1, `expected painted sibling movement during the gesture: ${JSON.stringify(result)}`);
+	const visualSpread = Math.max(...result.visualRowMovementValues) - Math.min(...result.visualRowMovementValues);
+	assert.ok(visualSpread <= 1, `expected all painted rows to share one active visual offset: ${JSON.stringify(result)}`);
 	assert.equal(result.noteScrollLeft, 0, `expected note horizontal scroll to remain zero: ${JSON.stringify(result)}`);
 	assert.equal(result.documentScrollLeft, 0, `expected document horizontal scroll to remain zero: ${JSON.stringify(result)}`);
 });

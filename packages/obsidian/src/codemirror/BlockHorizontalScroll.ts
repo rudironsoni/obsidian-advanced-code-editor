@@ -5,7 +5,7 @@ export const SHIKI_BLOCK_SCROLL_ROW_CLASS = 'shiki-block-scroll-row';
 export const SHIKI_BLOCK_SCROLLBAR_CLASS = 'shiki-block-horizontal-scrollbar';
 export const SHIKI_BLOCK_SCROLLBAR_INNER_CLASS = 'shiki-block-horizontal-scrollbar-inner';
 export const SHIKI_BLOCK_SCROLL_SPACER_CLASS = 'shiki-block-scroll-spacer';
-export const SHIKI_BLOCK_VISUAL_SCROLL_ROW_CLASS = 'shiki-block-visual-scroll-row';
+export const SHIKI_BLOCK_VISUAL_SCROLL_CONTENT_CLASS = 'shiki-block-visual-scroll-content';
 
 const SHIKI_BLOCK_VISUAL_SCROLL_OFFSET = '--shiki-block-visual-scroll-offset';
 
@@ -393,6 +393,8 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				if (this.activeVisualScroll && !this.activeVisualScroll.source.isConnected) {
 					this.cancelNativeSettle();
 					this.clearActiveVisualScroll();
+				} else if (this.activeVisualScroll) {
+					this.refreshActiveVisualRows(this.currentRowsForBlock(this.activeVisualScroll.blockId));
 				}
 				this.scheduleMeasure();
 			};
@@ -437,19 +439,25 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.finishActiveVisualScroll();
 				const cache = this.blockCacheById.get(blockId);
 				if (!cache) return;
+				const rows = this.currentRowsForBlock(blockId);
 				this.pendingScrollLeftByBlock.delete(blockId);
 				this.pendingNativeSourceByBlock.delete(blockId);
 				const clampedBaselineScrollLeft = this.clampBlockScrollLeft(blockId, baselineScrollLeft);
 				this.activeVisualScroll = {
 					blockId,
 					source,
-					rows: cache.rows.filter(row => row.isConnected),
+					rows,
 					baselineScrollLeft: clampedBaselineScrollLeft,
 					effectiveScrollLeft: clampedBaselineScrollLeft,
 				};
-				this.refreshActiveVisualRows(cache.rows);
+				this.refreshActiveVisualRows(rows);
 				this.setStyleProperty(this.view.dom, SHIKI_BLOCK_VISUAL_SCROLL_OFFSET, '0px');
 				this.scheduleNativeFollow();
+			}
+
+			private currentRowsForBlock(blockId: string): HTMLElement[] {
+				const escapedBlockId = CSS.escape(blockId);
+				return [...this.view.dom.querySelectorAll<HTMLElement>(`.${SHIKI_BLOCK_SCROLL_ROW_CLASS}[data-shiki-block-id="${escapedBlockId}"]`)];
 			}
 
 			private scheduleNativeFollow(): void {
@@ -480,13 +488,19 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private refreshActiveVisualRows(rows: HTMLElement[]): void {
 				const active = this.activeVisualScroll;
 				if (!active) return;
+				const connectedRows = rows.filter(row => row.isConnected);
+				if (!connectedRows.includes(active.source)) return;
 				for (const row of active.rows) {
-					row.classList.remove(SHIKI_BLOCK_VISUAL_SCROLL_ROW_CLASS);
+					this.visualContentForRow(row).classList.remove(SHIKI_BLOCK_VISUAL_SCROLL_CONTENT_CLASS);
 				}
-				active.rows = rows.filter(row => row.isConnected);
+				active.rows = connectedRows;
 				for (const row of active.rows) {
-					row.classList.toggle(SHIKI_BLOCK_VISUAL_SCROLL_ROW_CLASS, row !== active.source);
+					this.visualContentForRow(row).classList.toggle(SHIKI_BLOCK_VISUAL_SCROLL_CONTENT_CLASS, row !== active.source);
 				}
+			}
+
+			private visualContentForRow(row: HTMLElement): HTMLElement {
+				return row.querySelector<HTMLElement>('.shiki-live-preview-code-content') ?? row;
 			}
 
 			private updateActiveVisualScroll(scrollLeft: number): void {
@@ -518,7 +532,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				const active = this.activeVisualScroll;
 				if (active) {
 					for (const row of active.rows) {
-						row.classList.remove(SHIKI_BLOCK_VISUAL_SCROLL_ROW_CLASS);
+						this.visualContentForRow(row).classList.remove(SHIKI_BLOCK_VISUAL_SCROLL_CONTENT_CLASS);
 					}
 				}
 				this.activeVisualScroll = undefined;

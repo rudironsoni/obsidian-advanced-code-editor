@@ -213,6 +213,8 @@ export type HorizontalScrollTouchDispatchMetrics = {
 	p95DispatchMs: number;
 	maxDispatchMs: number;
 	maxEffectiveRowSpread: number;
+	visualMovementValues: number[];
+	visualContentClassValues: boolean[];
 	noteScrollLeft: number;
 	documentScrollLeft: number;
 };
@@ -230,6 +232,9 @@ export type HorizontalScrollTakeoverResult = {
 	touchMoveDefaultPrevented: boolean;
 	rowScrollLeftValues: number[];
 	effectiveRowScrollLeftValues: number[];
+	visualRowMovementValues: number[];
+	visualRowClassValues: boolean[];
+	visualScrollOffset: string;
 	noteScrollLeft: number;
 	documentScrollLeft: number;
 	state: HorizontalScrollState;
@@ -534,6 +539,8 @@ class HorizontalScrollPage {
 				);
 				if (!source) throw new Error(`Code row ${input.codeLineNumber} was not found`);
 				const target = source.querySelector<HTMLElement>('.shiki-live-preview-code-content') ?? source;
+				const contentElements = rows.map(row => row.querySelector<HTMLElement>('.shiki-live-preview-code-content') ?? row);
+				const baselineContentLeftValues = contentElements.map(element => element.getBoundingClientRect().left);
 				for (const row of rows) row.scrollLeft = 0;
 				if (noteScroller) noteScroller.scrollLeft = 0;
 				document.scrollingElement?.scrollTo({ left: 0 });
@@ -574,17 +581,24 @@ class HorizontalScrollPage {
 				source.scrollLeft = 240;
 				const touchMove = makeTouchEvent('touchmove', 20);
 				target.dispatchEvent(touchMove);
+				await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 				const effectiveRowScrollLeftValues = rows.map(row => {
 					const content = row.querySelector<HTMLElement>('.shiki-live-preview-code-content');
 					const transform = content ? getComputedStyle(content).transform : '';
 					const translateX = !transform || transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m41;
 					return row.scrollLeft - translateX;
 				});
+				const visualRowMovementValues = contentElements.map(
+					(element, index) => (baselineContentLeftValues[index] ?? 0) - element.getBoundingClientRect().left,
+				);
 
 				return {
 					touchMoveDefaultPrevented: touchMove.defaultPrevented,
 					rowScrollLeftValues: rows.map(row => row.scrollLeft),
 					effectiveRowScrollLeftValues,
+					visualRowMovementValues,
+					visualRowClassValues: contentElements.map(element => element.classList.contains('shiki-block-visual-scroll-content')),
+					visualScrollOffset: getComputedStyle(source).getPropertyValue('--shiki-block-visual-scroll-offset'),
 					noteScrollLeft: noteScroller?.scrollLeft ?? 0,
 					documentScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
 				};
@@ -1200,7 +1214,7 @@ class HorizontalScrollPage {
 
 	async measureSyntheticTouchDispatch(blockIndex: number): Promise<HorizontalScrollTouchDispatchMetrics> {
 		return executeObsidian(
-			({ app }, input: { blockIndex: number; eventCount: number }): HorizontalScrollTouchDispatchMetrics => {
+			async ({ app }, input: { blockIndex: number; eventCount: number }): Promise<HorizontalScrollTouchDispatchMetrics> => {
 				const runtimeApp = app as unknown as RuntimeApp;
 				const root =
 					runtimeApp.workspace.activeLeaf?.view?.containerEl ??
@@ -1235,25 +1249,27 @@ class HorizontalScrollPage {
 					}
 					return event;
 				};
-				const effectiveOffset = (row: HTMLElement): number => {
-					const content = row.querySelector<HTMLElement>('.shiki-live-preview-code-content');
-					const transform = content ? getComputedStyle(content).transform : '';
-					const translateX = !transform || transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m41;
-					return row.scrollLeft - translateX;
-				};
+				const contentElements = rows.map(row => row.querySelector<HTMLElement>('.shiki-live-preview-code-content') ?? row);
+				for (const row of rows) row.scrollLeft = 0;
+				await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+				const baselineContentLeftValues = contentElements.map(element => element.getBoundingClientRect().left);
 
 				target.dispatchEvent(makeTouchEvent('touchstart', 260));
 				const dispatchDurations: number[] = [];
-				let maxEffectiveRowSpread = 0;
-				for (let index = 0; index < input.eventCount; index++) {
-					const offset = index % 2 === 0 ? 200 : 220;
+				const dispatchMove = (offset: number): void => {
 					source.scrollLeft = offset;
 					const event = makeTouchEvent('touchmove', 260 - offset);
 					const startedAt = performance.now();
 					target.dispatchEvent(event);
 					dispatchDurations.push(performance.now() - startedAt);
-					const offsets = rows.map(effectiveOffset);
-					maxEffectiveRowSpread = Math.max(maxEffectiveRowSpread, Math.max(...offsets) - Math.min(...offsets));
+				};
+				dispatchMove(200);
+				await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+				const visualMovements = contentElements.map((element, index) => (baselineContentLeftValues[index] ?? 0) - element.getBoundingClientRect().left);
+				const maxEffectiveRowSpread = Math.max(...visualMovements) - Math.min(...visualMovements);
+				for (let index = 1; index < input.eventCount; index++) {
+					const offset = index % 2 === 0 ? 200 : 220;
+					dispatchMove(offset);
 				}
 				target.dispatchEvent(makeTouchEvent('touchend', 40));
 				const sortedDurations = [...dispatchDurations].sort((first, second) => first - second);
@@ -1264,6 +1280,8 @@ class HorizontalScrollPage {
 					p95DispatchMs: sortedDurations[p95Index] ?? 0,
 					maxDispatchMs: Math.max(0, ...dispatchDurations),
 					maxEffectiveRowSpread,
+					visualMovementValues: visualMovements,
+					visualContentClassValues: contentElements.map(element => element.classList.contains('shiki-block-visual-scroll-content')),
 					noteScrollLeft: noteScroller?.scrollLeft ?? 0,
 					documentScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
 				};

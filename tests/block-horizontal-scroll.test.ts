@@ -118,9 +118,16 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain("const SHIKI_BLOCK_VISUAL_SCROLL_OFFSET = '--shiki-block-visual-scroll-offset'");
 		expect(source).toContain('this.updateActiveVisualScroll(nextScrollLeft)');
 		expect(styles).toContain('transform: translateX(var(--shiki-block-visual-scroll-offset, 0px))');
+		const activeVisualContentRule = styles.match(/\.shiki-live-preview-code-content\.shiki-block-visual-scroll-content \{([\s\S]*?)\n\}/)?.[1] ?? '';
+		expect(activeVisualContentRule).toContain('display: inline-block');
+		expect(activeVisualContentRule).toContain('vertical-align: baseline');
 		expect(source).not.toContain('this.styleElement = this.view.dom.ownerDocument.createElement');
 		expect(source).not.toContain('.shiki-live-preview-code-content[data-shiki-block-id=${CSS.escape(blockId)}]');
 		expect(source).not.toContain("content.style.setProperty('--shiki-block-scroll-left', offset)");
+		expect(source).toContain('this.currentRowsForBlock(blockId)');
+		expect(source).toContain('this.refreshActiveVisualRows(rows)');
+		expect(source).toContain('if (!connectedRows.includes(active.source)) return;');
+		expect(source).toContain('this.refreshActiveVisualRows(this.currentRowsForBlock(this.activeVisualScroll.blockId));');
 		expect(source).not.toContain("this.setStyleProperty(row, '--shiki-block-scroll-left'");
 		expect(source).not.toContain('content.style.transform');
 	});
@@ -407,8 +414,8 @@ describe('block horizontal scroll identity', () => {
 			expect(move.defaultPrevented).toBe(false);
 			expect(longRow.scrollLeft).toBe(0);
 			expect(shortRow.scrollLeft).toBe(0);
-			expect(shortRow.classList.contains('shiki-block-visual-scroll-row')).toBe(true);
-			expect(longRow.classList.contains('shiki-block-visual-scroll-row')).toBe(false);
+			expect(shortRow.classList.contains('shiki-block-visual-scroll-content')).toBe(true);
+			expect(longRow.classList.contains('shiki-block-visual-scroll-content')).toBe(false);
 			expect(view.dom.style.getPropertyValue('--shiki-block-visual-scroll-offset')).toBe('-200px');
 
 			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
@@ -478,7 +485,7 @@ describe('block horizontal scroll identity', () => {
 			expect(touchMove.defaultPrevented).toBe(false);
 			expect(longRow.scrollLeft).toBe(240);
 			expect(shortRow.scrollLeft).toBe(0);
-			expect(shortRow.classList.contains('shiki-block-visual-scroll-row')).toBe(true);
+			expect(shortRow.classList.contains('shiki-block-visual-scroll-content')).toBe(true);
 			expect(view.dom.style.getPropertyValue('--shiki-block-visual-scroll-offset')).toBe('-240px');
 		} finally {
 			view.destroy();
