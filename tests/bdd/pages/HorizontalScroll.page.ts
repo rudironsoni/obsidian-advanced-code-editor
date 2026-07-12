@@ -212,6 +212,14 @@ export type HorizontalScrollWheelLatencyResult = {
 	state: HorizontalScrollState;
 };
 
+export type HorizontalScrollTakeoverResult = {
+	touchMoveDefaultPrevented: boolean;
+	rowScrollLeftValues: number[];
+	noteScrollLeft: number;
+	documentScrollLeft: number;
+	state: HorizontalScrollState;
+};
+
 export type HorizontalScrollLineNumberLayoutComparison = {
 	livePreview: HorizontalScrollState;
 	reading: HorizontalScrollState;
@@ -477,6 +485,91 @@ class HorizontalScrollPage {
 
 		await browser.pause(150);
 		return this.collectScrollState(mode, `${gesture}-after`);
+	}
+
+	async simulateWebKitTouchTakeover(blockIndex: number, codeLineNumber: number): Promise<HorizontalScrollTakeoverResult> {
+		const result = await executeObsidian(
+			async ({ app }, input: { blockIndex: number; codeLineNumber: number }) => {
+				const runtimeApp = app as unknown as RuntimeApp;
+				const editor = runtimeApp.workspace.activeLeaf?.view?.editor;
+				const fenceLines = (editor?.getValue().split('\n') ?? []).map((line, index) => ({ line, index })).filter(({ line }) => /^\s*```/.test(line));
+				const openingFenceLine = fenceLines[input.blockIndex * 2]?.index;
+				if (openingFenceLine === undefined) throw new Error(`Opening fence ${input.blockIndex + 1} was not found`);
+				editor?.setCursor({ line: openingFenceLine + input.codeLineNumber, ch: 0 });
+				editor?.focus();
+				await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+				const root =
+					runtimeApp.workspace.activeLeaf?.view?.containerEl ??
+					runtimeApp.workspace.activeLeaf?.view?.contentEl ??
+					document.querySelector('.workspace-leaf.mod-active') ??
+					document;
+				const noteScroller = root.querySelector<HTMLElement>('.cm-scroller');
+				const scope = noteScroller ?? root;
+				const blockIds = new Set(
+					[...scope.querySelectorAll<HTMLElement>('[data-shiki-block-id]')]
+						.map(element => element.dataset.shikiBlockId)
+						.filter((blockId): blockId is string => !!blockId),
+				);
+				const blockId = [...blockIds][input.blockIndex];
+				if (!blockId) throw new Error(`Code block ${input.blockIndex + 1} was not found`);
+				const escapedBlockId = CSS.escape(blockId);
+				const rows = [...scope.querySelectorAll<HTMLElement>(`.shiki-block-scroll-row[data-shiki-block-id="${escapedBlockId}"]`)];
+				const source = rows.find(
+					row => row.querySelector<HTMLElement>('.shiki-live-preview-line-number')?.textContent?.trim() === String(input.codeLineNumber),
+				);
+				if (!source) throw new Error(`Code row ${input.codeLineNumber} was not found`);
+				const target = source.querySelector<HTMLElement>('.shiki-live-preview-code-content') ?? source;
+				for (const row of rows) row.scrollLeft = 0;
+				if (noteScroller) noteScroller.scrollLeft = 0;
+				document.scrollingElement?.scrollTo({ left: 0 });
+
+				const pointerId = 73;
+				const touchId = 74;
+				const makeTouchEvent = (type: string, clientX: number): Event => {
+					const event = new Event(type, { bubbles: true, cancelable: true });
+					const touch = { clientX, clientY: 20, identifier: touchId, target } as unknown as Touch;
+					const touches = { length: 1, item: (index: number) => (index === 0 ? touch : null), 0: touch } as unknown as TouchList;
+					for (const property of ['changedTouches', 'targetTouches', 'touches']) {
+						Object.defineProperty(event, property, { configurable: true, value: touches });
+					}
+					return event;
+				};
+
+				target.dispatchEvent(
+					new PointerEvent('pointerdown', {
+						bubbles: true,
+						cancelable: true,
+						clientX: 260,
+						clientY: 20,
+						pointerId,
+						pointerType: 'touch',
+					}),
+				);
+				target.dispatchEvent(makeTouchEvent('touchstart', 260));
+				target.dispatchEvent(
+					new PointerEvent('pointercancel', {
+						bubbles: true,
+						cancelable: true,
+						clientX: 260,
+						clientY: 20,
+						pointerId,
+						pointerType: 'touch',
+					}),
+				);
+				source.scrollLeft = 240;
+				const touchMove = makeTouchEvent('touchmove', 20);
+				target.dispatchEvent(touchMove);
+
+				return {
+					touchMoveDefaultPrevented: touchMove.defaultPrevented,
+					rowScrollLeftValues: rows.map(row => row.scrollLeft),
+					noteScrollLeft: noteScroller?.scrollLeft ?? 0,
+					documentScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
+				};
+			},
+			{ blockIndex, codeLineNumber },
+		);
+		return { ...result, state: await this.collectScrollState('live-preview', 'webkit-touch-takeover') };
 	}
 
 	private async performWebDriverTouchGesture(mode: HorizontalScrollMode, blockIndex: number): Promise<void> {

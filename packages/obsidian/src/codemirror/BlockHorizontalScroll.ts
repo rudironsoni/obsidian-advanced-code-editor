@@ -205,9 +205,16 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 							return;
 						}
 					}
+					if (Math.abs(source.scrollLeft - expectedScrollLeft) <= 1) {
+						return;
+					}
 					const scrollLeft = this.clampBlockScrollLeft(blockId, source.scrollLeft);
 					this.expectedScrollLeftByElement.set(source, scrollLeft);
 					this.syncNativeRow(blockId, scrollLeft, source);
+					return;
+				}
+				const expectedScrollLeft = this.expectedScrollLeftByElement.get(source);
+				if (expectedScrollLeft !== undefined && Math.abs(source.scrollLeft - expectedScrollLeft) <= 1) {
 					return;
 				}
 				this.syncBlockImmediate(blockId, source.scrollLeft);
@@ -224,12 +231,15 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				const normalizedDelta = this.normalizeWheelDelta(horizontalDelta, event.deltaMode, target.blockId);
 				this.cancelHorizontalGesture(event);
-				this.applyHorizontalGestureScroll(target.blockId, target.scrollLeft + normalizedDelta, true);
+				this.applyHorizontalGestureScroll(target.blockId, this.blockScrollLeft(target.blockId) + normalizedDelta, true);
 				return true;
 			};
 
 			readonly onPointerDown = (event: PointerEvent): boolean | void => {
 				if (event.pointerType !== 'touch' && event.pointerType !== 'pen') {
+					return;
+				}
+				if (this.gestureInput === 'touch') {
 					return;
 				}
 				const target = this.scrollTargetFromEvent(event.target, event.clientX, event.clientY);
@@ -279,7 +289,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			};
 
 			readonly onTouchStart = (event: TouchEvent): boolean | void => {
-				if (this.gestureInput === 'pointer') {
+				if (this.gestureInput === 'touch') {
 					return;
 				}
 				const touch = event.changedTouches[0];
@@ -288,6 +298,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					this.resetTouch();
 					return;
 				}
+				this.resetPointer();
 				this.touchBlockId = target.blockId;
 				this.cancelNativeSettle();
 				this.gestureInput = 'touch';
@@ -300,8 +311,8 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			};
 
 			readonly onTouchMove = (event: TouchEvent): void => {
-				if (this.gestureInput === 'pointer' && this.pointerHorizontal) {
-					this.containNativeHorizontalGesture(event);
+				if (event.touches.length > 1) {
+					this.resetTouch();
 					return;
 				}
 				if (this.gestureInput !== 'touch' || !this.touchBlockId || this.touchId === undefined) {
@@ -327,7 +338,10 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.containNativeHorizontalGesture(event);
 			};
 
-			readonly onTouchEnd = (): void => {
+			readonly onTouchEnd = (event: TouchEvent): void => {
+				if (this.touchId === undefined || !this.findTouch(event.changedTouches, this.touchId)) {
+					return;
+				}
 				const blockId = this.touchBlockId;
 				const source = this.touchSource;
 				this.resetTouch();
@@ -377,16 +391,22 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 
 			private scheduleNativeSettle(blockId: string, source: HTMLElement): void {
 				this.cancelNativeSettle();
-				let previousScrollLeft = -1;
+				const startingScrollLeft = this.clampBlockScrollLeft(blockId, source.scrollLeft);
+				let previousScrollLeft = startingScrollLeft;
+				let sawNativeMovement = false;
 				let stableFrames = 0;
-				let remainingFrames = 30;
+				let remainingFrames = 45;
 				const settle = (): void => {
 					const scrollLeft = this.clampBlockScrollLeft(blockId, source.scrollLeft);
-					this.syncNativeGesturePrediction(blockId, scrollLeft, source);
-					stableFrames = Math.abs(scrollLeft - previousScrollLeft) <= 1 ? stableFrames + 1 : 0;
+					sawNativeMovement ||= Math.abs(scrollLeft - startingScrollLeft) > 1;
+					if (sawNativeMovement) {
+						this.syncNativeGesturePrediction(blockId, scrollLeft, source);
+						stableFrames = Math.abs(scrollLeft - previousScrollLeft) <= 1 ? stableFrames + 1 : 0;
+					}
 					previousScrollLeft = scrollLeft;
 					remainingFrames--;
-					if (stableFrames >= 2 || remainingFrames <= 0 || !source.isConnected) {
+					if (stableFrames >= 3 || remainingFrames <= 0 || !source.isConnected) {
+						if (remainingFrames <= 0 && !sawNativeMovement) this.syncNativeGesturePrediction(blockId, scrollLeft, source);
 						this.nativeSettleFrame = undefined;
 						return;
 					}
@@ -863,11 +883,11 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				touchmove(event) {
 					this.onTouchMove(event);
 				},
-				touchend() {
-					this.onTouchEnd();
+				touchend(event) {
+					this.onTouchEnd(event);
 				},
-				touchcancel() {
-					this.onTouchEnd();
+				touchcancel(event) {
+					this.onTouchEnd(event);
 				},
 			},
 		},

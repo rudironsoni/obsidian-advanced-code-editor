@@ -448,7 +448,7 @@ describe('block horizontal scroll identity', () => {
 		}
 	});
 
-	test('uses pointer events once when the browser also emits touch events', async () => {
+	test('continues sibling synchronization through WebKit pointer cancellation', async () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({ doc: 'long\nshort', extensions: [createBlockHorizontalScrollPlugin()], parent });
@@ -468,17 +468,66 @@ describe('block horizontal scroll identity', () => {
 			);
 			dispatchTouch(content, 'touchstart', 260, 20, content);
 			content.dispatchEvent(
-				new PointerEvent('pointermove', { bubbles: true, cancelable: true, clientX: 160, clientY: 22, pointerId, pointerType: 'touch' }),
+				new PointerEvent('pointercancel', { bubbles: true, cancelable: true, clientX: 260, clientY: 20, pointerId, pointerType: 'touch' }),
 			);
-			const duplicateTouchMove = dispatchTouch(content, 'touchmove', 60, 22, content);
+			const touchMove = dispatchTouch(content, 'touchmove', 60, 22, content);
 
 			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
-			expect(duplicateTouchMove.defaultPrevented).toBe(false);
+			expect(touchMove.defaultPrevented).toBe(false);
 			expect(longRow.scrollLeft).toBe(0);
-			expect(shortRow.scrollLeft).toBe(100);
+			expect(shortRow.scrollLeft).toBe(200);
 		} finally {
 			view.destroy();
+			parent.remove();
+		}
+	});
+
+	test('waits for delayed native movement before settling sibling rows', async () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const view = new EditorView({ doc: 'long\nshort', extensions: [createBlockHorizontalScrollPlugin()], parent });
+		const blockId = 'Note.md::live-preview::5::120::5::ts::delayed-native';
+		const [longRow, shortRow] = prepareCodeRows(view, blockId, 2);
+		const content = document.createElement('span');
+
+		content.className = 'shiki-live-preview-code-content';
+		content.textContent = 'nativeMovementBecomesVisibleAfterPointerCancellation';
+		await waitForBlockScrollMeasure(view);
+		longRow.appendChild(content);
+		const originalRequestAnimationFrame = window.requestAnimationFrame;
+		const originalCancelAnimationFrame = window.cancelAnimationFrame;
+		let nextFrameId = 1;
+		const frameCallbacks = new Map<number, FrameRequestCallback>();
+		window.requestAnimationFrame = callback => {
+			const frameId = nextFrameId++;
+			frameCallbacks.set(frameId, callback);
+			return frameId;
+		};
+		window.cancelAnimationFrame = frameId => frameCallbacks.delete(frameId);
+		const runFrame = (): void => {
+			const callbacks = [...frameCallbacks.values()];
+			frameCallbacks.clear();
+			for (const callback of callbacks) callback(performance.now());
+		};
+
+		try {
+			dispatchTouch(content, 'touchstart', 260, 20, content);
+			dispatchTouch(content, 'touchmove', 60, 22, content);
+			dispatchTouch(content, 'touchend', 60, 22, content);
+			runFrame();
+			runFrame();
+			runFrame();
+
+			longRow.scrollLeft = 240;
+			runFrame();
+
+			expect(longRow.scrollLeft).toBe(240);
+			expect(shortRow.scrollLeft).toBe(240);
+		} finally {
+			view.destroy();
+			window.requestAnimationFrame = originalRequestAnimationFrame;
+			window.cancelAnimationFrame = originalCancelAnimationFrame;
 			parent.remove();
 		}
 	});
@@ -506,6 +555,29 @@ describe('block horizontal scroll identity', () => {
 
 			expect(longRow.scrollLeft).toBe(220);
 			expect(shortRow.scrollLeft).toBe(220);
+		} finally {
+			view.destroy();
+			parent.remove();
+		}
+	});
+
+	test('accumulates wheel deltas while prior row writes are still settling', async () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		const view = new EditorView({ doc: 'long\nshort', extensions: [createBlockHorizontalScrollPlugin()], parent });
+		const blockId = 'Note.md::live-preview::5::120::5::ts::wheel-frames';
+		const [longRow, shortRow] = prepareCodeRows(view, blockId, 2);
+		await waitForBlockScrollMeasure(view);
+
+		try {
+			for (let frame = 0; frame < 3; frame++) {
+				longRow.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: 24 }));
+				await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+			}
+			await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+			expect(longRow.scrollLeft).toBe(72);
+			expect(shortRow.scrollLeft).toBe(72);
 		} finally {
 			view.destroy();
 			parent.remove();

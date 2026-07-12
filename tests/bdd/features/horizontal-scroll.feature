@@ -134,6 +134,15 @@ Feature: Block-owned horizontal scroll
     And the surrounding note should not move horizontally
 
   @mobile
+  Scenario: Mobile-emulated Live Preview stays unified when WebKit cancels pointer input
+    Given Obsidian is running in mobile emulation
+    And horizontal scroll settings use nowrap with line numbers
+    And the fixture note "Horizontal scroll stress block.md" is open in Live Preview for horizontal scroll
+    When WebKit transfers the line 23 touch gesture from pointer input to native scrolling
+    Then every Live Preview row should remain aligned during compositor takeover
+    And the surrounding note should not move horizontally
+
+  @mobile
   Scenario: Mobile-emulated Live Preview repeated touch scrolling remains responsive
     Given Obsidian is running in mobile emulation
     And horizontal scroll settings use nowrap with line numbers

@@ -11,6 +11,7 @@ import {
 	type HorizontalScrollMode,
 	type HorizontalScrollPerformanceResult,
 	type HorizontalScrollState,
+	type HorizontalScrollTakeoverResult,
 	type HorizontalScrollWheelLatencyResult,
 } from '../pages/HorizontalScroll.page.js';
 import { obsidianApp } from '../pages/ObsidianApp.page.js';
@@ -24,6 +25,7 @@ let lastExactEdit: ExactEditResult | undefined;
 let lastHorizontalScrollPerformance: HorizontalScrollPerformanceResult | undefined;
 let lastHorizontalScrollWheelLatency: HorizontalScrollWheelLatencyResult | undefined;
 let lastHorizontalScrollLineNumberLayout: HorizontalScrollLineNumberLayoutComparison | undefined;
+let lastHorizontalScrollTakeover: HorizontalScrollTakeoverResult | undefined;
 
 Given('the built Advanced Code Editor plugin is enabled in the fixture vault', async () => {
 	await obsidianApp.waitForPluginLoaded();
@@ -450,6 +452,16 @@ When('I scroll the first code block horizontally with a touch gesture', async ()
 	lastHorizontalScrollState = await performHorizontalScroll('touch');
 });
 
+When('WebKit transfers the line 23 touch gesture from pointer input to native scrolling', async () => {
+	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected WebKit takeover check to run in Live Preview');
+	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
+	lastHorizontalScrollTakeover = await horizontalScrollPage.simulateWebKitTouchTakeover(0, 23);
+	lastHorizontalScrollState = lastHorizontalScrollTakeover.state;
+	writeJsonArtifact('horizontal-scroll-live-preview-webkit-touch-takeover', lastHorizontalScrollTakeover);
+	mkdirSync(artifactDir, { recursive: true });
+	await browser.saveScreenshot(path.join(artifactDir, 'horizontal-scroll-live-preview-webkit-touch-takeover.png'));
+});
+
 When('I force the first Live Preview row past its native scroll range', async () => {
 	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected native row overflow to run in Live Preview');
 	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
@@ -556,6 +568,17 @@ Then('the active note should keep horizontal scroll inside the first code block'
 	}
 	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(state)}`);
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(state)}`);
+});
+
+Then('every Live Preview row should remain aligned during compositor takeover', () => {
+	assert.ok(lastHorizontalScrollTakeover, 'expected WebKit touch takeover result');
+	const result = lastHorizontalScrollTakeover;
+	assert.equal(result.touchMoveDefaultPrevented, false, `expected native touch movement to remain enabled: ${JSON.stringify(result)}`);
+	assert.ok(result.rowScrollLeftValues.length > 1, `expected multiple Live Preview rows: ${JSON.stringify(result)}`);
+	assert.ok(result.rowScrollLeftValues[0] > 0, `expected active horizontal movement: ${JSON.stringify(result)}`);
+	assert.equal(new Set(result.rowScrollLeftValues).size, 1, `expected all rows to share one active offset: ${JSON.stringify(result)}`);
+	assert.equal(result.noteScrollLeft, 0, `expected note horizontal scroll to remain zero: ${JSON.stringify(result)}`);
+	assert.equal(result.documentScrollLeft, 0, `expected document horizontal scroll to remain zero: ${JSON.stringify(result)}`);
 });
 
 Then('the Live Preview code text should remain visible inside the code block', async () => {
