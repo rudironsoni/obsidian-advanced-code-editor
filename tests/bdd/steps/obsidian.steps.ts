@@ -172,7 +172,7 @@ Then('the language-less code block should use Advanced Code Editor in {word}', a
 	if (mode === 'reading') {
 		assert.equal(state.stockReadingPreCount, 0, `expected no stock Reading mode code block: ${JSON.stringify(state)}`);
 	} else {
-		assert.equal(state.fenceLineCount, 2, `expected plugin-owned Live Preview fence rows: ${JSON.stringify(state)}`);
+		assert.equal(state.fenceLineCount, 0, `expected the rendered Live Preview widget to hide raw fence rows: ${JSON.stringify(state)}`);
 	}
 	mkdirSync(artifactDir, { recursive: true });
 	await browser.saveScreenshot(path.join(artifactDir, `language-less-code-block-${mode}-${state.isMobile ? 'mobile' : 'desktop'}.png`));
@@ -184,7 +184,7 @@ Then('all three language-less code blocks should use Advanced Code Editor in Liv
 	assert.equal(state.headerCount, 3, `expected three Advanced Code Editor headers: ${JSON.stringify(state)}`);
 	assert.deepEqual(state.languageLabels, ['text', 'text', 'text'], `expected three TEXT labels: ${JSON.stringify(state)}`);
 	assert.equal(state.copyControlCount, 3, `expected three copy controls: ${JSON.stringify(state)}`);
-	assert.ok(state.fenceLineCount >= 5, `expected every visible fence row to be plugin-owned: ${JSON.stringify(state)}`);
+	assert.equal(state.fenceLineCount, 0, `expected rendered Live Preview widgets to hide raw fence rows: ${JSON.stringify(state)}`);
 	assert.ok(state.codeLineCount >= 8, `expected every visible source row to be plugin-owned: ${JSON.stringify(state)}`);
 	mkdirSync(artifactDir, { recursive: true });
 	await browser.saveScreenshot(path.join(artifactDir, `multiple-language-less-live-preview-${state.isMobile ? 'mobile' : 'desktop'}.png`));
@@ -725,8 +725,8 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 		`expected Live Preview block line numbers to match Reading mode: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`,
 	);
 	assert.ok(
-		livePreviewBlock.nativeBlockGutterCount > 0,
-		`expected native editor gutter to remain visible over the Live Preview code block: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`,
+		livePreview.sourceNativeGutterCount > 0,
+		`expected native editor gutter to remain visible: ${JSON.stringify(lastHorizontalScrollLineNumberLayout)}`,
 	);
 	assert.ok(
 		livePreviewBlock.gutterToCodeGap !== null && readingBlock.gutterToCodeGap !== null,
@@ -754,16 +754,6 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 		livePreviewBlock.gutterBorderRightColor,
 		readingBlock.gutterBorderRightColor,
 		`expected Live Preview gutter separator color to match Reading mode: ${layoutJson}`,
-	);
-	assert.equal(
-		livePreviewBlock.gutterMaskBorderLeftWidth,
-		readingBlock.gutterBorderRightWidth,
-		`expected Live Preview gutter mask to preserve the separator width: ${layoutJson}`,
-	);
-	assert.equal(
-		livePreviewBlock.gutterMaskBorderLeftColor,
-		readingBlock.gutterBorderRightColor,
-		`expected Live Preview gutter mask to preserve the separator color: ${layoutJson}`,
 	);
 	assertPixelClose(livePreviewBlock.gutterWidth, readingBlock.gutterWidth, 'line-number gutter width');
 	assertPixelClose(
@@ -796,11 +786,8 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 			livePreviewBlock.rowMaxVerticalGap <= livePreviewBlock.rowVerticalOverpaint + 0.5,
 		`expected Live Preview code rows to paint continuously across blank lines: ${layoutJson}`,
 	);
-	assert.ok(
-		livePreviewBlock.gutterMarginRight !== null && Number.parseFloat(livePreviewBlock.gutterMarginRight) === readingBlock.gutterToCodeGap,
-		`expected Live Preview gutter margin to equal Reading mode code gap: ${layoutJson}`,
-	);
-	assert.equal(livePreviewBlock.gutterJustifyContent, 'flex-end', `expected Live Preview line numbers to align to the gutter edge: ${layoutJson}`);
+	assertStyleEqual(livePreviewBlock.gutterMarginRight, readingBlock.gutterMarginRight, 'line-number gutter right margin');
+	assertStyleEqual(livePreviewBlock.gutterJustifyContent, readingBlock.gutterJustifyContent, 'line-number gutter alignment');
 	const liveHeader = {
 		right: livePreviewBlock.headerRight,
 		height: livePreviewBlock.headerHeight,
@@ -822,39 +809,14 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	assert.equal(livePreviewBlock.headerDisplay, 'flex', `expected Live Preview block header to use flex layout: ${layoutJson}`);
 	assert.equal(livePreviewBlock.headerFlexDirection, 'row', `expected Live Preview block header to use row layout: ${layoutJson}`);
 	assert.equal(
-		livePreviewBlock.headerBorderTopWidth,
+		livePreviewBlock.rootBorderTopWidth,
 		readingBlock.rootBorderTopWidth,
-		`expected Live Preview header top border width to match Reading mode block: ${layoutJson}`,
+		`expected Live Preview block top border width to match Reading mode: ${layoutJson}`,
 	);
 	assert.equal(
-		livePreviewBlock.headerBorderTopColor,
+		livePreviewBlock.rootBorderTopColor,
 		readingBlock.rootBorderTopColor,
-		`expected Live Preview header border color to match Reading mode block: ${layoutJson}`,
-	);
-	assert.equal(
-		livePreviewBlock.headerBorderLeftWidth,
-		readingBlock.rootBorderTopWidth,
-		`expected Live Preview header left border to be visible: ${layoutJson}`,
-	);
-	assert.equal(
-		livePreviewBlock.headerBorderRightWidth,
-		readingBlock.rootBorderTopWidth,
-		`expected Live Preview header right border to be visible: ${layoutJson}`,
-	);
-	assert.equal(
-		livePreviewBlock.rowBorderLeftWidth,
-		readingBlock.rootBorderTopWidth,
-		`expected Live Preview row left border to continue the block shell: ${layoutJson}`,
-	);
-	assert.equal(
-		livePreviewBlock.rowBorderRightWidth,
-		readingBlock.rootBorderTopWidth,
-		`expected Live Preview row right border to continue the block shell: ${layoutJson}`,
-	);
-	assert.equal(
-		livePreviewBlock.rowBorderRightColor,
-		readingBlock.rootBorderTopColor,
-		`expected Live Preview row border color to match Reading mode block: ${layoutJson}`,
+		`expected Live Preview block border color to match Reading mode: ${layoutJson}`,
 	);
 	if (
 		liveHeader.right === null ||
@@ -876,14 +838,6 @@ Then('the Live Preview code block line-number gutter should match Reading mode',
 	}
 	assert.ok(Math.abs(liveHeader.height - readingHeader.height) <= 2, `expected Live Preview block header height to match Reading mode: ${layoutJson}`);
 	assert.ok(Math.abs(liveHeader.right - readingHeader.right) <= 2, `expected Live Preview block header right edge to match Reading mode: ${layoutJson}`);
-	assert.ok(
-		livePreviewBlock.rowLeft !== null && livePreviewBlock.headerLeft !== null && Math.abs(livePreviewBlock.rowLeft - livePreviewBlock.headerLeft) <= 1,
-		`expected Live Preview row left edge to align with header left edge: ${layoutJson}`,
-	);
-	assert.ok(
-		livePreviewBlock.rowRight !== null && livePreviewBlock.headerRight !== null && Math.abs(livePreviewBlock.rowRight - livePreviewBlock.headerRight) <= 1,
-		`expected Live Preview row right edge to align with header right edge: ${layoutJson}`,
-	);
 	assert.ok(
 		Math.abs(liveHeader.copyRight - liveHeader.right - (readingHeader.copyRight - readingHeader.right)) <= 2,
 		`expected Live Preview Copy button right padding to match Reading mode: ${layoutJson}`,
@@ -989,12 +943,13 @@ async function currentHorizontalScrollState(label: string): Promise<HorizontalSc
 }
 
 function assertLivePreviewBlockUsesSharedRowScroll(state: HorizontalScrollState, block: HorizontalScrollState['blocks'][number]): void {
-	if (block.scrollbarCount > 0) {
-		assert.equal(block.scrollOwnerCount, 1, `expected mounted Live Preview scrollbar to own block scroll: ${JSON.stringify(state)}`);
-	}
-	assert.ok(block.rowScrollSurfaceCount > 0, `expected Live Preview block to expose horizontal scroll surfaces: ${JSON.stringify(state)}`);
-	assert.ok(Math.abs(block.rowScrollLeftMin - block.scrollLeft) <= 1, `expected Live Preview rows to share the block scrollLeft: ${JSON.stringify(state)}`);
-	assert.ok(Math.abs(block.rowScrollLeftMax - block.scrollLeft) <= 1, `expected Live Preview rows to share the block scrollLeft: ${JSON.stringify(state)}`);
+	assert.equal(block.scrollbarCount, 1, `expected one native Live Preview scroll surface: ${JSON.stringify(state)}`);
+	assert.equal(block.scrollOwnerCount, 1, `expected one native Live Preview scroll owner: ${JSON.stringify(state)}`);
+	assert.equal(block.rowScrollSurfaceCount, 0, `expected no row-level Live Preview scroll surfaces: ${JSON.stringify(state)}`);
+	assert.ok(
+		block.rowScrollLeftValues.every(value => value === 0),
+		`expected rows not to own scrollLeft: ${JSON.stringify(state)}`,
+	);
 	assert.ok(block.livePreviewContentCount > 0, `expected Live Preview code content marks to be measurable: ${JSON.stringify(state)}`);
 	assert.ok(block.visibleCodeContentCount > 0, `expected Live Preview code content to keep a visible clipped rect: ${JSON.stringify(state)}`);
 	assert.ok(block.hitTestableCodeContentCount > 0, `expected Live Preview code content to remain hit-testable after scroll: ${JSON.stringify(state)}`);
@@ -1002,21 +957,12 @@ function assertLivePreviewBlockUsesSharedRowScroll(state: HorizontalScrollState,
 	assert.equal(block.overflowingCodeGlyphCount, 0, `expected Live Preview code glyphs not to escape the block clip rect: ${JSON.stringify(state)}`);
 	assert.equal(block.transparentCodeContentCount, 0, `expected Live Preview code content not to become transparent after scroll: ${JSON.stringify(state)}`);
 	assert.equal(block.gutterMasksScrolledContent, true, `expected Live Preview gutter to mask scrolled code content: ${JSON.stringify(state)}`);
-	if (block.hasShortLineContent) {
-		assert.notEqual(block.shortLineRowScrollLeft, null, `expected short Live Preview row to expose block scroll: ${JSON.stringify(state)}`);
-		assert.ok(
-			Math.abs((block.shortLineRowScrollLeft ?? 0) - block.scrollLeft) <= 1,
-			`expected short Live Preview row to move with the whole block: ${JSON.stringify(state)}`,
-		);
-	}
+	assert.equal(block.livePreviewContentTranslateXSpread, 0, `expected all rendered lines to share the native owner: ${JSON.stringify(state)}`);
 }
 
 function assertLivePreviewCodeTextVisible(state: HorizontalScrollState, block: HorizontalScrollState['blocks'][number]): void {
-	assert.ok(block.rowScrollSurfaceCount > 0, `expected Live Preview block to expose horizontal scroll surfaces: ${JSON.stringify(state)}`);
-	assert.ok(
-		Math.abs(block.rowScrollLeftMin - block.rowScrollLeftMax) <= 1,
-		`expected Live Preview rows not to keep independent native scroll offsets: ${JSON.stringify(state)}`,
-	);
+	assert.equal(block.scrollOwnerCount, 1, `expected one native Live Preview scroll owner: ${JSON.stringify(state)}`);
+	assert.equal(block.rowScrollSurfaceCount, 0, `expected no row-level Live Preview scroll surfaces: ${JSON.stringify(state)}`);
 	assert.ok(block.livePreviewContentCount > 0, `expected Live Preview code content marks to be measurable: ${JSON.stringify(state)}`);
 	assert.ok(block.livePreviewContentTranslateXSpread <= 1, `expected Live Preview code content to share one visual offset: ${JSON.stringify(state)}`);
 	assert.ok(block.visibleCodeContentCount > 0, `expected Live Preview code content to keep a visible clipped rect: ${JSON.stringify(state)}`);
@@ -1025,13 +971,6 @@ function assertLivePreviewCodeTextVisible(state: HorizontalScrollState, block: H
 	assert.equal(block.overflowingCodeGlyphCount, 0, `expected Live Preview code glyphs not to escape the block clip rect: ${JSON.stringify(state)}`);
 	assert.equal(block.transparentCodeContentCount, 0, `expected Live Preview code content not to become transparent: ${JSON.stringify(state)}`);
 	assert.equal(block.gutterMasksScrolledContent, true, `expected Live Preview gutter to mask scrolled code content: ${JSON.stringify(state)}`);
-	if (block.hasShortLineContent) {
-		assert.notEqual(block.shortLineRowScrollLeft, null, `expected short Live Preview row to expose block scroll: ${JSON.stringify(state)}`);
-		assert.ok(
-			Math.abs((block.shortLineRowScrollLeft ?? 0) - block.rowScrollLeftMax) <= 1,
-			`expected short Live Preview row not to drift from the block rows: ${JSON.stringify(state)}`,
-		);
-	}
 }
 
 function compactSyntaxText(text: string): string {

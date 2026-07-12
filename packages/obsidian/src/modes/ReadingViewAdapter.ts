@@ -109,20 +109,20 @@ export class ReadingViewAdapter {
 			this.syncHeader(existingHeader, state, doc);
 		}
 		if (existingBody) {
+			existingBody.classList.add('shiki-block-horizontal-scrollbar');
 			existingBody.dataset.shikiBlockId = state.block.id;
-			existingBody.dataset.shikiScrollOwner = 'false';
+			existingBody.dataset.shikiScrollOwner = this.plugin.loadedSettings.wrapLines ? 'false' : 'true';
+			if (this.plugin.loadedSettings.wrapLines) existingBody.dataset.shikiScrollDisabled = 'true';
+			else delete existingBody.dataset.shikiScrollDisabled;
 		}
 		const existingScroll = existingBody?.querySelector<HTMLElement>(':scope > .shiki-code-scroll');
 		if (existingScroll) {
-			existingScroll.classList.add('shiki-block-horizontal-scrollbar');
 			existingScroll.dataset.shikiBlockId = state.block.id;
-			existingScroll.dataset.shikiScrollOwner = 'true';
+			existingScroll.dataset.shikiScrollOwner = 'false';
 			if (this.plugin.loadedSettings.wrapLines) {
-				existingScroll.dataset.shikiScrollDisabled = 'true';
 				pre.style.whiteSpace = '';
 				codeElement.style.whiteSpace = '';
 			} else {
-				delete existingScroll.dataset.shikiScrollDisabled;
 				pre.style.whiteSpace = 'pre';
 				codeElement.style.whiteSpace = 'pre';
 			}
@@ -142,15 +142,13 @@ export class ReadingViewAdapter {
 		this.syncHeader(header, state, doc);
 
 		const body = doc.createElement('div');
-		body.className = 'shiki-block-body';
+		body.className = 'shiki-block-body shiki-block-horizontal-scrollbar';
 		body.dataset.shikiBlockId = state.block.id;
-		body.dataset.shikiScrollOwner = 'false';
-		const scroll = body.createDiv({ cls: 'shiki-code-scroll shiki-block-horizontal-scrollbar' });
+		body.dataset.shikiScrollOwner = this.plugin.loadedSettings.wrapLines ? 'false' : 'true';
+		if (this.plugin.loadedSettings.wrapLines) body.dataset.shikiScrollDisabled = 'true';
+		const scroll = body.createDiv({ cls: 'shiki-code-scroll' });
 		scroll.dataset.shikiBlockId = state.block.id;
-		scroll.dataset.shikiScrollOwner = 'true';
-		if (this.plugin.loadedSettings.wrapLines) {
-			scroll.dataset.shikiScrollDisabled = 'true';
-		}
+		scroll.dataset.shikiScrollOwner = 'false';
 		pre.remove();
 		if (container !== wrapper && container !== pre && container.childElementCount === 0 && container.textContent?.trim() === '') {
 			container.remove();

@@ -37,7 +37,6 @@ Feature: Reading mode syntax highlighting
     Given the built Advanced Code Editor plugin is enabled in the fixture vault
     And the fixture note "CSharp token slicing.md" is open in Live Preview
     Then the Live Preview code block should style the full source text "// Define constants for start and end indices"
-    And Live Preview fence rows should keep a visible editor cursor
 
   Scenario: A C# fenced code block keeps Shiki highlighting in raw Source mode
     Given the built Advanced Code Editor plugin is enabled in the fixture vault

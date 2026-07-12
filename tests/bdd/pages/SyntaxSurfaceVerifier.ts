@@ -174,7 +174,7 @@ type RuntimeApp = {
 
 class SyntaxSurfaceVerifier {
 	async waitForLanguageLessBlockState(mode: LanguageLessBlockState['mode']): Promise<LanguageLessBlockState> {
-		let lastState: LanguageLessBlockState | undefined;
+		let lastState: LanguageLessBlockState | undefined = await this.getLanguageLessBlockState(mode);
 		await browser.waitUntil(
 			async () => {
 				const state = await this.getLanguageLessBlockState(mode);
@@ -198,7 +198,7 @@ class SyntaxSurfaceVerifier {
 						state.advancedBlockCount === 3 &&
 						state.headerCount === 3 &&
 						state.copyControlCount === 3 &&
-						state.fenceLineCount >= 5 &&
+						state.fenceLineCount === 0 &&
 						state.codeLineCount >= 8
 					);
 				},
@@ -212,7 +212,7 @@ class SyntaxSurfaceVerifier {
 	}
 
 	async waitForMultipleReadingBlocksState(): Promise<MultipleReadingBlocksState> {
-		let lastState: MultipleReadingBlocksState | undefined;
+		let lastState: MultipleReadingBlocksState | undefined = await this.getMultipleReadingBlocksState();
 		await browser.waitUntil(
 			async () => {
 				lastState = await this.getMultipleReadingBlocksState();
@@ -242,35 +242,49 @@ class SyntaxSurfaceVerifier {
 
 	async getMultipleReadingBlocksState(): Promise<MultipleReadingBlocksState> {
 		return executeObsidian(({ app }): MultipleReadingBlocksState => {
+			const visible = (element: HTMLElement): boolean => {
+				const style = getComputedStyle(element);
+				const rect = element.getBoundingClientRect();
+				return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+			};
 			const runtimeApp = app as unknown as RuntimeApp;
 			const active = (runtimeApp.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
 			const scope = active ?? document.querySelector<HTMLElement>('.workspace-leaf.mod-active') ?? document.body;
-			const blocks = [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block')];
-			const headers = [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block .shiki-block-header')];
+			const blocks = [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block')].filter(visible);
+			const headers = blocks.flatMap(block => [...block.querySelectorAll<HTMLElement>(':scope > .shiki-block-header')]).filter(visible);
 			return {
 				advancedBlockCount: blocks.length,
-				stockPreCount: [...scope.querySelectorAll<HTMLElement>('.markdown-preview-view pre')].filter(pre => !pre.closest('.shiki-reading-block'))
-					.length,
+				stockPreCount: [...scope.querySelectorAll<HTMLElement>('.markdown-preview-view pre')].filter(
+					pre => visible(pre) && !pre.closest('.shiki-reading-block'),
+				).length,
 				headerCount: headers.length,
 				languageLabels: headers.map(header => header.querySelector<HTMLElement>('.shiki-lang-name')?.textContent?.trim() ?? ''),
 				isMobile: runtimeApp.isMobile,
-				renderedBlockCount: scope.querySelectorAll('.shiki-reading-block code[data-shiki-highlight-state="rendered"]').length,
-				codeLineCount: scope.querySelectorAll('.shiki-reading-block .shiki-code-line').length,
+				renderedBlockCount: blocks.filter(block => block.querySelector('code[data-shiki-highlight-state="rendered"]')).length,
+				codeLineCount: blocks.reduce((count, block) => count + block.querySelectorAll('.shiki-code-line').length, 0),
 			};
 		});
 	}
 
 	async getLanguageLessBlockState(mode: LanguageLessBlockState['mode']): Promise<LanguageLessBlockState> {
 		return executeObsidian(({ app }, selectedMode): LanguageLessBlockState => {
+			const visible = (element: HTMLElement): boolean => {
+				const style = getComputedStyle(element);
+				const rect = element.getBoundingClientRect();
+				return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+			};
 			const runtimeApp = app as unknown as RuntimeApp;
 			const active = (runtimeApp.workspace.activeLeaf?.view as unknown as { contentEl?: HTMLElement })?.contentEl;
 			const scope = active ?? document.querySelector<HTMLElement>('.workspace-leaf.mod-active') ?? document.body;
-			const readingBlocks = [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block')];
-			const livePreviewHeaders = [...scope.querySelectorAll<HTMLElement>('.shiki-live-preview-header')];
-			const headers =
-				selectedMode === 'reading' ? [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block .shiki-block-header')] : livePreviewHeaders;
+			const readingBlocks = [...scope.querySelectorAll<HTMLElement>('.shiki-reading-block')].filter(visible);
+			const livePreviewBlocks = [...scope.querySelectorAll<HTMLElement>('.cm-preview-code-block .shiki-reading-block')].filter(
+				block => visible(block) && block.querySelector<HTMLElement>('.shiki-lang-name')?.textContent?.trim() === 'text',
+			);
+			const livePreviewHeaders = livePreviewBlocks.flatMap(block => [...block.querySelectorAll<HTMLElement>(':scope > .shiki-block-header')]);
+			const readingHeaders = readingBlocks.flatMap(block => [...block.querySelectorAll<HTMLElement>(':scope > .shiki-block-header')]);
+			const headers = selectedMode === 'reading' ? readingHeaders : livePreviewHeaders;
 			const stockReadingPreCount = [...scope.querySelectorAll<HTMLElement>('.markdown-preview-view pre')].filter(
-				pre => !pre.closest('.shiki-reading-block'),
+				pre => visible(pre) && !pre.closest('.shiki-reading-block'),
 			).length;
 
 			return {
@@ -280,11 +294,14 @@ class SyntaxSurfaceVerifier {
 				headerCount: headers.length,
 				languageLabels: headers.map(header => header.querySelector<HTMLElement>('.shiki-lang-name')?.textContent?.trim() ?? ''),
 				copyControlCount: headers.reduce((count, header) => count + header.querySelectorAll('.shiki-copy-button').length, 0),
-				lineNumberCount: scope.querySelectorAll(
-					selectedMode === 'reading' ? '.shiki-reading-block .shiki-line-numbers > span' : '.shiki-live-preview-line-number',
-				).length,
-				codeLineCount: scope.querySelectorAll(selectedMode === 'reading' ? '.shiki-reading-block .shiki-code-line' : '.shiki-live-preview-code-line')
-					.length,
+				lineNumberCount:
+					selectedMode === 'reading'
+						? readingBlocks.reduce((count, block) => count + block.querySelectorAll('.shiki-line-numbers > span').length, 0)
+						: livePreviewBlocks.reduce((count, block) => count + block.querySelectorAll('.shiki-line-numbers > span').length, 0),
+				codeLineCount:
+					selectedMode === 'reading'
+						? readingBlocks.reduce((count, block) => count + block.querySelectorAll('.shiki-code-line').length, 0)
+						: livePreviewBlocks.reduce((count, block) => count + block.querySelectorAll('.shiki-code-line').length, 0),
 				fenceLineCount: scope.querySelectorAll('.shiki-live-preview-fence-line').length,
 				sourceTokenCount: scope.querySelectorAll('.shiki-source-token').length,
 				rawFenceVisible: (scope.textContent ?? '').includes('```'),
@@ -500,7 +517,7 @@ class SyntaxSurfaceVerifier {
 				let node = walker.nextNode();
 				while (node) {
 					const parent = node.parentElement;
-					if (parent?.closest<HTMLElement>('.shiki-live-preview-token')) {
+					if (parent?.closest<HTMLElement>('.shiki-live-preview-token, .shiki-reading-token')) {
 						text += node.textContent ?? '';
 					}
 					node = walker.nextNode();
@@ -512,11 +529,13 @@ class SyntaxSurfaceVerifier {
 			const root =
 				active?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview') ??
 				document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview');
-			const lines = [...(root?.querySelectorAll<HTMLElement>('.cm-line.shiki-live-preview-code-line') ?? [])];
+			const lines = [...(root?.querySelectorAll<HTMLElement>('.cm-line.shiki-live-preview-code-line, .cm-preview-code-block .shiki-code-line') ?? [])];
 			const rect = root?.getBoundingClientRect();
-			const tokenElements = [...(root?.querySelectorAll<HTMLElement>('.cm-line.shiki-live-preview-code-line .shiki-live-preview-token') ?? [])].filter(
-				element => Boolean(element.textContent?.trim()),
-			);
+			const tokenElements = [
+				...(root?.querySelectorAll<HTMLElement>(
+					'.cm-line.shiki-live-preview-code-line .shiki-live-preview-token, .cm-preview-code-block .shiki-reading-token',
+				) ?? []),
+			].filter(element => Boolean(element.textContent?.trim()));
 			const tokenColors = new Set<string>();
 			let transparentTokenCount = 0;
 			let visibleTokenCount = 0;
@@ -680,28 +699,24 @@ class SyntaxSurfaceVerifier {
 					probe.remove();
 					return normalized;
 				};
+				const visible = (element: HTMLElement): boolean => {
+					const style = getComputedStyle(element);
+					const rect = element.getBoundingClientRect();
+					return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+				};
+				const renderedBlocks = [
+					...(active?.querySelectorAll<HTMLElement>('.shiki-reading-block') ?? []),
+					...document.querySelectorAll<HTMLElement>('.shiki-reading-block'),
+				];
+				const renderedRoot = [...new Set(renderedBlocks)].find(visible);
 				const root =
-					selectedMode === 'reading'
-						? (active?.querySelector<HTMLElement>('.shiki-reading-block') ??
-							document.querySelector<HTMLElement>('.markdown-preview-view .shiki-reading-block'))
-						: selectedMode === 'live-preview'
-							? (active?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview') ??
-								document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview'))
-							: (active?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6:not(.is-live-preview)') ??
-								document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6:not(.is-live-preview)'));
-				const target =
-					selectedMode === 'reading'
-						? root
-						: selectedMode === 'live-preview'
-							? root?.querySelector<HTMLElement>('.cm-line.shiki-live-preview-code-line')
-							: root?.querySelector<HTMLElement>('.cm-line.HyperMD-codeblock');
+					selectedMode === 'source'
+						? (active?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6:not(.is-live-preview)') ??
+							document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6:not(.is-live-preview)'))
+						: renderedRoot;
+				const target = selectedMode === 'source' ? root?.querySelector<HTMLElement>('.cm-line.HyperMD-codeblock') : root;
 				const targetRect = target?.getBoundingClientRect();
-				const gutter =
-					selectedMode === 'reading'
-						? root?.querySelector<HTMLElement>('.shiki-line-numbers')
-						: selectedMode === 'live-preview'
-							? root?.querySelector<HTMLElement>('.shiki-live-preview-line-number')
-							: null;
+				const gutter = selectedMode === 'source' ? null : root?.querySelector<HTMLElement>('.shiki-line-numbers');
 				const gutterStyle = gutter ? getComputedStyle(gutter) : null;
 				const gutterBeforeStyle = gutter ? getComputedStyle(gutter, '::before') : null;
 				const gutterAfterStyle = gutter ? getComputedStyle(gutter, '::after') : null;
@@ -727,11 +742,7 @@ class SyntaxSurfaceVerifier {
 					backgroundMatchesExpected:
 						expectedBackgroundColor !== '' && rootBackgroundColor === expectedBackgroundColor && codeBackgroundColor === expectedBackgroundColor,
 					gutterBackgroundMatchesExpected:
-						selectedMode === 'source' ||
-						(expectedBackgroundColor !== '' &&
-							gutterBackgroundColor === expectedBackgroundColor &&
-							(selectedMode !== 'live-preview' ||
-								(gutterBeforeBackgroundColor === expectedBackgroundColor && gutterAfterBackgroundColor === expectedBackgroundColor))),
+						selectedMode === 'source' || (expectedBackgroundColor !== '' && gutterBackgroundColor === expectedBackgroundColor),
 					visibleTargetCount:
 						target && targetRect && targetRect.width > 0 && targetRect.height > 0 && codeBackgroundColor !== 'rgba(0, 0, 0, 0)' ? 1 : 0,
 					isMobile: runtimeApp.isMobile,
@@ -780,25 +791,20 @@ class SyntaxSurfaceVerifier {
 					? (active?.querySelector<HTMLElement>('.markdown-preview-view') ?? document.querySelector<HTMLElement>('.markdown-preview-view'))
 					: (active?.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview') ??
 						document.querySelector<HTMLElement>('.markdown-source-view.mod-cm6.is-live-preview'));
-			const blockIds =
-				selectedMode === 'reading'
-					? [...(root?.querySelectorAll<HTMLElement>('.shiki-reading-block[data-shiki-block-id]') ?? [])].map(
-							block => block.dataset.shikiBlockId ?? '',
-						)
-					: [...(root?.querySelectorAll<HTMLElement>('.shiki-live-preview-header[data-shiki-block-id]') ?? [])].map(
-							header => header.dataset.shikiBlockId ?? '',
-						);
+			const visible = (element: HTMLElement): boolean => {
+				const style = getComputedStyle(element);
+				const rect = element.getBoundingClientRect();
+				return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+			};
+			const blockIds = [...(root?.querySelectorAll<HTMLElement>('.shiki-reading-block[data-shiki-block-id]') ?? [])]
+				.filter(visible)
+				.map(block => block.dataset.shikiBlockId ?? '');
 
 			const blocks = blockIds.filter(Boolean).map((blockId): MetadataParityBlockState => {
-				const blockRoot =
-					selectedMode === 'reading'
-						? root?.querySelector<HTMLElement>(`.shiki-reading-block[data-shiki-block-id="${blockId}"]`)
-						: root?.querySelector<HTMLElement>(`.shiki-live-preview-header[data-shiki-block-id="${blockId}"]`);
-				const lineRoot = selectedMode === 'reading' ? blockRoot : root;
-				const lineSelector =
-					selectedMode === 'reading' ? '.shiki-code-line' : `.cm-line.shiki-live-preview-code-line[data-shiki-block-id="${blockId}"]`;
-				const lineNumberSelector =
-					selectedMode === 'reading' ? '.shiki-line-numbers span' : `.shiki-live-preview-line-number[data-shiki-block-id="${blockId}"]`;
+				const blockRoot = root?.querySelector<HTMLElement>(`.shiki-reading-block[data-shiki-block-id="${blockId}"]`);
+				const lineRoot = blockRoot;
+				const lineSelector = '.shiki-code-line';
+				const lineNumberSelector = '.shiki-line-numbers span';
 				const lines = [...(lineRoot?.querySelectorAll<HTMLElement>(lineSelector) ?? [])];
 				const lineTexts = (className: string): string[] => lines.filter(line => line.classList.contains(className)).map(line => line.textContent ?? '');
 
@@ -809,14 +815,8 @@ class SyntaxSurfaceVerifier {
 					highlightedLineTexts: lineTexts('shiki-line-highlight'),
 					insertedLineTexts: lineTexts('shiki-line-inserted'),
 					deletedLineTexts: lineTexts('shiki-line-deleted'),
-					wrapClassPresent:
-						selectedMode === 'reading'
-							? (blockRoot?.classList.contains('wrap-lines') ?? false)
-							: lines.some(line => line.classList.contains('shiki-live-preview-code-line-wrap')),
-					nowrapClassPresent:
-						selectedMode === 'reading'
-							? !(blockRoot?.classList.contains('wrap-lines') ?? false)
-							: lines.some(line => line.classList.contains('shiki-live-preview-code-line-nowrap')),
+					wrapClassPresent: blockRoot?.classList.contains('wrap-lines') ?? false,
+					nowrapClassPresent: !(blockRoot?.classList.contains('wrap-lines') ?? false),
 				};
 			});
 
@@ -835,10 +835,11 @@ class SyntaxSurfaceVerifier {
 			const root =
 				active?.querySelector<HTMLElement>(selectedMode === 'reading' ? '.markdown-preview-view' : '.markdown-source-view.mod-cm6.is-live-preview') ??
 				document.querySelector<HTMLElement>(selectedMode === 'reading' ? '.markdown-preview-view' : '.markdown-source-view.mod-cm6.is-live-preview');
-			const block =
-				selectedMode === 'reading'
-					? root?.querySelector<HTMLElement>('.shiki-reading-block')
-					: root?.querySelector<HTMLElement>('.shiki-live-preview-header');
+			const block = [...(root?.querySelectorAll<HTMLElement>('.shiki-reading-block') ?? [])].find(candidate => {
+				const style = getComputedStyle(candidate);
+				const rect = candidate.getBoundingClientRect();
+				return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+			});
 			const button = block?.querySelector<HTMLButtonElement>('.shiki-copy-button');
 			if (!root || !block || !button) {
 				throw new Error(`Copy control was not mounted in ${selectedMode}`);

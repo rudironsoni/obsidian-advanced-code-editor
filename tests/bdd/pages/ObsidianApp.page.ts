@@ -147,6 +147,8 @@ class ObsidianAppPage {
 			const leaf = app.workspace.getLeaf(true);
 			await leaf.openFile(file, { active: true });
 			await leaf.setViewState({ type: 'markdown', state: { file: notePath, mode: 'source', source: false }, active: true }, { history: false });
+			const editor = (leaf.view as unknown as { editor?: { setCursor(cursor: { line: number; ch: number }): void } }).editor;
+			editor?.setCursor({ line: 0, ch: 0 });
 		}, path);
 	}
 

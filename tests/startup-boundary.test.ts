@@ -170,6 +170,7 @@ describe('startup module boundary', () => {
 		expect(structure).toContain('shiki-live-preview-fence-line');
 		expect(structure).toContain('SHIKI_LIVE_PREVIEW_FENCE_TEXT_CLASS');
 		expect(structure).toContain('ShikiLivePreviewHeaderWidget');
+		expect(structure).toContain('selectionHead >= block.fenceFrom');
 		expect(structure).toContain('ShikiLivePreviewLineNumberWidget');
 		expect(structure).not.toContain('isBlockSelected');
 		expect(structure).not.toContain('shiki-note-line-numbers');

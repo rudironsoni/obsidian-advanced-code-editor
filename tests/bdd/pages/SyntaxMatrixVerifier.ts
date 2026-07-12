@@ -259,8 +259,10 @@ export class SyntaxMatrixVerifier {
 					}
 
 					const lineSelector =
-						input.mode === 'live-preview' ? '.cm-line.shiki-live-preview-code-line' : '.cm-line.HyperMD-codeblock, .HyperMD-codeblock';
-					const tokenSelector = input.mode === 'live-preview' ? '.shiki-live-preview-token' : '.shiki-source-token';
+						input.mode === 'live-preview'
+							? '.cm-line.shiki-live-preview-code-line, .cm-preview-code-block .shiki-code-line'
+							: '.cm-line.HyperMD-codeblock, .HyperMD-codeblock';
+					const tokenSelector = input.mode === 'live-preview' ? '.shiki-live-preview-token, .shiki-reading-token' : '.shiki-source-token';
 					const lines = [...scope.querySelectorAll<HTMLElement>(lineSelector)];
 					const line = lines.find(candidate => normalizeText(candidate.textContent ?? '').includes(normalizeText(probe.lineText)));
 					const tokens = [...(line?.querySelectorAll<HTMLElement>(tokenSelector) ?? [])].filter(token => Boolean(token.textContent?.trim()));

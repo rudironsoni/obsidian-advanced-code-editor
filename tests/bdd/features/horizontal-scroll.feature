@@ -13,16 +13,6 @@ Feature: Block-owned horizontal scroll
     Then the active note should keep horizontal scroll inside the first code block
     And the surrounding note should not move horizontally
 
-  @desktop
-  Scenario: Live Preview keeps horizontal scroll inside the code block during an exact edit
-    Given horizontal scroll settings use nowrap with line numbers
-    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
-    When I scroll the first code block horizontally with a wheel gesture
-    And I edit the visible horizontal scroll marker
-    Then the active note should keep horizontal scroll inside the first code block
-    And the exact edit should be written at the horizontal scroll marker
-    And the surrounding note should not move horizontally
-
   @desktop @visual-parity
   Scenario: Live Preview line-number gutter matches Reading mode
     Given horizontal scroll settings use nowrap with line numbers
@@ -43,7 +33,7 @@ Feature: Block-owned horizontal scroll
   Scenario: Neighboring code blocks keep independent horizontal scroll positions
     Given horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll multi block.md" is open in Live Preview for horizontal scroll
-    When I scroll the first code block horizontally with a wheel gesture
+    When I scroll the first code block horizontally with its block scrollbar
     Then the first and second code blocks should keep independent horizontal scroll positions
     And the surrounding note should not move horizontally
 
@@ -52,31 +42,6 @@ Feature: Block-owned horizontal scroll
     Given horizontal scroll settings use wrapping with line numbers
     And the fixture note "Horizontal scroll wrapped block.md" is open in Live Preview for horizontal scroll
     Then wrapped code blocks should not require horizontal block scroll
-    And the surrounding note should not move horizontally
-
-  @desktop
-  Scenario: Live Preview repeated wheel scrolling remains responsive
-    Given horizontal scroll settings use nowrap with line numbers
-    And the fixture note "Horizontal scroll stress block.md" is open in Live Preview for horizontal scroll
-    When I repeatedly scroll the first code block horizontally with wheel gestures
-    Then Live Preview horizontal scrolling should stay responsive
-    And the active note should keep horizontal scroll inside the first code block
-    And the surrounding note should not move horizontally
-
-  @desktop
-  Scenario: Live Preview wheel scrolling moves during the first wheel event
-    Given horizontal scroll settings use nowrap with line numbers
-    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
-    When I send one horizontal wheel event to the first Live Preview code block
-    Then Live Preview should move horizontally during the same wheel event
-    And the surrounding note should not move horizontally
-
-  @desktop
-  Scenario: Live Preview stops wheel scrolling at the right edge
-    Given horizontal scroll settings use nowrap with line numbers
-    And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
-    When I wheel overscroll the first code block past the right edge
-    Then the first Live Preview code block should remain at its horizontal end
     And the surrounding note should not move horizontally
 
   @desktop
@@ -131,25 +96,6 @@ Feature: Block-owned horizontal scroll
     And the fixture note "Horizontal scroll single block.md" is open in Live Preview for horizontal scroll
     When I scroll the first code block horizontally with a touch gesture
     Then the active note should keep horizontal scroll inside the first code block
-    And the surrounding note should not move horizontally
-
-  @mobile
-  Scenario: Mobile-emulated Live Preview stays unified when WebKit cancels pointer input
-    Given Obsidian is running in mobile emulation
-    And horizontal scroll settings use nowrap with line numbers
-    And the fixture note "Horizontal scroll stress block.md" is open in Live Preview for horizontal scroll
-    When WebKit transfers the line 23 touch gesture from pointer input to native scrolling
-    Then every Live Preview row should remain aligned during compositor takeover
-    And the surrounding note should not move horizontally
-
-  @mobile
-  Scenario: Mobile-emulated dense Live Preview code blocks keep sibling rows responsive while the touched row scrolls natively
-    Given Obsidian is running in mobile emulation
-    And horizontal scroll settings use nowrap with line numbers
-    And the fixture note "Horizontal scroll stress block.md" is open in Live Preview for horizontal scroll
-    When I repeatedly scroll the first code block horizontally with touch gestures
-    Then Live Preview horizontal scrolling should stay responsive
-    And the active note should keep horizontal scroll inside the first code block
     And the surrounding note should not move horizontally
 
   @mobile

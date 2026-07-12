@@ -102,6 +102,12 @@ export type HorizontalScrollBlockState = {
 	maxScrollLeft: number;
 	clientWidth: number;
 	scrollWidth: number;
+	rootClientWidth: number;
+	rootScrollWidth: number;
+	rootComputedWidth: string;
+	bodyComputedWidth: string | null;
+	bodyComputedMaxWidth: string | null;
+	rootParentClassName: string;
 	headerLeft: number | null;
 	headerRight: number | null;
 	headerWidth: number | null;
@@ -336,11 +342,21 @@ class HorizontalScrollPage {
 				await leaf.openFile(file, { active: true, state: viewState });
 				await leaf.setViewState({ type: 'markdown', state: viewState, active: true }, { history: false });
 				runtimeApp.workspace.setActiveLeaf?.(leaf, { focus: true });
+				if (input.mode === 'live-preview') {
+					leaf.view?.editor?.setCursor({ line: 0, ch: 0 });
+				}
 			},
 			{ path, mode },
 		);
 
 		await this.waitForMode(mode, path);
+		if (mode === 'live-preview') {
+			await executeObsidian(({ app }) => {
+				const runtimeApp = app as unknown as RuntimeApp;
+				runtimeApp.workspace.activeLeaf?.view?.editor?.setCursor({ line: 0, ch: 0 });
+			});
+			await browser.pause(100);
+		}
 	}
 
 	async waitForHorizontalScrollReady(mode: HorizontalScrollMode, expectedBlocks: number, requireOverflow: boolean): Promise<HorizontalScrollState> {
@@ -461,7 +477,7 @@ class HorizontalScrollPage {
 							scrollbar: scrollbars[0] ?? null,
 						};
 					})
-					.filter(entry => entry !== null) as Array<{
+					.filter(entry => entry !== null && (input.mode !== 'live-preview' || entry.body !== null || entry.scrollbar !== null)) as Array<{
 					root: HTMLElement;
 					body: HTMLElement | null;
 					row: HTMLElement | null;
@@ -644,7 +660,7 @@ class HorizontalScrollPage {
 							scrollbar: scrollbars[0] ?? null,
 						};
 					})
-					.filter(entry => entry !== null) as Array<{
+					.filter(entry => entry !== null && (input.mode !== 'live-preview' || entry.body !== null || entry.scrollbar !== null)) as Array<{
 					body: HTMLElement | null;
 					row: HTMLElement | null;
 					scrollbar: HTMLElement | null;
@@ -652,7 +668,7 @@ class HorizontalScrollPage {
 				const block = blocks[input.blockIndex];
 				if (!block) throw new Error(`Code block ${input.blockIndex + 1} was not found`);
 
-				const target = input.mode === 'live-preview' ? (block.row ?? block.scrollbar ?? block.body) : (block.body ?? block.scrollbar ?? block.row);
+				const target = block.body ?? block.scrollbar ?? block.row;
 				if (!target) throw new Error(`Code block ${input.blockIndex + 1} has no touch target`);
 				target.scrollIntoView({ block: 'center', inline: 'nearest' });
 
@@ -678,7 +694,8 @@ class HorizontalScrollPage {
 			{ mode, blockIndex },
 		);
 
-		const allowsNativeHorizontalPan = (touchAction: string): boolean => touchAction === 'manipulation' || touchAction.includes('pan-x');
+		const allowsNativeHorizontalPan = (touchAction: string): boolean =>
+			touchAction === 'auto' || touchAction === 'manipulation' || touchAction.includes('pan-x');
 		if (mode === 'reading') {
 			if (!allowsNativeHorizontalPan(coordinates.touchAction) || !allowsNativeHorizontalPan(coordinates.bodyTouchAction)) {
 				throw new Error(`Expected Reading mode touch ancestors to allow native horizontal pan: ${JSON.stringify(coordinates)}`);
@@ -730,12 +747,12 @@ class HorizontalScrollPage {
 						];
 						return { rows, scrollbar: scrollbars[0] ?? null };
 					})
-					.filter(entry => entry.rows.length > 0)[input.blockIndex];
-				const row = block?.rows[0];
-				if (!row) throw new Error(`Code block ${input.blockIndex + 1} has no native row scroll target`);
+					.filter(entry => entry.scrollbar !== null || entry.rows.length > 0)[input.blockIndex];
+				const target = block?.scrollbar ?? block?.rows[0];
+				if (!target) throw new Error(`Code block ${input.blockIndex + 1} has no native scroll target`);
 
-				row.scrollLeft = Math.max(row.scrollWidth - row.clientWidth, row.clientWidth * 4);
-				row.dispatchEvent(new Event('scroll', { bubbles: true }));
+				target.scrollLeft = Math.max(target.scrollWidth - target.clientWidth, target.clientWidth * 4);
+				target.dispatchEvent(new Event('scroll', { bubbles: true }));
 			},
 			{ mode, blockIndex },
 		);
@@ -1442,8 +1459,7 @@ class HorizontalScrollPage {
 			block.firstLineNumberTextRight !== null &&
 			block.gutterToCodeGap !== null &&
 			block.codeContentLeft !== null &&
-			(state.mode !== 'live-preview' ||
-				(block.nativeBlockGutterCount > 0 && block.rowLeft !== null && block.rowRight !== null && block.gutterMasksScrolledContent))
+			(state.mode !== 'live-preview' || (block.scrollOwnerCount === 1 && block.scrollbarCount === 1))
 		);
 	}
 
@@ -1558,7 +1574,7 @@ class HorizontalScrollPage {
 						return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
 					});
 				const sourceNativeGutterCount =
-					input.mode === 'source' ? visibleElements('.cm-lineNumbers .cm-gutterElement, .cm-gutters .cm-gutterElement').length : 0;
+					input.mode !== 'reading' ? visibleElements('.cm-lineNumbers .cm-gutterElement, .cm-gutters .cm-gutterElement').length : 0;
 				const sourceRenderedBlockChromeCount =
 					input.mode === 'source'
 						? scope.querySelectorAll(
@@ -1578,7 +1594,8 @@ class HorizontalScrollPage {
 					input.mode === 'source' ? scope.querySelectorAll('.shiki-live-preview-line-number, .shiki-line-numbers span').length : 0;
 				const sourceBlockScrollRowCount =
 					input.mode === 'source' ? scope.querySelectorAll('.shiki-block-scroll-row[data-shiki-block-id], .shiki-source-code-line').length : 0;
-				const sourceBlockScrollbarCount = input.mode === 'source' ? scope.querySelectorAll('.shiki-block-horizontal-scrollbar').length : 0;
+				const sourceBlockScrollbarCount =
+					input.mode === 'source' ? scope.querySelectorAll('.shiki-block-body[data-shiki-scroll-owner="true"]').length : 0;
 				const sourceShikiTokenDecorationCount =
 					input.mode === 'source'
 						? scope.querySelectorAll('.cm-line.HyperMD-codeblock .shiki-source-token, .HyperMD-codeblock .shiki-source-token').length
@@ -1600,7 +1617,9 @@ class HorizontalScrollPage {
 
 						const rows = [...scope.querySelectorAll<HTMLElement>(`.shiki-block-scroll-row[data-shiki-block-id="${escapedBlockId}"]`)];
 						const scrollbars = [
-							...scope.querySelectorAll<HTMLElement>(`.shiki-block-horizontal-scrollbar[data-shiki-block-id="${escapedBlockId}"]`),
+							...scope.querySelectorAll<HTMLElement>(
+								`.shiki-block-body[data-shiki-scroll-owner="true"][data-shiki-block-id="${escapedBlockId}"]`,
+							),
 						];
 						const body = rootElement.querySelector<HTMLElement>('.shiki-block-body') ?? null;
 						const blockElements = [...scope.querySelectorAll<HTMLElement>(`[data-shiki-block-id="${escapedBlockId}"]`)];
@@ -1628,7 +1647,7 @@ class HorizontalScrollPage {
 							targets,
 						};
 					})
-					.filter(entry => entry !== null) as Array<{
+					.filter(entry => entry !== null && (input.mode !== 'live-preview' || entry.scrollbars.length > 0 || entry.body !== null)) as Array<{
 					blockId: string;
 					root: HTMLElement;
 					blockElements: HTMLElement[];
@@ -1649,6 +1668,7 @@ class HorizontalScrollPage {
 					const rowScrollLeftValues = block.rows.map(element => element.scrollLeft);
 					const rectProbe = block.code ?? block.row ?? block.body ?? block.scrollbar ?? block.root;
 					const rootStyle = getComputedStyle(block.root);
+					const bodyStyle = block.body ? getComputedStyle(block.body) : null;
 					const rowRect = block.row?.getBoundingClientRect() ?? null;
 					const rowStyle = block.row ? getComputedStyle(block.row) : null;
 					const headerRect = block.header?.getBoundingClientRect() ?? null;
@@ -1658,10 +1678,10 @@ class HorizontalScrollPage {
 					const headerCopyRect = block.header?.querySelector<HTMLElement>('.shiki-copy-button')?.getBoundingClientRect() ?? null;
 					const beforeCodeLeft = block.code?.getBoundingClientRect().left ?? null;
 					const beforeGutterLeft = block.gutter?.getBoundingClientRect().left ?? null;
-					const lineNumbers =
-						input.mode === 'reading'
-							? [...block.root.querySelectorAll<HTMLElement>('.shiki-line-numbers span')]
-							: [...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-line-number[data-shiki-block-id="${CSS.escape(block.blockId)}"]`)];
+					const renderedLineNumbers = [...block.root.querySelectorAll<HTMLElement>('.shiki-line-numbers span')];
+					const lineNumbers = renderedLineNumbers.length
+						? renderedLineNumbers
+						: [...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-line-number[data-shiki-block-id="${CSS.escape(block.blockId)}"]`)];
 					const gutterEdge = block.gutter ?? lineNumbers[0] ?? null;
 					const lineNumberRect = gutterEdge?.getBoundingClientRect() ?? null;
 					const gutterStyle = gutterEdge ? getComputedStyle(gutterEdge) : null;
@@ -1701,9 +1721,12 @@ class HorizontalScrollPage {
 						range.detach();
 						return rect.width > 0 && rect.height > 0 ? rect : null;
 					})();
-					const contentElements = [
+					const livePreviewContentElements = [
 						...scope.querySelectorAll<HTMLElement>(`.shiki-live-preview-code-content[data-shiki-block-id="${CSS.escape(block.blockId)}"]`),
 					];
+					const contentElements = livePreviewContentElements.length
+						? livePreviewContentElements
+						: [...block.root.querySelectorAll<HTMLElement>('.shiki-code-line')];
 					const visualBlockRightCandidates = [
 						block.header?.getBoundingClientRect().right,
 						block.scrollbar?.getBoundingClientRect().right,
@@ -1827,10 +1850,7 @@ class HorizontalScrollPage {
 					const gutterZIndex = parseZIndex(gutterStyle?.zIndex ?? null);
 					const gutterBeforeZIndex = parseZIndex(gutterBeforeStyle?.zIndex ?? null);
 					const gutterAfterZIndex = parseZIndex(gutterAfterStyle?.zIndex ?? null);
-					const codeContent =
-						input.mode === 'reading'
-							? (block.root.querySelector<HTMLElement>('.shiki-code-scroll code') ?? block.code)
-							: (contentElements[0] ?? block.code);
+					const codeContent = block.root.querySelector<HTMLElement>('.shiki-code-scroll code') ?? contentElements[0] ?? block.code;
 					const codeContentLeft = codeContent?.getBoundingClientRect().left ?? null;
 					const contentTranslateXValues = contentElements.map(element => {
 						const transform = getComputedStyle(element).transform;
@@ -1870,14 +1890,9 @@ class HorizontalScrollPage {
 						gutterMasksScrolledContent:
 							input.mode !== 'live-preview' ||
 							(gutterStyle !== null &&
-								gutterBeforeStyle !== null &&
-								gutterAfterStyle !== null &&
+								gutterStyle.position === 'sticky' &&
 								gutterStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
-								gutterBeforeStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
-								gutterAfterStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
-								gutterZIndex > contentZIndex &&
-								gutterBeforeZIndex > contentZIndex &&
-								gutterAfterZIndex > contentZIndex),
+								gutterZIndex > contentZIndex),
 						rowCount: block.rows.length,
 						scrollbarCount: block.scrollbars.length,
 						scrollOwnerCount: block.owners.length,
@@ -1913,6 +1928,12 @@ class HorizontalScrollPage {
 						maxScrollLeft: Math.max(0, ...targets.map(element => element.scrollWidth - element.clientWidth)),
 						clientWidth: rectProbe?.clientWidth ?? 0,
 						scrollWidth: rectProbe?.scrollWidth ?? 0,
+						rootClientWidth: block.root.clientWidth,
+						rootScrollWidth: block.root.scrollWidth,
+						rootComputedWidth: rootStyle.width,
+						bodyComputedWidth: bodyStyle?.width ?? null,
+						bodyComputedMaxWidth: bodyStyle?.maxWidth ?? null,
+						rootParentClassName: block.root.parentElement?.className ?? '',
 						headerLeft: headerRect?.left ?? null,
 						headerRight: headerRect?.right ?? null,
 						headerWidth: headerRect?.width ?? null,

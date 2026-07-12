@@ -7,7 +7,7 @@ import type { InlineCodeBlock } from 'packages/obsidian/src/InlineCodeBlock';
 import { CodeBlockRegistry } from 'packages/obsidian/src/codeblocks/CodeBlockRegistry';
 import { SourceModeTokenizationCache } from 'packages/obsidian/src/runtime/SourceModeTokenizationCache';
 import { getObsidianSafeLanguageNames } from 'packages/obsidian/src/runtime/LanguageMetadata';
-import { DEFAULT_CODE_BLOCK_LANGUAGE } from 'packages/obsidian/src/codeblocks/CodeBlockMeta';
+import { DEFAULT_CODE_BLOCK_LANGUAGE, parseCodeBlockMeta } from 'packages/obsidian/src/codeblocks/CodeBlockMeta';
 import { findReadingCodeElements } from 'packages/obsidian/src/codeblocks/ReadingCodeElementDiscovery';
 import { getActiveTheme } from 'packages/obsidian/src/runtime/ThemeBridge';
 import type { ReadingViewAdapter } from 'packages/obsidian/src/modes/ReadingViewAdapter';
@@ -199,6 +199,22 @@ export default class ShikiPlugin extends Plugin {
 		if (this.unloaded || this.codeBlockProcessorsRegistered) {
 			return;
 		}
+		for (const declaredLanguage of languages) {
+			this.registerMarkdownCodeBlockProcessor(
+				declaredLanguage,
+				(source, el, ctx) => {
+					el.empty();
+					el.dataset.shikiProcessorOwned = 'true';
+					const language = declaredLanguage || DEFAULT_CODE_BLOCK_LANGUAGE;
+					const pre = el.createEl('pre');
+					const code = pre.createEl('code');
+					code.textContent = source;
+					const codeBlock = new CodeBlock(this, el, source, language, ctx);
+					ctx.addChild(codeBlock);
+				},
+				1000,
+			);
+		}
 
 		this.registerMarkdownPostProcessor((el, ctx) => {
 			if (this.unloaded || el.closest('.markdown-source-view')) {
@@ -230,17 +246,21 @@ export default class ShikiPlugin extends Plugin {
 				return wrapper;
 			};
 			for (const codeElement of codeElements) {
-				const className = [...codeElement.classList].find(value => value.startsWith('language-'));
-				const declaredLanguage = className?.slice('language-'.length) ?? '';
-				const language = declaredLanguage || DEFAULT_CODE_BLOCK_LANGUAGE;
-				if (declaredLanguage !== '' && !languages.has(declaredLanguage)) {
-					continue;
-				}
-
 				const pre = codeElement.parentElement;
 				if (!(pre instanceof HTMLElement)) {
 					continue;
 				}
+				if (pre.closest('[data-shiki-processor-owned="true"]')) {
+					continue;
+				}
+				const className = [...codeElement.classList].find(value => value.startsWith('language-'));
+				const sectionInfo = ctx.getSectionInfo(pre.parentElement ?? pre) ?? ctx.getSectionInfo(pre);
+				const fenceMeta = sectionInfo ? parseCodeBlockMeta(sectionInfo.text.split('\n')[sectionInfo.lineStart] ?? '') : null;
+				const declaredLanguage = className?.slice('language-'.length) ?? fenceMeta?.language ?? '';
+				if (declaredLanguage !== '' && !languages.has(declaredLanguage)) {
+					continue;
+				}
+				const language = declaredLanguage || DEFAULT_CODE_BLOCK_LANGUAGE;
 				if (processedPre.has(pre)) {
 					continue;
 				}
@@ -261,21 +281,21 @@ export default class ShikiPlugin extends Plugin {
 				);
 				ctx.addChild(codeBlock);
 			}
-			for (const pre of el.querySelectorAll<HTMLElement>('pre[class*="language-"]')) {
-				const className = [...pre.classList].find(value => value.startsWith('language-'));
-				const language = className?.slice('language-'.length) ?? '';
-				if (language === '' || !languages.has(language) || processedPre.has(pre)) {
-					continue;
-				}
-				if (pre.parentElement?.classList.contains('mod-frontmatter')) {
-					continue;
-				}
-				processedPre.add(pre);
-				const sectionSource = sourceFromSectionInfo(pre, pre.textContent ?? '');
-				const codeBlock = new CodeBlock(this, getBlockContainer(pre), sectionSource.trim() ? sectionSource : (pre.textContent ?? ''), language, ctx);
-				ctx.addChild(codeBlock);
-			}
 		}, 1000);
+
+		this.registerMarkdownCodeBlockProcessor(
+			'',
+			(source, el, ctx) => {
+				el.empty();
+				el.dataset.shikiProcessorOwned = 'true';
+				const pre = el.createEl('pre');
+				const code = pre.createEl('code');
+				code.textContent = source;
+				const codeBlock = new CodeBlock(this, el, source, DEFAULT_CODE_BLOCK_LANGUAGE, ctx);
+				ctx.addChild(codeBlock);
+			},
+			1000,
+		);
 
 		this.codeBlockProcessorsRegistered = true;
 		this.app.workspace.updateOptions();
