@@ -71,6 +71,7 @@ describe('startup bundle', () => {
 		expect(styles).toContain('.shiki-live-preview-block');
 		expect(styles).toContain('overflow:auto hidden');
 		expect(styles).toContain('position:sticky');
+		expect(styles).toContain('transform:translateZ(0)');
 	});
 
 	test('release workflow uploads every generated JavaScript sidecar', () => {

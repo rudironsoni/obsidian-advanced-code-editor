@@ -37,7 +37,7 @@ describe('native Live Preview block scrolling', () => {
 		expect(codeScrollRule).not.toContain('overflow-x: auto');
 		expect(codeScrollRule).toContain('contain: paint');
 		expect(codeScrollRule).toContain('will-change: transform');
-		expect(codeScrollRule).toContain('transform: translate3d(0, 0, 0)');
+		expect(codeScrollRule).toContain('transform: translateZ(0)');
 		expect(codeScrollRule).toContain('backface-visibility: hidden');
 	});
 

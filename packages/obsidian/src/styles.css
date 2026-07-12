@@ -321,7 +321,7 @@ span.shiki-ul {
 	position: relative;
 	contain: paint;
 	will-change: transform;
-	transform: translate3d(0, 0, 0);
+	transform: translateZ(0);
 	backface-visibility: hidden;
 }
 
