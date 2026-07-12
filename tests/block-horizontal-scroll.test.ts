@@ -24,7 +24,7 @@ describe('native Live Preview block scrolling', () => {
 		const bodyRule =
 			[...styles.matchAll(/\.shiki-block-body \{([\s\S]*?)\n\}/g)].map(match => match[1] ?? '').find(rule => rule.includes('overflow-x: auto')) ?? '';
 		const codeScrollRule =
-			[...styles.matchAll(/\.shiki-code-scroll \{([\s\S]*?)\n\}/g)].map(match => match[1] ?? '').find(rule => rule.includes('overflow-x: visible')) ?? '';
+			[...styles.matchAll(/\.shiki-code-scroll \{([\s\S]*?)\n\}/g)].map(match => match[1] ?? '').find(rule => rule.includes('contain: paint')) ?? '';
 
 		expect(adapter).toContain("body.dataset.shikiScrollOwner = this.plugin.loadedSettings.wrapLines ? 'false' : 'true'");
 		expect(adapter).toContain("scroll.dataset.shikiScrollOwner = 'false'");
@@ -35,6 +35,10 @@ describe('native Live Preview block scrolling', () => {
 		expect(bodyRule).toContain('-webkit-overflow-scrolling: touch');
 		expect(codeScrollRule).toContain('overflow-x: visible');
 		expect(codeScrollRule).not.toContain('overflow-x: auto');
+		expect(codeScrollRule).toContain('contain: paint');
+		expect(codeScrollRule).toContain('will-change: transform');
+		expect(codeScrollRule).toContain('transform: translate3d(0, 0, 0)');
+		expect(codeScrollRule).toContain('backface-visibility: hidden');
 	});
 
 	test('keeps the internal line-number gutter pinned inside the native body scroller', () => {

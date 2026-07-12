@@ -319,6 +319,10 @@ span.shiki-ul {
 	padding-left: var(--shiki-gutter-code-gap);
 	min-width: max-content;
 	position: relative;
+	contain: paint;
+	will-change: transform;
+	transform: translate3d(0, 0, 0);
+	backface-visibility: hidden;
 }
 
 .shiki-live-preview-block:not(.wrap-lines) .shiki-block-body,
