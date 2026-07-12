@@ -114,12 +114,16 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private touchBlockId: string | undefined;
 			private touchStartX = 0;
 			private touchStartY = 0;
+			private touchStartScrollLeft = 0;
+			private touchSource: HTMLElement | undefined;
 			private touchHorizontal = false;
 			private touchId: number | undefined;
 			private pointerId: number | undefined;
 			private pointerBlockId: string | undefined;
 			private pointerStartX = 0;
 			private pointerStartY = 0;
+			private pointerStartScrollLeft = 0;
+			private pointerSource: HTMLElement | undefined;
 			private pointerHorizontal = false;
 			private readonly resizeObserver: ResizeObserver | undefined;
 			private readonly observedScrollTargets = new Set<HTMLElement>();
@@ -133,6 +137,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private readonly immediateWheelSyncBlockIds = new Set<string>();
 			private scrollFlushFrame: number | undefined;
 			private gestureFrameReset: number | undefined;
+			private nativeSettleFrame: number | undefined;
 			private measureScheduled = false;
 
 			constructor(private readonly view: EditorView) {
@@ -157,6 +162,9 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				if (this.gestureFrameReset !== undefined) {
 					window.cancelAnimationFrame(this.gestureFrameReset);
+				}
+				if (this.nativeSettleFrame !== undefined) {
+					window.cancelAnimationFrame(this.nativeSettleFrame);
 				}
 				for (const target of this.observedScrollTargets) {
 					target.removeEventListener('scroll', this.onScroll);
@@ -230,11 +238,14 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					return;
 				}
 				this.resetTouch();
+				this.cancelNativeSettle();
 				this.gestureInput = 'pointer';
 				this.pointerId = event.pointerId;
 				this.pointerBlockId = target.blockId;
 				this.pointerStartX = event.clientX;
 				this.pointerStartY = event.clientY;
+				this.pointerStartScrollLeft = target.surface.scrollLeft;
+				this.pointerSource = target.surface;
 				this.pointerHorizontal = false;
 			};
 
@@ -254,12 +265,16 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				if (!this.pointerHorizontal) {
 					return;
 				}
+				this.syncNativeGesturePrediction(this.pointerBlockId, this.pointerStartScrollLeft - deltaX, this.pointerSource);
 				this.containNativeHorizontalGesture(event);
 			};
 
 			readonly onPointerEnd = (event: PointerEvent): void => {
 				if (this.pointerId === event.pointerId) {
+					const blockId = this.pointerBlockId;
+					const source = this.pointerSource;
 					this.resetPointer();
+					if (blockId && source) this.scheduleNativeSettle(blockId, source);
 				}
 			};
 
@@ -274,9 +289,12 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					return;
 				}
 				this.touchBlockId = target.blockId;
+				this.cancelNativeSettle();
 				this.gestureInput = 'touch';
 				this.touchStartX = touch.clientX;
 				this.touchStartY = touch.clientY;
+				this.touchStartScrollLeft = target.surface.scrollLeft;
+				this.touchSource = target.surface;
 				this.touchHorizontal = false;
 				this.touchId = touch.identifier;
 			};
@@ -305,11 +323,15 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				if (!this.touchHorizontal) {
 					return;
 				}
+				this.syncNativeGesturePrediction(this.touchBlockId, this.touchStartScrollLeft - deltaX, this.touchSource);
 				this.containNativeHorizontalGesture(event);
 			};
 
 			readonly onTouchEnd = (): void => {
+				const blockId = this.touchBlockId;
+				const source = this.touchSource;
 				this.resetTouch();
+				if (blockId && source) this.scheduleNativeSettle(blockId, source);
 			};
 
 			private readonly onDomMutations = (records: MutationRecord[]): void => {
@@ -337,6 +359,46 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.pendingNativeSourceByBlock.set(blockId, source);
 				this.pendingScrollLeftByBlock.set(blockId, nextScrollLeft);
 				this.scheduleScrollFlush();
+			}
+
+			private syncNativeGesturePrediction(blockId: string, scrollLeft: number, source: HTMLElement | undefined): void {
+				if (!source) return;
+				const nextScrollLeft = this.clampBlockScrollLeft(blockId, scrollLeft);
+				this.scrollLeftByBlock.set(stableBlockScrollMemoryKey(blockId), nextScrollLeft);
+				this.pendingScrollLeftByBlock.delete(blockId);
+				this.pendingNativeSourceByBlock.delete(blockId);
+				this.syncing = true;
+				try {
+					this.applyBlockScroll(blockId, nextScrollLeft, source);
+				} finally {
+					this.syncing = false;
+				}
+			}
+
+			private scheduleNativeSettle(blockId: string, source: HTMLElement): void {
+				this.cancelNativeSettle();
+				let previousScrollLeft = -1;
+				let stableFrames = 0;
+				let remainingFrames = 30;
+				const settle = (): void => {
+					const scrollLeft = this.clampBlockScrollLeft(blockId, source.scrollLeft);
+					this.syncNativeGesturePrediction(blockId, scrollLeft, source);
+					stableFrames = Math.abs(scrollLeft - previousScrollLeft) <= 1 ? stableFrames + 1 : 0;
+					previousScrollLeft = scrollLeft;
+					remainingFrames--;
+					if (stableFrames >= 2 || remainingFrames <= 0 || !source.isConnected) {
+						this.nativeSettleFrame = undefined;
+						return;
+					}
+					this.nativeSettleFrame = window.requestAnimationFrame(settle);
+				};
+				this.nativeSettleFrame = window.requestAnimationFrame(settle);
+			}
+
+			private cancelNativeSettle(): void {
+				if (this.nativeSettleFrame === undefined) return;
+				window.cancelAnimationFrame(this.nativeSettleFrame);
+				this.nativeSettleFrame = undefined;
 			}
 
 			private syncBlockImmediate(blockId: string, scrollLeft: number): void {
@@ -679,12 +741,14 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				target: EventTarget | null,
 				_clientX?: number,
 				_clientY?: number,
-			): { blockId: string; scrollLeft: number } | undefined {
-				const targetBlockId = this.blockIdFromElement(
-					target instanceof Element ? target : target instanceof Text ? (target.parentElement ?? undefined) : undefined,
+			): { blockId: string; scrollLeft: number; surface: HTMLElement } | undefined {
+				const element = target instanceof Element ? target : target instanceof Text ? (target.parentElement ?? undefined) : undefined;
+				const surface = element?.closest<HTMLElement>(
+					`.${SHIKI_BLOCK_SCROLL_ROW_CLASS}[data-shiki-block-id], .${SHIKI_BLOCK_SCROLLBAR_CLASS}[data-shiki-block-id]`,
 				);
+				const targetBlockId = this.blockIdFromElement(element);
 				if (targetBlockId) {
-					return { blockId: targetBlockId, scrollLeft: this.blockScrollLeft(targetBlockId) };
+					return { blockId: targetBlockId, scrollLeft: this.blockScrollLeft(targetBlockId), surface: surface! };
 				}
 				return undefined;
 			}
@@ -762,6 +826,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 
 			private resetTouch(): void {
 				this.touchBlockId = undefined;
+				this.touchSource = undefined;
 				this.touchHorizontal = false;
 				this.touchId = undefined;
 				if (this.gestureInput === 'touch') this.gestureInput = undefined;
@@ -770,6 +835,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private resetPointer(): void {
 				this.pointerId = undefined;
 				this.pointerBlockId = undefined;
+				this.pointerSource = undefined;
 				this.pointerHorizontal = false;
 				if (this.gestureInput === 'pointer') this.gestureInput = undefined;
 			}

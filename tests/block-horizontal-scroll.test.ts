@@ -375,12 +375,14 @@ describe('block horizontal scroll identity', () => {
 		expect(source).toContain('private syncGestureBlock(blockId: string, scrollLeft: number): void {');
 		expect(source).toContain("private gestureInput: 'pointer' | 'touch' | undefined;");
 		expect(source).toContain("if (this.gestureInput === 'pointer')");
-		expect(source).not.toContain('pointerStartScrollLeft');
-		expect(source).not.toContain('touchStartScrollLeft');
+		expect(source).toContain('pointerStartScrollLeft');
+		expect(source).toContain('touchStartScrollLeft');
+		expect(source).toContain('this.syncNativeGesturePrediction(');
+		expect(source).toContain('this.applyBlockScroll(blockId, nextScrollLeft, source);');
 		expect(source).toContain('this.applyBlockScroll(blockId, nextScrollLeft);');
 	});
 
-	test('leaves horizontal touch movement to the native row scroller', async () => {
+	test('keeps the touched row native while synchronizing sibling rows from finger movement', async () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({
@@ -403,12 +405,12 @@ describe('block horizontal scroll identity', () => {
 
 			expect(move.defaultPrevented).toBe(false);
 			expect(longRow.scrollLeft).toBe(0);
-			expect(shortRow.scrollLeft).toBe(0);
+			expect(shortRow.scrollLeft).toBe(200);
 
 			await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
 			expect(longRow.scrollLeft).toBe(0);
-			expect(shortRow.scrollLeft).toBe(0);
+			expect(shortRow.scrollLeft).toBe(200);
 		} finally {
 			view.destroy();
 			parent.remove();
@@ -474,7 +476,7 @@ describe('block horizontal scroll identity', () => {
 
 			expect(duplicateTouchMove.defaultPrevented).toBe(false);
 			expect(longRow.scrollLeft).toBe(0);
-			expect(shortRow.scrollLeft).toBe(0);
+			expect(shortRow.scrollLeft).toBe(100);
 		} finally {
 			view.destroy();
 			parent.remove();
@@ -510,7 +512,7 @@ describe('block horizontal scroll identity', () => {
 		}
 	});
 
-	test('does not synthesize row scrolling when a pointer gesture ends', async () => {
+	test('keeps sibling prediction aligned when native pointer scrolling ends', async () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
 		const view = new EditorView({
@@ -540,14 +542,17 @@ describe('block horizontal scroll identity', () => {
 			);
 
 			expect(longRow.scrollLeft).toBe(0);
-			expect(shortRow.scrollLeft).toBe(0);
+			expect(shortRow.scrollLeft).toBe(220);
+
+			longRow.scrollLeft = 220;
+			longRow.dispatchEvent(new Event('scroll', { bubbles: true }));
 
 			content.dispatchEvent(
 				new PointerEvent('pointerup', { bubbles: true, cancelable: true, clientX: 40, clientY: 22, pointerId, pointerType: 'touch' }),
 			);
 
-			expect(longRow.scrollLeft).toBe(0);
-			expect(shortRow.scrollLeft).toBe(0);
+			expect(longRow.scrollLeft).toBe(220);
+			expect(shortRow.scrollLeft).toBe(220);
 		} finally {
 			view.destroy();
 			parent.remove();
