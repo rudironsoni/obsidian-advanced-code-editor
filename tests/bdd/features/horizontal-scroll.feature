@@ -143,7 +143,7 @@ Feature: Block-owned horizontal scroll
     And the surrounding note should not move horizontally
 
   @mobile
-  Scenario: Mobile-emulated Live Preview repeated touch scrolling remains responsive
+  Scenario: Mobile-emulated dense Live Preview code blocks keep sibling rows responsive while the touched row scrolls natively
     Given Obsidian is running in mobile emulation
     And horizontal scroll settings use nowrap with line numbers
     And the fixture note "Horizontal scroll stress block.md" is open in Live Preview for horizontal scroll

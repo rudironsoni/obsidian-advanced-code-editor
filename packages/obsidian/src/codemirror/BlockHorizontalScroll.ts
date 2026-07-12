@@ -5,6 +5,9 @@ export const SHIKI_BLOCK_SCROLL_ROW_CLASS = 'shiki-block-scroll-row';
 export const SHIKI_BLOCK_SCROLLBAR_CLASS = 'shiki-block-horizontal-scrollbar';
 export const SHIKI_BLOCK_SCROLLBAR_INNER_CLASS = 'shiki-block-horizontal-scrollbar-inner';
 export const SHIKI_BLOCK_SCROLL_SPACER_CLASS = 'shiki-block-scroll-spacer';
+export const SHIKI_BLOCK_VISUAL_SCROLL_ROW_CLASS = 'shiki-block-visual-scroll-row';
+
+const SHIKI_BLOCK_VISUAL_SCROLL_OFFSET = '--shiki-block-visual-scroll-offset';
 
 export class ShikiBlockHorizontalScrollbarWidget extends WidgetType {
 	constructor(
@@ -105,10 +108,19 @@ interface BlockScrollMeasure {
 	disabled: boolean;
 }
 
+interface ActiveVisualScroll {
+	blockId: string;
+	source: HTMLElement;
+	rows: HTMLElement[];
+	baselineScrollLeft: number;
+	effectiveScrollLeft: number;
+}
+
 export function createBlockHorizontalScrollPlugin(): Extension {
 	return ViewPlugin.fromClass(
 		class BlockHorizontalScrollPlugin {
 			private gestureInput: 'pointer' | 'touch' | undefined;
+			private activeVisualScroll: ActiveVisualScroll | undefined;
 			private readonly scrollLeftByBlock = new Map<string, number>();
 			private syncing = false;
 			private touchBlockId: string | undefined;
@@ -137,6 +149,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			private readonly immediateWheelSyncBlockIds = new Set<string>();
 			private scrollFlushFrame: number | undefined;
 			private gestureFrameReset: number | undefined;
+			private nativeFollowFrame: number | undefined;
 			private nativeSettleFrame: number | undefined;
 			private measureScheduled = false;
 
@@ -149,12 +162,17 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			}
 
 			update(update: ViewUpdate): void {
+				if (update.docChanged) {
+					this.cancelNativeSettle();
+					this.finishActiveVisualScroll();
+				}
 				if (update.docChanged || update.viewportChanged || update.geometryChanged) {
 					this.scheduleMeasure();
 				}
 			}
 
 			destroy(): void {
+				this.clearActiveVisualScroll();
 				this.domObserver.disconnect();
 				this.resizeObserver?.disconnect();
 				if (this.scrollFlushFrame !== undefined) {
@@ -163,6 +181,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				if (this.gestureFrameReset !== undefined) {
 					window.cancelAnimationFrame(this.gestureFrameReset);
 				}
+				this.cancelNativeFollow();
 				if (this.nativeSettleFrame !== undefined) {
 					window.cancelAnimationFrame(this.nativeSettleFrame);
 				}
@@ -190,6 +209,12 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					return;
 				}
 				if (source.classList.contains(SHIKI_BLOCK_SCROLL_ROW_CLASS)) {
+					if (this.activeVisualScroll?.blockId === blockId) {
+						if (this.activeVisualScroll.source === source) {
+							this.updateActiveVisualScroll(this.clampBlockScrollLeft(blockId, source.scrollLeft));
+						}
+						return;
+					}
 					const cache = this.blockCacheById.get(blockId);
 					const memoryScrollLeft = this.scrollLeftByBlock.get(stableBlockScrollMemoryKey(blockId)) ?? 0;
 					const expectedScrollLeft = this.expectedScrollLeftByElement.get(source) ?? 0;
@@ -221,6 +246,8 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 			};
 
 			readonly onWheel = (event: WheelEvent): boolean | void => {
+				this.cancelNativeSettle();
+				this.finishActiveVisualScroll();
 				const target = this.scrollTargetFromEvent(event.target, event.clientX, event.clientY);
 				if (!target || this.isBlockScrollDisabled(target.blockId)) {
 					return;
@@ -242,13 +269,14 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				if (this.gestureInput === 'touch') {
 					return;
 				}
+				this.cancelNativeSettle();
+				this.finishActiveVisualScroll();
 				const target = this.scrollTargetFromEvent(event.target, event.clientX, event.clientY);
 				if (!target || this.isBlockScrollDisabled(target.blockId)) {
 					this.resetPointer();
 					return;
 				}
 				this.resetTouch();
-				this.cancelNativeSettle();
 				this.gestureInput = 'pointer';
 				this.pointerId = event.pointerId;
 				this.pointerBlockId = target.blockId;
@@ -257,6 +285,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.pointerStartScrollLeft = target.surface.scrollLeft;
 				this.pointerSource = target.surface;
 				this.pointerHorizontal = false;
+				this.beginActiveVisualScroll(target.blockId, target.surface, target.surface.scrollLeft);
 			};
 
 			readonly onPointerMove = (event: PointerEvent): void => {
@@ -270,12 +299,13 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				if (!this.pointerHorizontal && Math.abs(deltaY) > 6 && Math.abs(deltaY) > Math.abs(deltaX)) {
 					this.resetPointer();
+					this.finishActiveVisualScroll();
 					return;
 				}
 				if (!this.pointerHorizontal) {
 					return;
 				}
-				this.syncNativeGesturePrediction(this.pointerBlockId, this.pointerStartScrollLeft - deltaX, this.pointerSource);
+				this.syncNativeGesturePrediction(this.pointerBlockId, this.pointerStartScrollLeft - deltaX, this.pointerStartScrollLeft, this.pointerSource);
 				this.containNativeHorizontalGesture(event);
 			};
 
@@ -283,8 +313,10 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				if (this.pointerId === event.pointerId) {
 					const blockId = this.pointerBlockId;
 					const source = this.pointerSource;
+					const horizontal = this.pointerHorizontal;
 					this.resetPointer();
-					if (blockId && source) this.scheduleNativeSettle(blockId, source);
+					if (horizontal && blockId && source) this.scheduleNativeSettle(blockId, source);
+					else this.finishActiveVisualScroll();
 				}
 			};
 
@@ -292,6 +324,8 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				if (this.gestureInput === 'touch') {
 					return;
 				}
+				this.cancelNativeSettle();
+				this.finishActiveVisualScroll();
 				const touch = event.changedTouches[0];
 				const target = touch ? this.scrollTargetFromEvent(event.target, touch.clientX, touch.clientY) : undefined;
 				if (!target || !touch || this.isBlockScrollDisabled(target.blockId)) {
@@ -300,7 +334,6 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				this.resetPointer();
 				this.touchBlockId = target.blockId;
-				this.cancelNativeSettle();
 				this.gestureInput = 'touch';
 				this.touchStartX = touch.clientX;
 				this.touchStartY = touch.clientY;
@@ -308,11 +341,13 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.touchSource = target.surface;
 				this.touchHorizontal = false;
 				this.touchId = touch.identifier;
+				this.beginActiveVisualScroll(target.blockId, target.surface, target.surface.scrollLeft);
 			};
 
 			readonly onTouchMove = (event: TouchEvent): void => {
 				if (event.touches.length > 1) {
 					this.resetTouch();
+					this.finishActiveVisualScroll();
 					return;
 				}
 				if (this.gestureInput !== 'touch' || !this.touchBlockId || this.touchId === undefined) {
@@ -329,12 +364,13 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				if (!this.touchHorizontal && Math.abs(deltaY) > 6 && Math.abs(deltaY) > Math.abs(deltaX)) {
 					this.resetTouch();
+					this.finishActiveVisualScroll();
 					return;
 				}
 				if (!this.touchHorizontal) {
 					return;
 				}
-				this.syncNativeGesturePrediction(this.touchBlockId, this.touchStartScrollLeft - deltaX, this.touchSource);
+				this.syncNativeGesturePrediction(this.touchBlockId, this.touchStartScrollLeft - deltaX, this.touchStartScrollLeft, this.touchSource);
 				this.containNativeHorizontalGesture(event);
 			};
 
@@ -344,13 +380,19 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				}
 				const blockId = this.touchBlockId;
 				const source = this.touchSource;
+				const horizontal = this.touchHorizontal;
 				this.resetTouch();
-				if (blockId && source) this.scheduleNativeSettle(blockId, source);
+				if (horizontal && blockId && source) this.scheduleNativeSettle(blockId, source);
+				else this.finishActiveVisualScroll();
 			};
 
 			private readonly onDomMutations = (records: MutationRecord[]): void => {
 				if (!records.some(record => record.addedNodes.length > 0 || record.removedNodes.length > 0)) {
 					return;
+				}
+				if (this.activeVisualScroll && !this.activeVisualScroll.source.isConnected) {
+					this.cancelNativeSettle();
+					this.clearActiveVisualScroll();
 				}
 				this.scheduleMeasure();
 			};
@@ -375,39 +417,136 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 				this.scheduleScrollFlush();
 			}
 
-			private syncNativeGesturePrediction(blockId: string, scrollLeft: number, source: HTMLElement | undefined): void {
+			private syncNativeGesturePrediction(blockId: string, scrollLeft: number, baselineScrollLeft: number, source: HTMLElement | undefined): void {
 				if (!source) return;
-				const nextScrollLeft = this.clampBlockScrollLeft(blockId, scrollLeft);
+				const sourceNativeMaxScrollLeft = this.rowNativeMaxScrollLeftByElement.get(source) ?? this.maxBlockScrollLeft(blockId);
+				const predictedScrollLeft = Math.min(this.clampBlockScrollLeft(blockId, scrollLeft), sourceNativeMaxScrollLeft);
+				const clampedBaselineScrollLeft = this.clampBlockScrollLeft(blockId, baselineScrollLeft);
+				const nativeScrollLeft = this.clampBlockScrollLeft(blockId, source.scrollLeft);
+				const nativeDelta = nativeScrollLeft - clampedBaselineScrollLeft;
+				const nextScrollLeft = Math.abs(nativeDelta) > 1 ? nativeScrollLeft : predictedScrollLeft;
 				this.scrollLeftByBlock.set(stableBlockScrollMemoryKey(blockId), nextScrollLeft);
 				this.pendingScrollLeftByBlock.delete(blockId);
 				this.pendingNativeSourceByBlock.delete(blockId);
-				this.syncing = true;
-				try {
-					this.applyBlockScroll(blockId, nextScrollLeft, source);
-				} finally {
-					this.syncing = false;
+				this.beginActiveVisualScroll(blockId, source, baselineScrollLeft);
+				this.updateActiveVisualScroll(nextScrollLeft);
+			}
+
+			private beginActiveVisualScroll(blockId: string, source: HTMLElement, baselineScrollLeft: number): void {
+				if (this.activeVisualScroll?.blockId === blockId && this.activeVisualScroll.source === source) return;
+				this.finishActiveVisualScroll();
+				const cache = this.blockCacheById.get(blockId);
+				if (!cache) return;
+				this.pendingScrollLeftByBlock.delete(blockId);
+				this.pendingNativeSourceByBlock.delete(blockId);
+				const clampedBaselineScrollLeft = this.clampBlockScrollLeft(blockId, baselineScrollLeft);
+				this.activeVisualScroll = {
+					blockId,
+					source,
+					rows: cache.rows.filter(row => row.isConnected),
+					baselineScrollLeft: clampedBaselineScrollLeft,
+					effectiveScrollLeft: clampedBaselineScrollLeft,
+				};
+				this.refreshActiveVisualRows(cache.rows);
+				this.setStyleProperty(this.view.dom, SHIKI_BLOCK_VISUAL_SCROLL_OFFSET, '0px');
+				this.scheduleNativeFollow();
+			}
+
+			private scheduleNativeFollow(): void {
+				if (this.nativeFollowFrame !== undefined) return;
+				const follow = (): void => {
+					const active = this.activeVisualScroll;
+					if (!active?.source.isConnected) {
+						this.nativeFollowFrame = undefined;
+						return;
+					}
+					const nativeScrollLeft = this.clampBlockScrollLeft(active.blockId, active.source.scrollLeft);
+					const nativeDelta = nativeScrollLeft - active.baselineScrollLeft;
+					const effectiveDelta = active.effectiveScrollLeft - active.baselineScrollLeft;
+					if (Math.sign(nativeDelta) === Math.sign(effectiveDelta) && Math.abs(nativeDelta) > Math.abs(effectiveDelta)) {
+						this.updateActiveVisualScroll(nativeScrollLeft);
+					}
+					this.nativeFollowFrame = window.requestAnimationFrame(follow);
+				};
+				this.nativeFollowFrame = window.requestAnimationFrame(follow);
+			}
+
+			private cancelNativeFollow(): void {
+				if (this.nativeFollowFrame === undefined) return;
+				window.cancelAnimationFrame(this.nativeFollowFrame);
+				this.nativeFollowFrame = undefined;
+			}
+
+			private refreshActiveVisualRows(rows: HTMLElement[]): void {
+				const active = this.activeVisualScroll;
+				if (!active) return;
+				for (const row of active.rows) {
+					row.classList.remove(SHIKI_BLOCK_VISUAL_SCROLL_ROW_CLASS);
+				}
+				active.rows = rows.filter(row => row.isConnected);
+				for (const row of active.rows) {
+					row.classList.toggle(SHIKI_BLOCK_VISUAL_SCROLL_ROW_CLASS, row !== active.source);
 				}
 			}
 
+			private updateActiveVisualScroll(scrollLeft: number): void {
+				const active = this.activeVisualScroll;
+				if (!active) return;
+				const nextScrollLeft = this.clampBlockScrollLeft(active.blockId, scrollLeft);
+				active.effectiveScrollLeft = nextScrollLeft;
+				this.scrollLeftByBlock.set(stableBlockScrollMemoryKey(active.blockId), nextScrollLeft);
+				const visualDelta = nextScrollLeft - active.baselineScrollLeft;
+				this.setStyleProperty(this.view.dom, SHIKI_BLOCK_VISUAL_SCROLL_OFFSET, `${-visualDelta}px`);
+			}
+
+			private finishActiveVisualScroll(scrollLeft?: number): void {
+				const active = this.activeVisualScroll;
+				if (!active) return;
+				const finalScrollLeft = this.clampBlockScrollLeft(active.blockId, scrollLeft ?? active.source.scrollLeft);
+				this.scrollLeftByBlock.set(stableBlockScrollMemoryKey(active.blockId), finalScrollLeft);
+				this.syncing = true;
+				try {
+					this.applyBlockScroll(active.blockId, finalScrollLeft);
+				} finally {
+					this.syncing = false;
+				}
+				this.clearActiveVisualScroll();
+			}
+
+			private clearActiveVisualScroll(): void {
+				this.cancelNativeFollow();
+				const active = this.activeVisualScroll;
+				if (active) {
+					for (const row of active.rows) {
+						row.classList.remove(SHIKI_BLOCK_VISUAL_SCROLL_ROW_CLASS);
+					}
+				}
+				this.activeVisualScroll = undefined;
+				this.view.dom.style.removeProperty(SHIKI_BLOCK_VISUAL_SCROLL_OFFSET);
+			}
+
 			private scheduleNativeSettle(blockId: string, source: HTMLElement): void {
+				this.cancelNativeFollow();
 				this.cancelNativeSettle();
 				const startingScrollLeft = this.clampBlockScrollLeft(blockId, source.scrollLeft);
 				let previousScrollLeft = startingScrollLeft;
-				let sawNativeMovement = false;
+				let sawNativeMovement =
+					this.activeVisualScroll?.blockId === blockId && Math.abs(startingScrollLeft - this.activeVisualScroll.baselineScrollLeft) > 1;
 				let stableFrames = 0;
 				let remainingFrames = 45;
 				const settle = (): void => {
 					const scrollLeft = this.clampBlockScrollLeft(blockId, source.scrollLeft);
 					sawNativeMovement ||= Math.abs(scrollLeft - startingScrollLeft) > 1;
 					if (sawNativeMovement) {
-						this.syncNativeGesturePrediction(blockId, scrollLeft, source);
+						this.updateActiveVisualScroll(scrollLeft);
 						stableFrames = Math.abs(scrollLeft - previousScrollLeft) <= 1 ? stableFrames + 1 : 0;
 					}
 					previousScrollLeft = scrollLeft;
 					remainingFrames--;
 					if (stableFrames >= 3 || remainingFrames <= 0 || !source.isConnected) {
-						if (remainingFrames <= 0 && !sawNativeMovement) this.syncNativeGesturePrediction(blockId, scrollLeft, source);
 						this.nativeSettleFrame = undefined;
+						if (source.isConnected) this.finishActiveVisualScroll(scrollLeft);
+						else this.clearActiveVisualScroll();
 						return;
 					}
 					this.nativeSettleFrame = window.requestAnimationFrame(settle);
@@ -540,6 +679,7 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 
 			private applyStoredScrolls(): void {
 				for (const blockId of this.blockCacheById.keys()) {
+					if (this.activeVisualScroll?.blockId === blockId) continue;
 					const scrollLeft = this.scrollLeftByBlock.get(stableBlockScrollMemoryKey(blockId));
 					if (scrollLeft !== undefined) {
 						this.syncBlock(blockId, scrollLeft);
@@ -655,6 +795,9 @@ export function createBlockHorizontalScrollPlugin(): Extension {
 					}
 					this.updateRowScrollSpacers(cache);
 					this.blockCacheById.set(measure.blockId, cache);
+					if (this.activeVisualScroll?.blockId === measure.blockId) {
+						this.refreshActiveVisualRows(cache.rows);
+					}
 					measure.rows.forEach((row, index) => {
 						const nativeMaxScrollLeft = Math.max(0, (measure.rowScrollWidths[index] ?? 0) - (measure.rowClientWidths[index] ?? 0));
 						this.rowNativeMaxScrollLeftByElement.set(row, nativeMaxScrollLeft);

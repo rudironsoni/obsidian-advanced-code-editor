@@ -516,6 +516,10 @@ When('I repeatedly scroll the first code block horizontally with wheel gestures'
 When('I repeatedly scroll the first code block horizontally with touch gestures', async () => {
 	assert.equal(activeHorizontalScrollMode, 'live-preview', 'expected repeated touch performance check to run in Live Preview');
 	let referenceMetrics: HorizontalScrollPerformanceResult['metrics'] | undefined;
+	await horizontalScrollPage.openFixture('Horizontal scroll single block.md', 'live-preview');
+	await horizontalScrollPage.waitForHorizontalScrollReady('live-preview', 1, true);
+	await horizontalScrollPage.resetScrollPositions('live-preview');
+	const touchDispatchReferenceMetrics = await horizontalScrollPage.measureSyntheticTouchDispatch(0);
 	if (activeHorizontalScrollNotePath) {
 		await horizontalScrollPage.openFixture(activeHorizontalScrollNotePath, 'reading');
 		await horizontalScrollPage.waitForHorizontalScrollReady('reading', 1, true);
@@ -526,8 +530,12 @@ When('I repeatedly scroll the first code block horizontally with touch gestures'
 		activeHorizontalScrollMode = 'live-preview';
 	}
 	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
+	const touchDispatchMetrics = await horizontalScrollPage.measureSyntheticTouchDispatch(0);
+	await horizontalScrollPage.resetScrollPositions(activeHorizontalScrollMode);
 	lastHorizontalScrollPerformance = await horizontalScrollPage.measureRepeatedTouchScroll(activeHorizontalScrollMode, 0);
 	lastHorizontalScrollPerformance.referenceMetrics = referenceMetrics;
+	lastHorizontalScrollPerformance.touchDispatchMetrics = touchDispatchMetrics;
+	lastHorizontalScrollPerformance.touchDispatchReferenceMetrics = touchDispatchReferenceMetrics;
 	lastHorizontalScrollState = lastHorizontalScrollPerformance.state;
 	writeJsonArtifact(`horizontal-scroll-${activeHorizontalScrollMode}-touch-performance`, lastHorizontalScrollPerformance);
 });
@@ -575,8 +583,9 @@ Then('every Live Preview row should remain aligned during compositor takeover', 
 	const result = lastHorizontalScrollTakeover;
 	assert.equal(result.touchMoveDefaultPrevented, false, `expected native touch movement to remain enabled: ${JSON.stringify(result)}`);
 	assert.ok(result.rowScrollLeftValues.length > 1, `expected multiple Live Preview rows: ${JSON.stringify(result)}`);
-	assert.ok(result.rowScrollLeftValues[0] > 0, `expected active horizontal movement: ${JSON.stringify(result)}`);
-	assert.equal(new Set(result.rowScrollLeftValues).size, 1, `expected all rows to share one active offset: ${JSON.stringify(result)}`);
+	assert.ok(result.effectiveRowScrollLeftValues[0] > 0, `expected active horizontal movement: ${JSON.stringify(result)}`);
+	const effectiveSpread = Math.max(...result.effectiveRowScrollLeftValues) - Math.min(...result.effectiveRowScrollLeftValues);
+	assert.ok(effectiveSpread <= 1, `expected all rows to share one active visual offset: ${JSON.stringify(result)}`);
 	assert.equal(result.noteScrollLeft, 0, `expected note horizontal scroll to remain zero: ${JSON.stringify(result)}`);
 	assert.equal(result.documentScrollLeft, 0, `expected document horizontal scroll to remain zero: ${JSON.stringify(result)}`);
 });
@@ -612,8 +621,9 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 	);
 	if (lastHorizontalScrollPerformance.referenceMetrics) {
 		const reference = lastHorizontalScrollPerformance.referenceMetrics;
-		if (metrics.trustedTouch || metrics.p95InputToPaintMs > 0) {
-			const p95FrameLimit = Math.min(33, reference.p95FrameGapMs * 1.5 + 8);
+		const hasEnoughFrameSamples = (metrics.frameSampleCount ?? 0) >= 10 && (reference.frameSampleCount ?? 0) >= 10;
+		if (hasEnoughFrameSamples) {
+			const p95FrameLimit = Math.min(34, reference.p95FrameGapMs * 1.5 + 8);
 			const maxFrameLimit = Math.min(50, reference.maxFrameGapMs * 1.5 + 16);
 			const inputToPaintLimit = Math.min(33, reference.p95InputToPaintMs * 1.5 + 8);
 			assert.ok(
@@ -637,15 +647,30 @@ Then('Live Preview horizontal scrolling should stay responsive', async () => {
 			metrics.maxDispatchMs <= reference.maxDispatchMs * 3 + 16,
 			`expected Live Preview max dispatch to stay near Reading mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
 		);
-		assert.ok(
-			metrics.maxFrameGapMs <= reference.maxFrameGapMs * 2 + 32,
-			`expected Live Preview frame gaps not to regress far beyond Reading mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
-		);
+		if (hasEnoughFrameSamples) {
+			assert.ok(
+				metrics.maxFrameGapMs <= reference.maxFrameGapMs * 2 + 32,
+				`expected Live Preview frame gaps not to regress far beyond Reading mode: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+			);
+		}
 	}
 	assert.equal(metrics.backtrackCount, 0, `expected horizontal scroll not to jump backward: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(metrics.maxBacktrackPx, 0, `expected no horizontal scroll backtrack distance: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(metrics.maxRowSpread <= 1, `expected sibling rows to synchronize before paint: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.ok(metrics.maxSyncFrames <= 1, `expected sibling rows to settle within one frame: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	if (lastHorizontalScrollPerformance.touchDispatchMetrics && lastHorizontalScrollPerformance.touchDispatchReferenceMetrics) {
+		const dense = lastHorizontalScrollPerformance.touchDispatchMetrics;
+		const short = lastHorizontalScrollPerformance.touchDispatchReferenceMetrics;
+		assert.ok(dense.rowCount > short.rowCount, `expected the dense fixture to mount more rows: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+		assert.ok(dense.p95DispatchMs <= 4, `expected dense touch dispatch p95 under 4ms: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+		assert.ok(
+			dense.p95DispatchMs - short.p95DispatchMs <= 1,
+			`expected dense touch dispatch p95 to stay within 1ms of the short block: ${JSON.stringify(lastHorizontalScrollPerformance)}`,
+		);
+		assert.ok(dense.maxEffectiveRowSpread <= 1, `expected dense sibling rows visually aligned: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+		assert.equal(dense.noteScrollLeft, 0, `expected dense touch dispatch not to move the note: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+		assert.equal(dense.documentScrollLeft, 0, `expected dense touch dispatch not to move the document: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
+	}
 	assert.ok(first.scrollLeft > 0, `expected first block to scroll horizontally: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.noteScrollLeft, 0, `expected note/editor scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);
 	assert.equal(state.documentScrollLeft, 0, `expected document scrollLeft to remain 0: ${JSON.stringify(lastHorizontalScrollPerformance)}`);

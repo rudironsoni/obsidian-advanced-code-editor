@@ -183,9 +183,11 @@ export type HorizontalScrollPerformanceMetrics = {
 	maxDispatchMs: number;
 	p95FrameGapMs: number;
 	maxFrameGapMs: number;
+	frameSampleCount?: number;
 	p95InputToPaintMs: number;
 	maxInputToPaintMs: number;
 	maxRowSpread: number;
+	maxRowSpreadOffsets?: number[];
 	maxSyncFrames: number;
 	finalScrollLeft: number;
 	rowScrollLeftMin: number;
@@ -199,8 +201,20 @@ export type HorizontalScrollPerformanceMetrics = {
 export type HorizontalScrollPerformanceResult = {
 	metrics: HorizontalScrollPerformanceMetrics;
 	referenceMetrics?: HorizontalScrollPerformanceMetrics;
+	touchDispatchMetrics?: HorizontalScrollTouchDispatchMetrics;
+	touchDispatchReferenceMetrics?: HorizontalScrollTouchDispatchMetrics;
 	responsivenessProbeMs?: number;
 	state: HorizontalScrollState;
+};
+
+export type HorizontalScrollTouchDispatchMetrics = {
+	rowCount: number;
+	eventCount: number;
+	p95DispatchMs: number;
+	maxDispatchMs: number;
+	maxEffectiveRowSpread: number;
+	noteScrollLeft: number;
+	documentScrollLeft: number;
 };
 
 export type HorizontalScrollWheelLatencyResult = {
@@ -215,6 +229,7 @@ export type HorizontalScrollWheelLatencyResult = {
 export type HorizontalScrollTakeoverResult = {
 	touchMoveDefaultPrevented: boolean;
 	rowScrollLeftValues: number[];
+	effectiveRowScrollLeftValues: number[];
 	noteScrollLeft: number;
 	documentScrollLeft: number;
 	state: HorizontalScrollState;
@@ -559,10 +574,17 @@ class HorizontalScrollPage {
 				source.scrollLeft = 240;
 				const touchMove = makeTouchEvent('touchmove', 20);
 				target.dispatchEvent(touchMove);
+				const effectiveRowScrollLeftValues = rows.map(row => {
+					const content = row.querySelector<HTMLElement>('.shiki-live-preview-code-content');
+					const transform = content ? getComputedStyle(content).transform : '';
+					const translateX = !transform || transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m41;
+					return row.scrollLeft - translateX;
+				});
 
 				return {
 					touchMoveDefaultPrevented: touchMove.defaultPrevented,
 					rowScrollLeftValues: rows.map(row => row.scrollLeft),
+					effectiveRowScrollLeftValues,
 					noteScrollLeft: noteScroller?.scrollLeft ?? 0,
 					documentScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
 				};
@@ -1017,25 +1039,50 @@ class HorizontalScrollPage {
 				let lastObservedScrollLeft = 0;
 				let backtrackCount = 0;
 				let maxBacktrackPx = 0;
+				let maxRowSpread = 0;
+				let maxRowSpreadOffsets: number[] = [];
 				let frame = 0;
 				let spreadFrame = 0;
+				let gestureStarted = false;
 				const onPointerMove = (): void => {
 					const startedAt = performance.now();
+					gestureStarted = true;
 					eventCount++;
 					lastInputAt = startedAt;
 					lastActivityAt = startedAt;
 					queueMicrotask(() => dispatchDurations.push(performance.now() - startedAt));
 				};
-				const recordSpread = (attempt = 1): void => {
-					const offsets = block.rows.length ? block.rows.map(row => row.scrollLeft) : [target.scrollLeft];
+				const recordSpread = (): void => {
+					const sampledRows = block.rows.length
+						? [
+								...new Set(
+									[block.rows[0], block.rows[Math.floor(block.rows.length / 2)], block.rows.at(-1)].filter(
+										(row): row is HTMLElement => !!row,
+									),
+								),
+							]
+						: [];
+					const nativeOffsets = sampledRows.map(row => row.scrollLeft);
+					const nativeSpread = nativeOffsets.length ? Math.max(...nativeOffsets) - Math.min(...nativeOffsets) : 0;
+					const offsets =
+						sampledRows.length && nativeSpread > 1
+							? sampledRows.map(row => {
+									const content = row.querySelector<HTMLElement>('.shiki-live-preview-code-content');
+									const transform = content ? getComputedStyle(content).transform : '';
+									const translateX = !transform || transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m41;
+									return row.scrollLeft - translateX;
+								})
+							: nativeOffsets.length
+								? nativeOffsets
+								: [target.scrollLeft];
 					const spread = Math.max(0, ...offsets) - Math.min(...offsets);
-					if (spread > 1 && attempt < 8) {
-						spreadFrame = requestAnimationFrame(() => recordSpread(attempt + 1));
-						return;
+					if (spread > maxRowSpread) {
+						maxRowSpread = spread;
+						maxRowSpreadOffsets = offsets;
 					}
 					spreadFrame = 0;
 					rowSpreads.push(spread);
-					syncFrames.push(attempt);
+					syncFrames.push(1);
 					const observed = Math.max(0, target.scrollLeft, block.scrollbar?.scrollLeft ?? 0, ...offsets);
 					if (observed + 1 < lastObservedScrollLeft) {
 						backtrackCount++;
@@ -1044,6 +1091,7 @@ class HorizontalScrollPage {
 					lastObservedScrollLeft = observed;
 				};
 				const onScroll = (): void => {
+					if (!gestureStarted) return;
 					scrollEventCount++;
 					lastActivityAt = performance.now();
 					if (!spreadFrame) {
@@ -1082,6 +1130,7 @@ class HorizontalScrollPage {
 							eventCount: eventCount + scrollEventCount,
 							backtrackCount,
 							maxBacktrackPx,
+							maxRowSpreadOffsets,
 						};
 						delete probeHost[input.probeKey];
 						return result;
@@ -1106,6 +1155,7 @@ class HorizontalScrollPage {
 							eventCount: number;
 							backtrackCount: number;
 							maxBacktrackPx: number;
+							maxRowSpreadOffsets: number[];
 						};
 				  }
 				| undefined;
@@ -1129,9 +1179,11 @@ class HorizontalScrollPage {
 				maxDispatchMs: Math.max(0, ...raw.dispatchDurations),
 				p95FrameGapMs: percentile95(raw.frameGaps),
 				maxFrameGapMs: Math.max(0, ...raw.frameGaps),
+				frameSampleCount: raw.frameGaps.length,
 				p95InputToPaintMs: percentile95(raw.inputToPaintDurations),
 				maxInputToPaintMs: Math.max(0, ...raw.inputToPaintDurations),
 				maxRowSpread: Math.max(0, ...raw.rowSpreads),
+				maxRowSpreadOffsets: raw.maxRowSpreadOffsets,
 				maxSyncFrames: Math.max(0, ...raw.syncFrames),
 				finalScrollLeft: block.scrollLeft,
 				rowScrollLeftMin: block.rowScrollLeftMin,
@@ -1144,6 +1196,80 @@ class HorizontalScrollPage {
 			responsivenessProbeMs: performance.now() - probeStartedAt,
 			state,
 		};
+	}
+
+	async measureSyntheticTouchDispatch(blockIndex: number): Promise<HorizontalScrollTouchDispatchMetrics> {
+		return executeObsidian(
+			({ app }, input: { blockIndex: number; eventCount: number }): HorizontalScrollTouchDispatchMetrics => {
+				const runtimeApp = app as unknown as RuntimeApp;
+				const root =
+					runtimeApp.workspace.activeLeaf?.view?.containerEl ??
+					runtimeApp.workspace.activeLeaf?.view?.contentEl ??
+					document.querySelector('.workspace-leaf.mod-active') ??
+					document;
+				const noteScroller = root.querySelector<HTMLElement>('.cm-scroller');
+				const scope = noteScroller ?? root;
+				const blockIds = new Set(
+					[...scope.querySelectorAll<HTMLElement>('[data-shiki-block-id]')]
+						.map(element => element.dataset.shikiBlockId)
+						.filter((blockId): blockId is string => !!blockId),
+				);
+				const blockId = [...blockIds][input.blockIndex];
+				if (!blockId) throw new Error(`Code block ${input.blockIndex + 1} was not found`);
+				const escapedBlockId = CSS.escape(blockId);
+				const rows = [...scope.querySelectorAll<HTMLElement>(`.shiki-block-scroll-row[data-shiki-block-id="${escapedBlockId}"]`)];
+				const source = rows[0];
+				const target = source?.querySelector<HTMLElement>('.shiki-live-preview-code-content') ?? source;
+				if (!source || !target) throw new Error(`Code block ${input.blockIndex + 1} has no touch source`);
+				for (const row of rows) row.scrollLeft = 0;
+				if (noteScroller) noteScroller.scrollLeft = 0;
+				document.scrollingElement?.scrollTo({ left: 0 });
+
+				const touchId = 83;
+				const makeTouchEvent = (type: string, clientX: number): Event => {
+					const event = new Event(type, { bubbles: true, cancelable: true });
+					const touch = { clientX, clientY: 20, identifier: touchId, target } as unknown as Touch;
+					const touches = { length: 1, item: (index: number) => (index === 0 ? touch : null), 0: touch } as unknown as TouchList;
+					for (const property of ['changedTouches', 'targetTouches', 'touches']) {
+						Object.defineProperty(event, property, { configurable: true, value: touches });
+					}
+					return event;
+				};
+				const effectiveOffset = (row: HTMLElement): number => {
+					const content = row.querySelector<HTMLElement>('.shiki-live-preview-code-content');
+					const transform = content ? getComputedStyle(content).transform : '';
+					const translateX = !transform || transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m41;
+					return row.scrollLeft - translateX;
+				};
+
+				target.dispatchEvent(makeTouchEvent('touchstart', 260));
+				const dispatchDurations: number[] = [];
+				let maxEffectiveRowSpread = 0;
+				for (let index = 0; index < input.eventCount; index++) {
+					const offset = index % 2 === 0 ? 200 : 220;
+					source.scrollLeft = offset;
+					const event = makeTouchEvent('touchmove', 260 - offset);
+					const startedAt = performance.now();
+					target.dispatchEvent(event);
+					dispatchDurations.push(performance.now() - startedAt);
+					const offsets = rows.map(effectiveOffset);
+					maxEffectiveRowSpread = Math.max(maxEffectiveRowSpread, Math.max(...offsets) - Math.min(...offsets));
+				}
+				target.dispatchEvent(makeTouchEvent('touchend', 40));
+				const sortedDurations = [...dispatchDurations].sort((first, second) => first - second);
+				const p95Index = Math.max(0, Math.ceil(sortedDurations.length * 0.95) - 1);
+				return {
+					rowCount: rows.length,
+					eventCount: dispatchDurations.length,
+					p95DispatchMs: sortedDurations[p95Index] ?? 0,
+					maxDispatchMs: Math.max(0, ...dispatchDurations),
+					maxEffectiveRowSpread,
+					noteScrollLeft: noteScroller?.scrollLeft ?? 0,
+					documentScrollLeft: document.scrollingElement?.scrollLeft ?? 0,
+				};
+			},
+			{ blockIndex, eventCount: 60 },
+		);
 	}
 
 	async measureFirstWheelLatency(mode: HorizontalScrollMode, blockIndex: number): Promise<HorizontalScrollWheelLatencyResult> {
